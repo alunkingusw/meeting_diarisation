@@ -1,8 +1,9 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import JSONResponse
-from datetime import timedelta
-from datetime import datetime
+from datetime import timedelta, timezone, datetime
 from pathlib import Path
+import os
+
 import shutil
 
 from app.processing import process_audio
@@ -38,7 +39,7 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.get("/status")
 def get_status():
-    uptime = start_time = datetime.now(timezone.utc) - start_time
+    uptime = datetime.now(timezone.utc) - start_time
     models = check_model_status()
     
     return {
