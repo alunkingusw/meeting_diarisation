@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 import shutil
 
-#from app.processing import process_audio
+from app.processing import process_audio
 
 UPLOAD_DIR = Path("app/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
@@ -13,7 +13,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 app = FastAPI()
 
 # Record start time for uptime
-start_time = datetime.now
+start_time = datetime.now(timezone.utc)
 
 def check_model_status():
     # Placeholder: change this to check real model state later
@@ -38,7 +38,7 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.get("/status")
 def get_status():
-    uptime = datetime.now - start_time
+    uptime = start_time = datetime.now(timezone.utc) - start_time
     models = check_model_status()
     
     return {
