@@ -7,27 +7,21 @@ services:
     volumes:
       - ./uploads:/app/uploads
     depends_on:
-      - mongo
-    environment:
-      - MONGO_URL=mongodb://mongo:27017
-      - MONGO_DB=diarisation_db
+      - db
+    
 
-  mongo:
-    image: mongo:6
-    container_name: diarisation-db
-    restart: always
-    volumes:
-      - mongo_data:/data/db
-  
-  mongo-express:
-    image: mongo-express
-    restart: always
+  db:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: your_user
+      POSTGRES_PASSWORD: your_password
+      POSTGRES_DB: diarisation_db
     ports:
-      - "8081:8081"
-    environment:
-      ME_CONFIG_MONGODB_SERVER: mongo
-      ME_CONFIG_MONGODB_ENABLE_ADMIN: "true"
-      ME_CONFIG_BASICAUTH: "false"
-volumes:
-  mongo_data:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
+volumes:
+  postgres_data:

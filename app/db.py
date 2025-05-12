@@ -1,6 +1,9 @@
-import os
-from pymongo import MongoClient
-from app.startup import MONGO_URL, MONGO_DB
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-client = MongoClient(MONGO_URL)
-db = client[MONGO_DB]
+POSTGRES_URL = "postgresql://your_user:your_password@db:5432/diarisation_db"
+
+engine = create_engine(POSTGRES_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+Base = declarative_base()
