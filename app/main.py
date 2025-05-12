@@ -1,49 +1,23 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from datetime import timedelta, timezone, datetime
 from pathlib import Path
-import os
-
-import shutil
+from app.routes import router as api_router
+from app.startup import set_start_time, set_upload_folder
 
 from app.processing import process_audio
 
-UPLOAD_DIR = Path("app/uploads")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
 
 app = FastAPI()
 
-# Record start time for uptime
-start_time = datetime.now(timezone.utc)
+@app.on_event("startup")
+def startup_event():
+    set_start_time()
+    set_upload_folder()
 
-def check_model_status():
-    # Placeholder: change this to check real model state later
-    whisper_ready = os.path.exists("some_model_file_or_flag.txt")
-    llama_ready = True  # Replace with real health check logic
+app.include_router(api_router)
 
-    return {
-        "whisper_model": "available" if whisper_ready else "unavailable",
-        "llama_model": "available" if llama_ready else "unavailable"
-    }
 
-@app.post("/upload/")
-async def upload_file(file: UploadFile = File(...)):
-    file_path = UPLOAD_DIR / file.filename
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
 
-    # Trigger processing (placeholder)
-    result = process_audio(file_path)
 
-    return JSONResponse(content={"message": "File uploaded", "result": result})
-
-@app.get("/status")
-def get_status():
-    uptime = datetime.now(timezone.utc) - start_time
-    models = check_model_status()
-    
-    return {
-        "status": "ok",
-        "uptime": str(timedelta(seconds=int(uptime.total_seconds()))),
-        "models": models
-    }
