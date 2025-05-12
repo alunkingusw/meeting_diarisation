@@ -18,11 +18,11 @@ async def upload_file(file: UploadFile = File(...)):
         shutil.copyfileobj(file.file, buffer)
 
     # add file upload to the database
-    db.audio_files.insert_one({
-        "filename": file.filename,
-        "uploaded_at": datetime.now().astimezone(),
-        "path": file_path,
-    })
+    #db.audio_files.insert_one({
+    #    "filename": file.filename,
+    #    "uploaded_at": datetime.now().astimezone(),
+    #    "path": file_path,
+    #})
 
     # Trigger processing (placeholder)
     result = process_audio(file_path)
