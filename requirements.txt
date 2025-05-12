@@ -3,3 +3,4 @@ uvicorn
 python-multipart
 pymongo
 python-dotenv
+pydantic
