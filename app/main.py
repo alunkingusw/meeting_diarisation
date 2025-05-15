@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from app.routes import router as api_router
-from app import startup
+
+import app.startup
 
 
 from app.processing import process_audio

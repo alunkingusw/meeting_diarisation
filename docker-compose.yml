@@ -8,6 +8,8 @@ services:
       - ./uploads:/app/uploads
     depends_on:
       - db
+    env_file:
+      - .env
     
 
   db:
@@ -23,16 +25,16 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
-pgadmin:
-  image: dpage/pgadmin4
-  container_name: pgadmin
-  environment:
-    PGADMIN_DEFAULT_EMAIL: admin@example.com
-    PGADMIN_DEFAULT_PASSWORD: admin123
-  ports:
-    - "5050:80"
-  depends_on:
-    - db
-    
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
 volumes:
   postgres_data:

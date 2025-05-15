@@ -1,7 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy.orm import Session
 from app.startup import UPLOAD_DIR
-from app.models import AudioFile
 from werkzeug.utils import secure_filename
 from app.db_dependency import get_db
 

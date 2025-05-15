@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from dotenv import load_dotenv
+from app import models
 from app.db import Base, engine
 
 import logging
@@ -12,8 +12,7 @@ logging.info("Starting application...")
 START_TIME = datetime.now().astimezone()
 logging.info(f"App start time: {START_TIME}")
 
-logging.info("Loading environment file...")
-load_dotenv()
+
 
 logging.info("Creating database tables (if not exist)...")
 
