@@ -18,12 +18,6 @@ groups_group_members = Table(
     Column("group_member_id", Integer, ForeignKey("group_members.id"), primary_key=True)
 )
 
-meetings_media = Table(
-    "meetings_media", Base.metadata,
-    Column("meeting_id", Integer, ForeignKey("meetings.id"), primary_key=True),
-    Column("media_id", Integer, ForeignKey("raw_files.id"), primary_key=True)
-)
-
 meetings_group_members = Table(
     "meetings_group_members", Base.metadata,
     Column("meeting_id", Integer, ForeignKey("meetings.id"), primary_key=True),
@@ -60,7 +54,7 @@ class GroupMember(Base):
     created = Column(DateTime, nullable=False, default=func.now())
 
     groups = relationship("Group", secondary=groups_group_members, back_populates="members")
-
+    attended_meetings = relationship("Meeting", secondary=meetings_group_members, back_populates="attendees")
 
 class Meeting(Base):
     __tablename__ = "meetings"
@@ -70,9 +64,8 @@ class Meeting(Base):
     created = Column(DateTime, nullable=False, default=func.now())
 
     group = relationship("Group", back_populates="meetings")
-    media = relationship("RawFile", secondary=meetings_media, back_populates="meetings")
-    attendees = relationship("GroupMember", secondary=meetings_group_members)
-
+    attendees = relationship("GroupMember", secondary=meetings_group_members, back_populates="attended_meetings")
+    media_files = relationship("RawFile", back_populates="meeting", cascade="all, delete-orphan")
 
 class RawFile(Base):
     __tablename__ = "raw_files"
@@ -80,5 +73,6 @@ class RawFile(Base):
     file_name = Column(String(45), nullable=True)
     human_name = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
-
-    meetings = relationship("Meeting", secondary=meetings_media, back_populates="media")
+    meeting_id = Column(Integer, ForeignKey("meetings.id"),nullable=False)
+    meeting=relationship("Meeting", back_populates="media_files")
+    
