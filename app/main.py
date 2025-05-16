@@ -6,8 +6,23 @@ import app.startup
 
 
 from app.processing import process_audio
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+#add middleware for communication between backend and frontend running on the same server
+origins = [
+    "http://localhost:3000",
+    "http://frontend:3000",  # Docker internal hostname
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 #create default landing page for quick checks.
 @app.get("/")

@@ -1,6 +1,8 @@
 services:
   web:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile
     container_name: diarisation-api
     ports:
       - "8000:8000"
@@ -36,6 +38,21 @@ services:
       - "5050:80"
     depends_on:
       - db
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: diarisation-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NEXT_PUBLIC_API_URL=http://web:8000
+    depends_on:
+      - web
 
 volumes:
   postgres_data:
