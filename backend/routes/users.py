@@ -26,7 +26,7 @@ async def generate_token(
 
 @router.post("/")
 def create_user(user_data:UserCreateEdit, db: Session = Depends(get_db)):
-    user = User(username=user_data.get("username"))
+    user = User(username=user_data.get.username)
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -45,7 +45,7 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 
 @router.put("/{user_id}")
 def update_user(user_data:UserCreateEdit, username: str, db: Session = Depends(get_db)):
-    user = db.query(User).get(user_data.get("username"))
+    user = db.query(User).get(user_data.get.username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user.username = user_data.get("username")

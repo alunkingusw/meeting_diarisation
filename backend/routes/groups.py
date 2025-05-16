@@ -14,7 +14,7 @@ def create_group(group_data: GroupCreateEdit, db: Session = Depends(get_db), use
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    new_group = Group(name=group_data.get("name"))
+    new_group = Group(name=group_data.name)
     new_group.users.append(user)  # Associate this group with the user
     db.add(new_group)
     db.commit()

@@ -10,7 +10,7 @@ router = APIRouter(prefix="/group-members", tags=["group_members"])
 
 @router.post("/")
 def create_member(group_member_data: GroupMembersCreateEdit, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
-    member = GroupMember(name=group_member_data.get("name"))
+    member = GroupMember(name=group_member_data.name)
     db.add(member)
     db.commit()
     db.refresh(member)
@@ -32,7 +32,7 @@ def update_member(member_id: int, group_member_data: GroupMembersCreateEdit, db:
     member = db.query(GroupMember).get(member_id)
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
-    member.name = group_member_data.get("name")
+    member.name = group_member_data.name
     db.commit()
     return member
 

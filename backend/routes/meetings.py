@@ -5,13 +5,13 @@ from backend.models import Meeting
 from backend.db_dependency import get_db
 from datetime import datetime
 from backend.validation import MeetingCreateEdit
-from auth import get_current_user_id
+from backend.auth import get_current_user_id
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
 @router.post("/")
 def create_meeting(meeting_data:MeetingCreateEdit, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
-    meeting = Meeting(groups_idgroups=meeting_data.get("groups_idgroups"), date=datetime.now(), created=datetime.now())
+    meeting = Meeting(groups_idgroups=meeting_data.groups_idgroups, date=datetime.now(), created=datetime.now())
     db.add(meeting)
     db.commit()
     db.refresh(meeting)

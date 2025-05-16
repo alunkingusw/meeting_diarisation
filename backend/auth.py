@@ -17,6 +17,7 @@ def create_token_for_user(user_id: int) -> str:
     return token
 
 def verify_token(token: str) -> Optional[int]:
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")

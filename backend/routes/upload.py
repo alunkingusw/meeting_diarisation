@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from backend.startup import UPLOAD_DIR
 from werkzeug.utils import secure_filename
 from backend.db_dependency import get_db
+from backend.auth import get_current_user_id
 
 
 
