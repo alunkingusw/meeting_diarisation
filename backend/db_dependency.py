@@ -1,5 +1,5 @@
-# app/dependencies.py
-from app.db import SessionLocal
+# backend/dependencies.py
+from backend.db import SessionLocal
 from sqlalchemy.orm import Session
 
 def get_db():

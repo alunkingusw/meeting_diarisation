@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
-from app import models
-from app.db import Base, engine
+from backend import models
+from backend.db import Base, engine
 
 import logging
 
@@ -24,5 +24,5 @@ try:
 except Exception as e:
     logging.error(f"Error initializing the database: {e}")
 
-UPLOAD_DIR = Path("app/uploads")
+UPLOAD_DIR = Path("backend/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

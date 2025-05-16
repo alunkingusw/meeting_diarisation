@@ -5,8 +5,8 @@ from sqlalchemy import text
 from datetime import datetime
 import os
 
-from app.db import SessionLocal
-from app.startup import START_TIME
+from backend.db import SessionLocal
+from backend.startup import START_TIME
 
 router = APIRouter()
 

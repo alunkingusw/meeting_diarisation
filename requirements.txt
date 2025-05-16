@@ -7,3 +7,4 @@ python-dotenv
 pydantic
 werkzeug
 alembic
+python-jose[cryptography]

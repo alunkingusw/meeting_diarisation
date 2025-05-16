@@ -7,12 +7,12 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./uploads:/app/uploads
+      - ./uploads:/backend/uploads
     depends_on:
       - db
     env_file:
       - .env
-    command: bash -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: bash -c "alembic upgrade head && uvicorn backend.main:backend --host 0.0.0.0 --port 8000"
     
 
   db:
@@ -50,7 +50,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - NEXT_PUBLIC_API_URL=http://web:8000
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
       - web
 

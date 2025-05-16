@@ -1,19 +1,19 @@
 from fastapi import APIRouter, UploadFile, File, Depends
 from sqlalchemy.orm import Session
-from app.startup import UPLOAD_DIR
+from backend.startup import UPLOAD_DIR
 from werkzeug.utils import secure_filename
-from app.db_dependency import get_db
+from backend.db_dependency import get_db
 
 
 
 import shutil
-from app.processing import process_audio
+from backend.processing import process_audio
 
 router = APIRouter()
 
 
 @router.post("/upload/")
-async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
     safe_filename = secure_filename(file.filename)
     file_path = UPLOAD_DIR / safe_filename
     with open(file_path, "wb") as buffer:

@@ -1,14 +1,14 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from app.routes import router as api_router
+from backend.routes import router as api_router
 
-import app.startup
+import backend.startup
 
 
-from app.processing import process_audio
+from backend.processing import process_audio
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI()
+backend = FastAPI()
 
 #add middleware for communication between backend and frontend running on the same server
 origins = [
@@ -16,7 +16,7 @@ origins = [
     "http://frontend:3000",  # Docker internal hostname
 ]
 
-app.add_middleware(
+backend.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
@@ -25,8 +25,8 @@ app.add_middleware(
 )
 
 #create default landing page for quick checks.
-@app.get("/")
+@backend.get("/")
 def root():
     return {"message": "Diarisation API is running."}
 
-app.include_router(api_router)
+backend.include_router(api_router)

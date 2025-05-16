@@ -8,7 +8,7 @@ from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, func
 )
 from sqlalchemy.orm import relationship
-from app.db import Base
+from backend.db import Base
 
 # Association Tables
 
