@@ -1,3 +1,9 @@
+# NOTE - if this file is altered and it affects the database schema, 
+# run this command in the terminal
+# python -m alembic revision --autogenerate -m "Describe your changes here"
+# then apply to the database using the following command
+# python -m alembic upgrade head
+
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, func
 )

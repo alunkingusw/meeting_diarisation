@@ -6,3 +6,4 @@ sqlalchemy
 python-dotenv
 pydantic
 werkzeug
+alembic
