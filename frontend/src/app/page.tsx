@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface User {
   id: number;
@@ -80,7 +81,7 @@ export default function Home() {
 
     <p className="mt-10 text-center text-sm/6 text-gray-500">
       Not a user?
-      <a href="#" className="font-semibold text-indigo-600 hover:text-indigo-500">Sign up</a>
+      <Link href="#" className="font-semibold text-indigo-600 hover:text-indigo-500">Sign up</Link>
     </p>
   </div>
 </div>

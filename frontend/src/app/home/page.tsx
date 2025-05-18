@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-
+import Link from 'next/link';
 interface Group {
   id: number;
   name: string;
@@ -43,11 +43,7 @@ export default function HomePage() {
       });
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    router.push('/');
-  };
-
+  
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
@@ -81,12 +77,7 @@ export default function HomePage() {
     <main className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Your Groups</h1>
-        <button
-          onClick={handleLogout}
-          className="text-sm px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-        >
-          Logout
-        </button>
+        
       </div>
 
       {loading ? (
@@ -97,9 +88,9 @@ export default function HomePage() {
         <ul className="list-disc pl-5">
           {groups.map(group => (
             <li key={group.id}>
-        <a href={`/home/${group.id}`} className="text-blue-500 hover:underline">
+        <Link href={`/home/${group.id}`} className="text-blue-500 hover:underline">
           {group.name}
-        </a>
+        </Link>
       </li>
           ))}
         </ul>

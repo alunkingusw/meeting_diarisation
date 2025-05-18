@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Header from './components/Header'; // client component
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,17 +18,22 @@ export const metadata: Metadata = {
   description: "Create and manage and overview of group discussions",
 };
 
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  
   return (
     <html lang="en" className="h-full bg-white">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased h-full`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased h-full bg-gray-50 min-h-screen`}
       >
-        {children}
+      <Header />
+
+        {/* Page content */}
+        <main className="p-6">{children}</main>
       </body>
     </html>
   );
