@@ -3,6 +3,9 @@
 # python -m alembic revision --autogenerate -m "Describe your changes here"
 # then apply to the database using the following command
 # python -m alembic upgrade head
+from pydantic import BaseModel
+from typing import List
+from datetime import datetime
 
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, func
@@ -81,4 +84,19 @@ class RawFile(Base):
     description = Column(Text, nullable=True)
     meeting_id = Column(Integer, ForeignKey("meetings.id"),nullable=False)
     meeting=relationship("Meeting", back_populates="media_files")
-    
+
+class GroupMemberOut(BaseModel):
+    id: int
+    name: str
+    created: datetime
+
+    class Config:
+        orm_mode = True
+
+class GroupOut(BaseModel):
+    id: int
+    name: str
+    created: datetime
+    members: List[GroupMemberOut]  # Include related members
+    class Config:
+        orm_mode = True

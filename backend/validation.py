@@ -1,5 +1,6 @@
 from typing import Optional
 from pydantic import BaseModel, Field
+from datetime import datetime
 
 #define the required and optional fields that accompany a file upload. Specify default values.
 class FileUploadMetadata(BaseModel):
@@ -8,13 +9,13 @@ class FileUploadMetadata(BaseModel):
     language: Optional[str] = Field("en", example="en")
 
 class LoginRequest(BaseModel):
-    user_id: int
+    username: str
 
 class GroupCreateEdit(BaseModel):
     name: str
 
 class MeetingCreateEdit(BaseModel):
-    groups_idgroups: int
+    date: datetime
 
 class UserCreateEdit(BaseModel):
     username: str

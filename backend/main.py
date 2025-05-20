@@ -3,7 +3,9 @@ from fastapi.responses import JSONResponse
 from backend.routes import router as api_router
 
 import backend.startup
+import logging
 
+logging.basicConfig(level=logging.INFO)
 
 from backend.processing import process_audio
 from fastapi.middleware.cors import CORSMiddleware

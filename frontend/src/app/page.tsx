@@ -27,19 +27,21 @@ export default function Home() {
   }, []);
   // Login and navigate
   const handleUserSelect = async (userId: number) => {
+    const formData = new URLSearchParams();
+    formData.append('username', String(userId)); // from useState
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/login`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({ user_id: userId }),
+        body: formData.toString(),
       });
 
       if (!res.ok) throw new Error("Failed to authenticate");
 
       const data = await res.json();
-      const token = data.token;
+      const token = data.access_token;
 
       // Save token for future use (you can use localStorage or cookie)
       localStorage.setItem('token', token);
