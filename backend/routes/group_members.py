@@ -6,7 +6,7 @@ from backend.db_dependency import get_db
 from backend.auth import get_current_user_id
 from backend.validation import GroupMembersCreateEdit
 
-router = APIRouter(prefix="/group/{group_id}/members", tags=["group_members"])
+router = APIRouter(prefix="/groups/{group_id}/members", tags=["group_members"])
 
 @router.post("/")
 def create_member(

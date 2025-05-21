@@ -10,6 +10,8 @@ export default function MeetingsPage() {
   const { id } = useParams();
   const [meetings, setMeetings] = useState<any[]>([]);
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
+  const [creating, setCreating] = useState(false);
+  const [newMeetingDate, setNewMeetingDate] = useState('');
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -20,6 +22,35 @@ export default function MeetingsPage() {
       .then(setMeetings)
       .catch(console.error);
   }, [id]);
+
+  const handleCreateMeeting = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMeetingDate.trim()) return;
+
+    const token = localStorage.getItem('token');
+    setCreating(true);
+
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ date: newMeetingDate }),
+    });
+
+    if (res.ok) {
+      const createdMeeting = await res.json();
+      setMeetings([...meetings, createdMeeting]);
+      setNewMeetingDate('');
+    } else {
+      const errorText = await res.text(); // Capture the error message if available
+      console.error("Failed to create meeting:", res.status, res.statusText, errorText);
+      alert('Failed to create meeting');
+    }
+
+    setCreating(false);
+  };
 
   return (
     <main className="p-6">
@@ -44,9 +75,12 @@ export default function MeetingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* 🗓 Meeting List */}
+        {/* Meeting List */}
         <div className="bg-white rounded-xl shadow p-4">
           <h2 className="font-semibold mb-2">Meeting Dates</h2>
+          {meetings && meetings.length > 0?(
+         
+          
           <ul className="text-sm text-blue-600">
             {meetings.map(meeting => (
               <li key={meeting.id}>
@@ -59,9 +93,36 @@ export default function MeetingsPage() {
               </li>
             ))}
           </ul>
+          ):(
+            <p className="text-sm text-gray-500 italic"> No meetings yet</p>
+          )}
+          {/* Meeting creation form */}
+      <form onSubmit={handleCreateMeeting} className="mt-4">
+        <label htmlFor="meetingDate" className="block text-sm font-medium text-gray-700 mb-1">
+          Add a new meeting
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="meetingDate"
+            type="date"
+            value={newMeetingDate}
+            onChange={e => setNewMeetingDate(e.target.value)}
+            className="border border-gray-300 rounded px-3 py-2 w-full"
+            placeholder="Meeting date"
+            disabled={creating}
+          />
+          <button
+            type="submit"
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            disabled={creating}
+          >
+            {creating ? 'Creating...' : 'Create'}
+          </button>
+        </div>
+      </form>
         </div>
 
-        {/* 📄 Meeting Info */}
+        {/* Meeting Info */}
         <div className="bg-white rounded-xl shadow p-4">
           <h2 className="font-semibold mb-2">Meeting Info</h2>
           {selectedMeeting ? (
@@ -80,7 +141,7 @@ export default function MeetingsPage() {
           )}
         </div>
 
-        {/* 🗂 Media */}
+        {/* Media */}
         <div className="bg-white rounded-xl shadow p-4">
           <h2 className="font-semibold mb-2">Media</h2>
           {selectedMeeting?.media?.length ? (
@@ -94,7 +155,7 @@ export default function MeetingsPage() {
               ))}
             </ul>
           ) : (
-            <p>No media uploaded for this meeting.</p>
+            <p>Select a meeting to view media</p>
           )}
         </div>
       </div>

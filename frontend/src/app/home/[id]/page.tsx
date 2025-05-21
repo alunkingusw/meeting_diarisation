@@ -21,7 +21,7 @@ export default function GroupPage() {
       try {
         //group id should be set, but just incase it is not...
         if (!group?.id) return;
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/group/${group.id}/members`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${group.id}/members`, {
           method: "POST",
           headers: {
             'Content-Type': 'application/json',
@@ -122,11 +122,18 @@ export default function GroupPage() {
           
 
           <h3 className="font-medium mb-2">Members</h3>
+          {group.members && group.members.length > 0?(
           <ul className="text-sm list-disc pl-5">
+
+            
             {group.members?.map((m: any) => (
               <li key={m.id}>{m.name}</li>
             ))}
           </ul>
+          ):(
+            <p className="text-sm text-gray-500 italic"> No members yet</p>
+          )}
+
           {/* Add Member Form */}
   <form
     onSubmit={handleCreateMember}

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { FaCog } from "react-icons/fa";
 import Link from 'next/link';
 interface Group {
   id: number;
@@ -12,6 +13,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [newGroupName, setNewGroupName] = useState('');
   const [creating, setCreating] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -43,7 +45,28 @@ export default function HomePage() {
       });
   }, []);
 
-  
+   const handleDelete = async (groupId: number) => {
+    const confirmed = confirm("Are you sure you want to delete this group? This will delete all associated data!!");
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (res.ok) {
+        // Update the group list
+        setGroups(prev => prev.filter(group => group.id !== groupId));
+      } else {
+        alert("Failed to delete group");
+      }
+    } catch (error) {
+      console.error("Error deleting group:", error);
+    }
+  };
   const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newGroupName.trim()) return;
@@ -85,15 +108,38 @@ export default function HomePage() {
       ) : groups.length === 0 ? (
         <p>You do not currently have any groups.</p>
       ) : (
-        <ul className="list-disc pl-5">
-          {groups.map(group => (
-            <li key={group.id}>
-        <Link href={`/home/${group.id}`} className="text-blue-500 hover:underline">
-          {group.name}
-        </Link>
-      </li>
-          ))}
-        </ul>
+        <ul className="list-disc pl-5 space-y-2">
+      {groups.map(group => (
+        <li key={group.id} className="flex items-center justify-between">
+          <Link href={`/home/${group.id}`} className="text-blue-500 hover:underline">
+            {group.name}
+          </Link>
+          <div className="relative">
+            <button
+              className="ml-2"
+              onClick={() =>
+                setOpenDropdownId(openDropdownId === group.id ? null : group.id)
+              }
+            >
+              <span className="text-gray-600 hover:text-gray-800">
+              <FaCog />
+              </span>
+            </button>
+
+            {openDropdownId === group.id && (
+              <div className="absolute right-0 mt-2 w-32 bg-white shadow-lg rounded border z-10">
+                <button
+                  onClick={() => handleDelete(group.id)}
+                  className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                >
+                  Delete Group
+                </button>
+              </div>
+            )}
+          </div>
+        </li>
+      ))}
+    </ul>
       )}
       {/* Group creation form */}
       <form onSubmit={handleCreateGroup} className="mt-4">
