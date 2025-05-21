@@ -1,10 +1,10 @@
 # backend/routers/meetings.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from backend.models import Meeting, MeetingOut
+from backend.models import Meeting, MeetingOut, GroupMember
 from backend.db_dependency import get_db
 from datetime import datetime
-from backend.validation import MeetingCreateEdit
+from backend.validation import MeetingCreateEdit, MeetingAttendee
 from backend.auth import get_current_user_id, is_group_user
 
 router = APIRouter(prefix="/groups/{group_id}/meetings", tags=["meetings"])
@@ -50,9 +50,71 @@ def delete_meeting(
         db: Session = Depends(get_db),
         user_id: int = Depends(is_group_user)
     ):
-    meeting = db.query(Meeting).filter(Meeting.idmeetings == meeting_id).first()
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     db.delete(meeting)
     db.commit()
     return {"message": "Meeting deleted"}
+
+@router.post("/{meeting_id}/attendees")
+def add_attendee(
+        group_id:int,
+        meeting_id:int,
+        attendee_data:MeetingAttendee,
+        db:Session = Depends(get_db),
+        user_id: int = Depends(is_group_user)
+    ):
+    print("Recieved attendee data:", attendee_data)
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    #if the member exists, then add them to the attendance.
+    if attendee_data.member_id:
+        # Add existing member to the meeting
+        member = db.query(GroupMember).filter(GroupMember.id == attendee_data.member_id).first()
+        if not member:
+            raise HTTPException(status_code=404, detail="Member not found")
+
+    elif attendee_data.guest and attendee_data.name:
+        # Create a new guest group member
+        member = GroupMember(name=attendee_data.name)
+        db.add(member)
+        db.commit()
+        db.refresh(member)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid attendee data")
+
+    # Link the member to the meeting
+    if member not in meeting.attendees:
+        meeting.attendees.append(member)
+        db.commit()
+
+    return member
+
+@router.delete("/{meeting_id}/attendees/{member_id}")
+def remove_attendee(
+    group_id: int,
+    meeting_id: int,
+    member_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(is_group_user)
+):
+    # Check if meeting exists
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    # Check if member exists
+    member = db.query(GroupMember).filter(GroupMember.id == member_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    # Remove the member from the meeting attendees
+    if member in meeting.attendees:
+        meeting.attendees.remove(member)
+        db.commit()
+        return {"message": "Attendee removed"}
+    else:
+        raise HTTPException(status_code=404, detail="Member is not an attendee of this meeting")

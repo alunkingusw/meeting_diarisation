@@ -22,3 +22,8 @@ class UserCreateEdit(BaseModel):
 
 class GroupMembersCreateEdit(BaseModel):
     name: str
+
+class MeetingAttendee(BaseModel):
+    name: Optional[str]
+    guest: Optional[int]
+    member_id: Optional[int]
