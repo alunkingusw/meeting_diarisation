@@ -1,7 +1,7 @@
 # backend/routers/meetings.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from backend.models import Meeting, Group
+from backend.models import Meeting, MeetingOut
 from backend.db_dependency import get_db
 from datetime import datetime
 from backend.validation import MeetingCreateEdit
@@ -31,14 +31,14 @@ def list_meetings(
     ):
     return db.query(Meeting).filter(Meeting.group_id == group_id).all()
 
-@router.get("/{meeting_id}")
+@router.get("/{meeting_id}", response_model=MeetingOut)
 def get_meeting(
         group_id: int,
         meeting_id: int, 
         db: Session = Depends(get_db), 
         user_id: int = Depends(is_group_user)
     ):
-    meeting = db.query(Meeting).filter(Meeting.idmeetings == meeting_id).first()
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting

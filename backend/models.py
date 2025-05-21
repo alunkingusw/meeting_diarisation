@@ -6,6 +6,7 @@
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, func
@@ -79,7 +80,7 @@ class Meeting(Base):
 class RawFile(Base):
     __tablename__ = "raw_files"
     id = Column(Integer, primary_key=True)
-    file_name = Column(String(45), nullable=True)
+    file_name = Column(String(255), nullable=True)
     human_name = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
     meeting_id = Column(Integer, ForeignKey("meetings.id"),nullable=False)
@@ -98,5 +99,31 @@ class GroupOut(BaseModel):
     name: str
     created: datetime
     members: List[GroupMemberOut]  # Include related members
+    class Config:
+        orm_mode = True
+
+class RawFileOut(BaseModel):
+    id: int
+    human_name:str
+    file_name:str
+    description:Optional[str]
+    class Config:
+        orm_mode=True
+
+class MeetingAttendeeOut(BaseModel):
+    id: int
+    name: str
+    created: datetime
+
+    class Config:
+        orm_mode = True
+
+class MeetingOut(BaseModel):
+    id:int
+    group_id:int
+    date:datetime
+    created:datetime
+    attendees: List[MeetingAttendeeOut]  # Include all attendees
+    media_files: List[RawFileOut]
     class Config:
         orm_mode = True

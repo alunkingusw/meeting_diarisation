@@ -12,9 +12,24 @@ export default function MeetingsPage() {
   const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
   const [creating, setCreating] = useState(false);
   const [newMeetingDate, setNewMeetingDate] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [groupMembers, setGroupMembers] = useState<any[]>([]);
+
+  const isAttending = (memberId: number) => {
+    return selectedMeeting?.attendees?.some((a: any) => a.id === memberId);
+  };
 
   useEffect(() => {
     const token = localStorage.getItem('token');
+     // Fetch group members
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/members`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    .then(res => res.json())
+    .then(data => setGroupMembers(data))
+    .catch(console.error);
+
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -22,6 +37,68 @@ export default function MeetingsPage() {
       .then(setMeetings)
       .catch(console.error);
   }, [id]);
+
+  const handleSelectMeeting = async (meetingId: number) => {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings/${meetingId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!res.ok) {
+      console.error("Failed to fetch meeting details");
+      return null;
+    }
+
+    const data = await res.json();
+    
+    setSelectedMeeting(data);
+  };
+
+  const handleAddGuest = async(e:React.FormEvent) => {
+
+      e.preventDefault();
+      const form = e.target as HTMLFormElement;
+      const nameInput = form.elements.namedItem('guestName') as HTMLInputElement;
+      const guestName = nameInput.value.trim();
+      if (!guestName) return;
+
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings/${selectedMeeting.id}/attendees/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: guestName, guest: true }),
+      });
+
+      if (res.ok) {
+        nameInput.value = '';
+        handleSelectMeeting(selectedMeeting.id);
+      } else {
+        alert('Failed to add guest');
+      }
+    }
+
+  const handleToggleAttendance = async (memberId: number, present: boolean) => {
+  const token = localStorage.getItem('token');
+  const url = `${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings/${selectedMeeting.id}/attendees/`;
+
+  const res = await fetch(url, {
+    method: present ? 'POST' : 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ member_id: memberId }),
+  });
+
+  if (!res.ok) {
+    console.error('Failed to update attendance');
+  } else {
+    // Refresh or update selectedMeeting if needed
+  }
+};
 
   const handleCreateMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,6 +128,49 @@ export default function MeetingsPage() {
 
     setCreating(false);
   };
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const files = event.dataTransfer.files;
+    if (files.length === 0) return;
+
+    const file = files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+
+    setUploading(true);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings/${selectedMeeting.id}/upload`);
+
+    xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('token')}`);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        setUploadProgress(percent);
+      }
+    };
+
+    xhr.onload = () => {
+      setUploading(false);
+      setUploadProgress(null);
+      if (xhr.status === 200) {
+        alert('Upload successful!');
+        //add file to list.
+      } else {
+        alert('Upload failed.');
+      }
+    };
+
+    xhr.onerror = () => {
+      setUploading(false);
+      setUploadProgress(null);
+      alert('Upload error.');
+    };
+
+    xhr.send(formData);
+  };
+
 
   return (
     <main className="p-6">
@@ -85,7 +205,7 @@ export default function MeetingsPage() {
             {meetings.map(meeting => (
               <li key={meeting.id}>
                 <button
-                  onClick={() => setSelectedMeeting(meeting)}
+                  onClick={() => handleSelectMeeting(meeting.id)}
                   className="hover:underline"
                 >
                   {new Date(meeting.date).toLocaleDateString()}
@@ -130,34 +250,103 @@ export default function MeetingsPage() {
               <p><strong>Date:</strong> {new Date(selectedMeeting.date).toLocaleDateString()}</p>
               <p><strong>Time:</strong> {selectedMeeting.time}</p>
               <p className="mt-4 font-medium">Attendees:</p>
-              <ul className="list-disc pl-5">
-                {selectedMeeting.attendees?.map((a: any) => (
-                  <li key={a.id}>{a.username}</li>
-                ))}
-              </ul>
+              <ul className="divide-y">
+  {groupMembers.map((member) => {
+    const attending = isAttending(member.id);
+
+    
+
+    return (
+      <li key={member.id} className="flex items-center justify-between py-2">
+        <span>{member.name}</span>
+        <label className="inline-flex items-center cursor-pointer">
+          <input
+            type="checkbox"
+            className="sr-only peer"
+            checked={attending}
+            onChange={(e) => handleToggleAttendance(member.id, e.target.checked)}
+          />
+          <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-all"></div>
+        </label>
+      </li>
+    );
+  })}
+</ul><div className="mt-6">
+  <h3 className="font-semibold">Add Guest</h3>
+  <form
+    onSubmit={handleAddGuest} 
+    className="mt-2 flex gap-2"
+  >
+    <input
+      type="text"
+      name="guestName"
+      placeholder="Guest name"
+      className="border px-3 py-1 rounded w-full"
+    />
+    <button
+      type="submit"
+      className="bg-blue-600 text-white px-4 py-1 rounded hover:bg-blue-700"
+    >
+      Add
+    </button>
+  </form>
+</div>
             </>
           ) : (
             <p>Select a meeting to view details.</p>
           )}
         </div>
+{/* Media */}
+<div className="bg-white rounded-xl shadow p-4">
+  <h2 className="font-semibold mb-2">Media</h2>
 
-        {/* Media */}
-        <div className="bg-white rounded-xl shadow p-4">
-          <h2 className="font-semibold mb-2">Media</h2>
-          {selectedMeeting?.media?.length ? (
-            <ul className="list-disc pl-5">
-              {selectedMeeting.media.map((m: any) => (
-                <li key={m.id}>
-                  <a href={m.url} target="_blank" className="text-blue-500 hover:underline">
-                    {m.filename}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>Select a meeting to view media</p>
-          )}
-        </div>
+  {!selectedMeeting ? (
+    <p>Select a meeting to view or upload media</p>
+  ) : (
+    <>
+      {/* Media List */}
+      {selectedMeeting.media_files?.length > 0 ? (
+        <ul className="list-disc pl-5 mb-4">
+          {selectedMeeting.media_files.map((m: any) => (
+            <li key={m.id}>
+              <a
+                href={m.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-500 hover:underline"
+              >
+                {m.human_name}
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-600 mb-4">No media currently available</p>
+      )}
+
+      {/* Upload Box */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={(e) => e.preventDefault()}
+        className="border-2 border-dashed border-gray-400 p-6 rounded-xl text-center"
+      >
+        <p className="text-gray-600">Drag and drop a file here to upload</p>
+
+        {uploading && (
+          <div className="mt-4 w-full bg-gray-200 rounded-full">
+            <div
+              className="bg-blue-600 text-xs leading-none py-1 text-center text-white rounded-full"
+              style={{ width: `${uploadProgress}%` }}
+            >
+              {uploadProgress}%
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  )}
+</div>
+        
       </div>
     </main>
   );
