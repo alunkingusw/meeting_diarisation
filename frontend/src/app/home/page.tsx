@@ -4,15 +4,16 @@ import { useRouter } from 'next/navigation';
 import { FaCog } from "react-icons/fa";
 import Link from 'next/link';
 import { useGroupManager } from '@/hooks/groupManager';
+import Cookies from 'js-cookie';
 
 export default function HomePage() {
-  const {groups, loading, error, fetchAllGroups, setGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDelete} = useGroupManager();
+  const {groups, loading, error, fetchAllGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDelete} = useGroupManager();
   
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = Cookies.get('token');
     if (!token) {
       router.replace('/');
       return;

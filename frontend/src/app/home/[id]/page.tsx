@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 // Import the structure of a Group object
 import {Group} from '@/types/group';
+import Cookies from 'js-cookie';
 
 export default function GroupPage() {
   const { id } = useParams(); // Extract the group ID from the URL (/home/[id])
@@ -15,7 +16,7 @@ export default function GroupPage() {
 
   const handleCreateMember = async (e: React.FormEvent) => {
       e.preventDefault();
-      const token = localStorage.getItem('token');
+      const token = Cookies.get('token');
       if (!newMemberName.trim()) return;
 
       try {
@@ -50,7 +51,7 @@ export default function GroupPage() {
     }
   useEffect(() => {
     // Check for JWT token in session storage
-    const token = localStorage.getItem('token');
+    const token = Cookies.get('token');
     if (!token) {
       // If no token is found, redirect to login page ("/")
       console.warn('No token found, redirecting to /');

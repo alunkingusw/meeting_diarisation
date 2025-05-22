@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useGroupManager } from '@/hooks/groupManager';
 import { useMeetingManager } from '@/hooks/meetingManager';
+import Cookies from 'js-cookie';
 
 export default function MeetingsPage() {
   const { id } = useParams();
@@ -24,6 +25,7 @@ export default function MeetingsPage() {
   
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
+    const token = Cookies.get('token');
     const files = event.dataTransfer.files;
     if (files.length === 0) return;
 
@@ -36,7 +38,7 @@ export default function MeetingsPage() {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings/${selectedMeeting.id}/upload`);
 
-    xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('token')}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) {

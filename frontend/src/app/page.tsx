@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Cookies from 'js-cookie';
 
 interface User {
   id: number;
@@ -42,9 +43,10 @@ export default function Home() {
 
       const data = await res.json();
       const token = data.access_token;
-
-      // Save token for future use (you can use localStorage or cookie)
-      localStorage.setItem('token', token);
+      console.log("saving token")
+      console.log(token)
+      // Save token for future use
+      Cookies.set('token', token, { expires: 1 }); // 1 day
 
       // Redirect to /home
       router.push('/home');

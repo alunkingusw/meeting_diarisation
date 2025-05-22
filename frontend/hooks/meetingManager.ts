@@ -1,16 +1,18 @@
 import { Meeting } from '@/types/meeting';
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
+import Cookies from 'js-cookie';
 
 export function useMeetingManager(){
-    const token = localStorage.getItem('token');
     const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
     const [newMeetingDate, setNewMeetingDate] = useState('');
     const [meetings, setMeetings] = useState<Meeting[]>([]);
     const [creatingMeeting, setCreatingMeeting] = useState(false);
+    
     const isAttending = (memberId: number) => {
         return selectedMeeting?.attendees?.some((a: any) => a.id === memberId);
     };
     const handleSelectMeeting = async (groupId:number, meetingId: number) => {
+        const token = Cookies.get('token');
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}/meetings/${meetingId}`, {
             headers: { Authorization: `Bearer ${token}` },
         });
@@ -31,7 +33,7 @@ export function useMeetingManager(){
         const guestName = nameInput.value.trim();
         if (!guestName) return;
 
-        const token = localStorage.getItem('token');
+        const token = Cookies.get('token');
         const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${selectedMeeting.groupId}/meetings/${selectedMeeting.id}/attendees/`, {
             method: 'POST',
             headers: {
@@ -51,7 +53,7 @@ export function useMeetingManager(){
 
     const handleToggleAttendance = async (memberId: number, present: boolean) => {
         const url = `${process.env.NEXT_PUBLIC_API_URL}/groups/${selectedMeeting.groupId}/meetings/${selectedMeeting.id}/attendees/`;
-
+        const token = Cookies.get('token');
         const res = await fetch(url, {
             method: present ? 'POST' : 'DELETE',
             headers: {
@@ -73,6 +75,7 @@ export function useMeetingManager(){
         const form = e.currentTarget as HTMLFormElement;
         const formData = new FormData(form);
         const groupId = formData.get('groupId') as string;
+        const token = Cookies.get('token');
         if (!newMeetingDate.trim()) return;
 
         setCreatingMeeting(true);

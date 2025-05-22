@@ -1,8 +1,8 @@
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
 import {Group} from '@/types/group';
+import Cookies from 'js-cookie';
 
 export function useGroupManager(){
-    const token = localStorage.getItem('token');
     const [groups, setGroups] = useState<Group[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -11,7 +11,11 @@ export function useGroupManager(){
     const [groupMembers, setGroupMembers] = useState<any[]>([]);
     const [meetings, setMeetings] = useState<any[]>([]);
 
+
     const fetchAllGroups = async() =>{
+      console.log('need token')
+      const token = Cookies.get('token');
+      console.log(token)
       fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -29,7 +33,7 @@ export function useGroupManager(){
       })
       .catch(err => {
         console.error(err);
-        localStorage.removeItem('token');
+        Cookies.remove('token')
         setError(true);
         return;
       });
@@ -39,12 +43,12 @@ export function useGroupManager(){
 
     const confirmed = confirm("Are you sure you want to delete this group? This will delete all associated data!!");
     if (!confirmed) return;
-
+    const token = Cookies.get('token');
     try {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -62,7 +66,7 @@ export function useGroupManager(){
     e.preventDefault();
     if (!newGroupName.trim()) return;
 
-    const token = localStorage.getItem('token');
+    const token = Cookies.get('token');
     setCreatingGroup(true);
 
     const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
@@ -87,6 +91,7 @@ export function useGroupManager(){
     setCreatingGroup(false);
   };
   const fetchGroupMeetings = async(groupId:number) =>{
+    const token = Cookies.get('token');
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}/meetings`, {
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -95,6 +100,7 @@ export function useGroupManager(){
       .catch(console.error);
   };
   const fetchGroupMembers = async(groupId: number) => {
+    const token = Cookies.get('token');
     // Fetch group members
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}/members`, {
       headers: { Authorization: `Bearer ${token}` },
