@@ -1,5 +1,5 @@
 services:
-  web:
+  api:
     build: 
       context: .
       dockerfile: Dockerfile
@@ -52,7 +52,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
-      - web
+      - api
 
 volumes:
   postgres_data:
