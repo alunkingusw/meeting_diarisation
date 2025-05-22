@@ -5,129 +5,23 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { useGroupManager } from '@/hooks/groupManager';
+import { useMeetingManager } from '@/hooks/meetingManager';
 
 export default function MeetingsPage() {
   const { id } = useParams();
-  const [meetings, setMeetings] = useState<any[]>([]);
-  const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
-  const [creating, setCreating] = useState(false);
-  const [newMeetingDate, setNewMeetingDate] = useState('');
+  
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [groupMembers, setGroupMembers] = useState<any[]>([]);
-
-  const isAttending = (memberId: number) => {
-    return selectedMeeting?.attendees?.some((a: any) => a.id === memberId);
-  };
-
+  const {groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings} = useGroupManager();
+  const {handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting} = useMeetingManager();
+  
   useEffect(() => {
-    const token = localStorage.getItem('token');
-     // Fetch group members
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/members`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-    .then(res => res.json())
-    .then(data => setGroupMembers(data))
-    .catch(console.error);
-
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => res.json())
-      .then(setMeetings)
-      .catch(console.error);
-  }, [id]);
-
-  const handleSelectMeeting = async (meetingId: number) => {
-    const token = localStorage.getItem('token');
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings/${meetingId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!res.ok) {
-      console.error("Failed to fetch meeting details");
-      return null;
-    }
-
-    const data = await res.json();
+    fetchGroupMembers(Number(id))
+    fetchGroupMeetings(Number(id))
     
-    setSelectedMeeting(data);
-  };
-
-  const handleAddGuest = async(e:React.FormEvent) => {
-
-      e.preventDefault();
-      const form = e.target as HTMLFormElement;
-      const nameInput = form.elements.namedItem('guestName') as HTMLInputElement;
-      const guestName = nameInput.value.trim();
-      if (!guestName) return;
-
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings/${selectedMeeting.id}/attendees/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ name: guestName, guest: true }),
-      });
-
-      if (res.ok) {
-        nameInput.value = '';
-        handleSelectMeeting(selectedMeeting.id);
-      } else {
-        alert('Failed to add guest');
-      }
-    }
-
-  const handleToggleAttendance = async (memberId: number, present: boolean) => {
-  const token = localStorage.getItem('token');
-  const url = `${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings/${selectedMeeting.id}/attendees/`;
-
-  const res = await fetch(url, {
-    method: present ? 'POST' : 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ member_id: memberId }),
-  });
-
-  if (!res.ok) {
-    console.error('Failed to update attendance');
-  } else {
-    // Refresh or update selectedMeeting if needed
-  }
-};
-
-  const handleCreateMeeting = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMeetingDate.trim()) return;
-
-    const token = localStorage.getItem('token');
-    setCreating(true);
-
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ date: newMeetingDate }),
-    });
-
-    if (res.ok) {
-      const createdMeeting = await res.json();
-      setMeetings([...meetings, createdMeeting]);
-      setNewMeetingDate('');
-    } else {
-      const errorText = await res.text(); // Capture the error message if available
-      console.error("Failed to create meeting:", res.status, res.statusText, errorText);
-      alert('Failed to create meeting');
-    }
-
-    setCreating(false);
-  };
+  }, [id]);
+  
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     const files = event.dataTransfer.files;
@@ -205,7 +99,7 @@ export default function MeetingsPage() {
             {meetings.map(meeting => (
               <li key={meeting.id}>
                 <button
-                  onClick={() => handleSelectMeeting(meeting.id)}
+                  onClick={() => handleSelectMeeting(meeting.groupId, meeting.id)}
                   className="hover:underline"
                 >
                   {new Date(meeting.date).toLocaleDateString()}
@@ -222,6 +116,7 @@ export default function MeetingsPage() {
           Add a new meeting
         </label>
         <div className="flex gap-2">
+          <input name="groupId" type="hidden" value={id}/>
           <input
             id="meetingDate"
             type="date"
@@ -229,14 +124,14 @@ export default function MeetingsPage() {
             onChange={e => setNewMeetingDate(e.target.value)}
             className="border border-gray-300 rounded px-3 py-2 w-full"
             placeholder="Meeting date"
-            disabled={creating}
+            disabled={creatingMeeting}
           />
           <button
             type="submit"
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-            disabled={creating}
+            disabled={creatingMeeting}
           >
-            {creating ? 'Creating...' : 'Create'}
+            {creatingMeeting ? 'Creating...' : 'Create'}
           </button>
         </div>
       </form>

@@ -3,16 +3,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaCog } from "react-icons/fa";
 import Link from 'next/link';
-interface Group {
-  id: number;
-  name: string;
-}
+import { useGroupManager } from '@/hooks/groupManager';
 
 export default function HomePage() {
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [newGroupName, setNewGroupName] = useState('');
-  const [creating, setCreating] = useState(false);
+  const {groups, loading, error, fetchAllGroups, setGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDelete} = useGroupManager();
+  
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const router = useRouter();
 
@@ -22,79 +17,14 @@ export default function HomePage() {
       router.replace('/');
       return;
     }
-
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(res => {
-        if (!res.ok) {
-          throw new Error("Unauthorized");
-        }
-        return res.json();
-      })
-      .then(data => {
-        setGroups(data);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error(err);
-        localStorage.removeItem('token');
-        router.replace('/');
-      });
+    fetchAllGroups();
+    if(error){
+      router.replace('/');
+    }
   }, []);
 
-   const handleDelete = async (groupId: number) => {
-    const confirmed = confirm("Are you sure you want to delete this group? This will delete all associated data!!");
-    if (!confirmed) return;
-
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-
-      if (res.ok) {
-        // Update the group list
-        setGroups(prev => prev.filter(group => group.id !== groupId));
-      } else {
-        alert("Failed to delete group");
-      }
-    } catch (error) {
-      console.error("Error deleting group:", error);
-    }
-  };
-  const handleCreateGroup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newGroupName.trim()) return;
-
-    const token = localStorage.getItem('token');
-    setCreating(true);
-
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ name: newGroupName }),
-    });
-
-    if (res.ok) {
-      const createdGroup = await res.json();
-      setGroups([...groups, createdGroup]);
-      setNewGroupName('');
-    } else {
-      const errorText = await res.text(); // Capture the error message if available
-      console.error("Failed to create group:", res.status, res.statusText, errorText);
-      alert('Failed to create group');
-    }
-
-    setCreating(false);
-  };
+   
+  
 
   return (
     <main className="p-6">
@@ -154,14 +84,14 @@ export default function HomePage() {
             onChange={e => setNewGroupName(e.target.value)}
             className="border border-gray-300 rounded px-3 py-2 w-full"
             placeholder="Group name"
-            disabled={creating}
+            disabled={creatingGroup}
           />
           <button
             type="submit"
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-            disabled={creating}
+            disabled={creatingGroup}
           >
-            {creating ? 'Creating...' : 'Create'}
+            {creatingGroup ? 'Creating...' : 'Create'}
           </button>
         </div>
       </form>

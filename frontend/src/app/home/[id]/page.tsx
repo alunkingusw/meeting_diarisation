@@ -12,7 +12,7 @@ export default function GroupPage() {
   const [group, setGroup] = useState<Group | null>(null); // Holds the group data
   const [loading, setLoading] = useState(true); // Track loading state
   const [newMemberName, setNewMemberName] = useState('');
- 
+
   const handleCreateMember = async (e: React.FormEvent) => {
       e.preventDefault();
       const token = localStorage.getItem('token');
