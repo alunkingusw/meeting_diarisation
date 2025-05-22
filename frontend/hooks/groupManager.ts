@@ -13,9 +13,8 @@ export function useGroupManager(){
 
 
     const fetchAllGroups = async() =>{
-      console.log('need token')
       const token = Cookies.get('token');
-      console.log(token)
+
       fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
       headers: {
         Authorization: `Bearer ${token}`,

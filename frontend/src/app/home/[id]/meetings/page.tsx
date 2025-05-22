@@ -101,7 +101,7 @@ export default function MeetingsPage() {
             {meetings.map(meeting => (
               <li key={meeting.id}>
                 <button
-                  onClick={() => handleSelectMeeting(meeting.groupId, meeting.id)}
+                  onClick={() => handleSelectMeeting(Number(id), meeting.id)}
                   className="hover:underline"
                 >
                   {new Date(meeting.date).toLocaleDateString()}

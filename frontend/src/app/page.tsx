@@ -43,8 +43,7 @@ export default function Home() {
 
       const data = await res.json();
       const token = data.access_token;
-      console.log("saving token")
-      console.log(token)
+
       // Save token for future use
       Cookies.set('token', token, { expires: 1 }); // 1 day
 
