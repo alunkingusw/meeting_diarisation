@@ -1,54 +1,16 @@
+// app/home/[id]/meetings/page.tsx
 'use client'; // Required for using client-side hooks like useEffect and useRouter
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-// Import the structure of a Group object
-import {Group} from '@/types/group';
+import { useGroupManager } from '@/hooks/groupManager';
 import Cookies from 'js-cookie';
 
 export default function GroupPage() {
   const { id } = useParams(); // Extract the group ID from the URL (/home/[id])
   const router = useRouter(); // Used to navigate/redirect programmatically
+const {loading, getGroup, group, error, newMemberName, setNewMemberName, handleCreateMember} = useGroupManager();
 
-  const [group, setGroup] = useState<Group | null>(null); // Holds the group data
-  const [loading, setLoading] = useState(true); // Track loading state
-  const [newMemberName, setNewMemberName] = useState('');
-
-  const handleCreateMember = async (e: React.FormEvent) => {
-      e.preventDefault();
-      const token = Cookies.get('token');
-      if (!newMemberName.trim()) return;
-
-      try {
-        //group id should be set, but just incase it is not...
-        if (!group?.id) return;
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${group.id}/members`, {
-          method: "POST",
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ name:newMemberName }),
-        });
-
-        if (!res.ok) {
-          throw new Error("Failed to add member");
-        }else{
-          const createdMember = await res.json();
-          //add the new member to the list
-          if(group){
-            setGroup({
-              ...group, members:[...group.members, createdMember],
-            });
-          }
-          
-          setNewMemberName('');
-    } 
-      } catch (err) {
-        console.error(err);
-        alert("Error adding member");
-      }
-    }
   useEffect(() => {
     // Check for JWT token in session storage
     const token = Cookies.get('token');
@@ -58,34 +20,10 @@ export default function GroupPage() {
       router.push('/');
       return;
     }
-
-    // Fetch the group from the backend using the token
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${id}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`, // Include token in Authorization header
-      },
-    })
-      .then(async res => {
-        // If user is unauthorized or forbidden, redirect to login
-        if (res.status === 403 || res.status === 401) {
-          console.warn('Unauthorized access, redirecting to /');
-          router.push('/home');
-          return null;
-        }else if(res.status === 404){
-          console.warn('Group not found, redirecting to /');
-          router.push('/home');
-          return null;
-        }
-        // Parse response JSON
-        return res.json();
-      })
-      .then(data => {
-        if (data) {
-          setGroup(data); // Store group data in state
-        }
-      })
-      .finally(() => setLoading(false)); // Mark loading complete
+    getGroup(Number(id));
+    if(error){
+      router.replace('/home')
+    }
   }, [id, router]); // Re-run if ID or router changes
 
   // Show loading state while fetching

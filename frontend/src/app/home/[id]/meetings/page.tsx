@@ -7,65 +7,21 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { useGroupManager } from '@/hooks/groupManager';
 import { useMeetingManager } from '@/hooks/meetingManager';
+import {useMediaManager} from '@/hooks/mediaManager'
 import Cookies from 'js-cookie';
 
 export default function MeetingsPage() {
   const { id } = useParams();
-  
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [uploading, setUploading] = useState(false);
   const {groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings} = useGroupManager();
   const {handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting} = useMeetingManager();
-  
+  const {uploading, uploadProgress, handleDrop} = useMediaManager();
   useEffect(() => {
     fetchGroupMembers(Number(id))
     fetchGroupMeetings(Number(id))
     
   }, [id]);
   
-  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault();
-    const token = Cookies.get('token');
-    const files = event.dataTransfer.files;
-    if (files.length === 0) return;
-
-    const file = files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-
-    setUploading(true);
-
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${process.env.NEXT_PUBLIC_API_URL}/groups/${id}/meetings/${selectedMeeting.id}/upload`);
-
-    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable) {
-        const percent = Math.round((event.loaded / event.total) * 100);
-        setUploadProgress(percent);
-      }
-    };
-
-    xhr.onload = () => {
-      setUploading(false);
-      setUploadProgress(null);
-      if (xhr.status === 200) {
-        alert('Upload successful!');
-        //add file to list.
-      } else {
-        alert('Upload failed.');
-      }
-    };
-
-    xhr.onerror = () => {
-      setUploading(false);
-      setUploadProgress(null);
-      alert('Upload error.');
-    };
-
-    xhr.send(formData);
-  };
+  
 
 
   return (
@@ -223,7 +179,7 @@ export default function MeetingsPage() {
 
       {/* Upload Box */}
       <div
-        onDrop={handleDrop}
+        onDrop={handleDrop(Number(id), selectedMeeting.id)}
         onDragOver={(e) => e.preventDefault()}
         className="border-2 border-dashed border-gray-400 p-6 rounded-xl text-center"
       >

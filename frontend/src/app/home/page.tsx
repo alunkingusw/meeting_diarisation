@@ -1,13 +1,14 @@
+// app/home/page.tsx
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaCog } from "react-icons/fa";
 import Link from 'next/link';
-import { useGroupManager } from '@/hooks/groupManager';
+import { useGroupsManager } from '@/hooks/groupsManager';
 import Cookies from 'js-cookie';
 
 export default function HomePage() {
-  const {groups, loading, error, fetchAllGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDelete} = useGroupManager();
+  const {groups, loading, error, fetchAllGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDelete} = useGroupsManager();
   
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const router = useRouter();

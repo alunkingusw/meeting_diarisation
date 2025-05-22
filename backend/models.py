@@ -40,7 +40,7 @@ meetings_group_members = Table(
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
-    username = Column(String(45), nullable=True)
+    username = Column(String(255), nullable=True)
     created = Column(DateTime, nullable=False, default=func.now())
 
     groups = relationship("Group", secondary=users_groups, back_populates="users")
@@ -49,7 +49,7 @@ class User(Base):
 class Group(Base):
     __tablename__ = "groups"
     id = Column(Integer, primary_key=True)
-    name = Column(String(45), nullable=True)
+    name = Column(String(255), nullable=True)
     created = Column(DateTime, nullable=False, default=func.now())
 
     users = relationship("User", secondary=users_groups, back_populates="groups")
@@ -60,7 +60,7 @@ class Group(Base):
 class GroupMember(Base):
     __tablename__ = "group_members"
     id = Column(Integer, primary_key=True)
-    name = Column(String(45), nullable=True)
+    name = Column(String(255), nullable=True)
     created = Column(DateTime, nullable=False, default=func.now())
 
     groups = relationship("Group", secondary=groups_group_members, back_populates="members")

@@ -3,92 +3,47 @@ import {Group} from '@/types/group';
 import Cookies from 'js-cookie';
 
 export function useGroupManager(){
-    const [groups, setGroups] = useState<Group[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
-    const [newGroupName, setNewGroupName] = useState('');
-    const [creatingGroup, setCreatingGroup] = useState(false);
     const [groupMembers, setGroupMembers] = useState<any[]>([]);
     const [meetings, setMeetings] = useState<any[]>([]);
+    const [group, setGroup] = useState<Group | null>(null)
+    const [error, setError] = useState(false);
+    const [loading, setLoading] = useState(true); // Track loading state
+    const [newMemberName, setNewMemberName] = useState('');
 
+  /*
+   * The functions below relate to actions within a group, hence groupManager, rather than groupsManager.
+   */
+  const getGroup = async(groupId:number) =>{
+    const token = Cookies.get('token');
 
-    const fetchAllGroups = async() =>{
-      const token = Cookies.get('token');
-
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
+    // Fetch the group from the backend using the token
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}`, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`, // Include token in Authorization header
       },
     })
-      .then(res => {
-        if (!res.ok) {
-          throw new Error("Unauthorized");
+      .then(async res => {
+        // If user is unauthorized or forbidden, redirect to login
+        if (res.status === 403 || res.status === 401) {
+          console.warn('Unauthorized access, redirecting to /');
+          setError(true)
+          return null;
+        }else if(res.status === 404){
+          console.warn('Group not found, redirecting to /');
+          setError(true)
+          return null;
         }
+        // Parse response JSON
         return res.json();
       })
       .then(data => {
-        setGroups(data);
-        setLoading(false);
+        if (data) {
+          setGroup(data); // Store group data in state
+        }
       })
-      .catch(err => {
-        console.error(err);
-        Cookies.remove('token')
-        setError(true);
-        return;
-      });
-    }
-    
-    const handleDelete = async (groupId: number) => {
-
-    const confirmed = confirm("Are you sure you want to delete this group? This will delete all associated data!!");
-    if (!confirmed) return;
-    const token = Cookies.get('token');
-    try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (res.ok) {
-        // Update the group list
-        setGroups(prev => prev.filter(group => group.id !== groupId));
-      } else {
-        alert("Failed to delete group");
-      }
-    } catch (error) {
-      console.error("Error deleting group:", error);
-    }
-  };
-  const handleCreateGroup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newGroupName.trim()) return;
-
-    const token = Cookies.get('token');
-    setCreatingGroup(true);
-
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ name: newGroupName }),
-    });
-
-    if (res.ok) {
-      const createdGroup = await res.json();
-      setGroups([...groups, createdGroup]);
-      setNewGroupName('');
-    } else {
-      const errorText = await res.text(); // Capture the error message if available
-      console.error("Failed to create group:", res.status, res.statusText, errorText);
-      alert('Failed to create group');
-    }
-
-    setCreatingGroup(false);
-  };
+      .finally(() => setLoading(false)); // Mark loading complete
+  }
   const fetchGroupMeetings = async(groupId:number) =>{
     const token = Cookies.get('token');
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}/meetings`, {
@@ -108,21 +63,54 @@ export function useGroupManager(){
     .then(data => setGroupMembers(data))
     .catch(console.error);
   };
-  return{
-    loading, 
-    error,
-    groups, 
-    fetchAllGroups,
+
+  const handleCreateMember = async (e: React.FormEvent) => {
+      e.preventDefault();
+      const token = Cookies.get('token');
+      if (!newMemberName.trim()) return;
+
+      try {
+        //group id should be set, but just incase it is not...
+        if (!group?.id) return;
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${group.id}/members`, {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ name:newMemberName }),
+        });
+
+        if (!res.ok) {
+          throw new Error("Failed to add member");
+        }else{
+          const createdMember = await res.json();
+          //add the new member to the list
+          if(group){
+            setGroup({
+              ...group, members:[...group.members, createdMember],
+            });
+          }
+          
+          setNewMemberName('');
+    } 
+      } catch (err) {
+        console.error(err);
+        alert("Error adding member");
+      }
+    }
+  return{ 
     fetchGroupMembers,
     fetchGroupMeetings,
-    setGroups,
-    newGroupName, 
-    setNewGroupName,
+    handleCreateMember,
     groupMembers,
     meetings,
-    creatingGroup, 
-    handleCreateGroup, 
-    handleDelete
+    loading,
+    getGroup,
+    group,
+    error,
+    newMemberName,
+    setNewMemberName
   };
 }
 
