@@ -11,7 +11,7 @@ import os
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")  # This URL is for OpenAPI docs only
 
 # Secret key for signing the JWT — keep this secure!
-SECRET_KEY = os.getenv("SECRET_KEY")  # ideally from os.environ
+SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Token expires after 1 hour
 

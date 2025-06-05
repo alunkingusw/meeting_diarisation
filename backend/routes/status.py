@@ -9,6 +9,7 @@ from backend.db import SessionLocal
 from backend.startup import START_TIME
 
 router = APIRouter()
+HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
 
 def get_db():
     db = SessionLocal()
@@ -37,11 +38,51 @@ def get_status(db: Session = Depends(get_db)):
     }
 
 def check_model_status():
-    # Placeholder: change this to check real model state later
-    whisper_ready = os.path.exists("some_model_file_or_flag.txt")
-    llama_ready = True  # Replace with real health check logic
+    status = {}
 
-    return {
-        "whisper_model": "available" if whisper_ready else "unavailable",
-        "llama_model": "available" if llama_ready else "unavailable"
-    }
+    # Whisper check
+    try:
+        import whisper
+        model = whisper.load_model("base")
+        status["whisper_model"] = {
+            "status": "available",
+            "version": whisper.__version__ if hasattr(whisper, "__version__") else "unknown"
+        }
+    except Exception as e:
+        status["whisper_model"] = {
+            "status": f"unavailable ({str(e)})",
+            "version": "unknown"
+        }
+
+    # PyAnnote check
+    try:
+        from pyannote.audio import Pipeline
+        import pyannote
+        Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token=HUGGING_FACE_TOKEN)
+        status["pyannote_diarization"] = {
+            "status": "available",
+            "version": pyannote.__version__ if hasattr(pyannote, "__version__") else "unknown"
+        }
+    except Exception as e:
+        status["pyannote_diarization"] = {
+            "status": f"unavailable ({str(e)})",
+            "version": "unknown"
+        }
+
+    # Resemblyzer check
+    try:
+        from resemblyzer import VoiceEncoder
+        import resemblyzer
+        VoiceEncoder()
+        version = getattr(resemblyzer, '__version__', 'unknown')
+        status["resemblyzer_voice_encoder"] = {
+            "status": "available",
+            "version": version
+        }
+    except Exception as e:
+        status["resemblyzer_voice_encoder"] = {
+            "status": f"unavailable ({str(e)})",
+            "version": "unknown"
+        }
+
+    return status

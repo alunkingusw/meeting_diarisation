@@ -2,7 +2,8 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-
+from backend import models
+from backend.db import Base
 from alembic import context
 
 import os
@@ -26,7 +27,7 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-from backend.models import Base
+
 # target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 

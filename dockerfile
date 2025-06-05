@@ -1,14 +1,36 @@
 FROM python:3.10-slim
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y ffmpeg git
+RUN apt-get update && apt-get install -y \
+    ffmpeg git libsndfile1 build-essential \
+    libglib2.0-0 libsm6 libxext6 libxrender-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Optional: GPU support setup
+# ENV PYTORCH_ENABLE_MPS_FALLBACK=1
+# RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+# otherwise install CPU support
+RUN pip install torch torchvision torchaudio
 
 # Set work directory
 WORKDIR /backend
 
 # Copy requirements
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Install Whisper + PyAnnote + Resemblyzer
+RUN pip install openai-whisper pyannote.audio resemblyzer ffmpeg-python
+
+#download and install a local version of Whisper
+RUN python3 -c "import whisper; whisper.load_model('base')"
+
+# Pre-download PyAnnote diarization pipeline model
+RUN python3 -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization')"
+
+# Pre-download Resemblyzer voice encoder
+RUN python3 -c "from resemblyzer import VoiceEncoder; VoiceEncoder()"
 
 # Copy backend code
 COPY backend/ ./backend/

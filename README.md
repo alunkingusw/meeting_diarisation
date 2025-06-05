@@ -51,7 +51,13 @@ PGADMIN_DEFAULT_EMAIL=admin@example.com
 PGADMIN_DEFAULT_PASSWORD=admin
 ```
 
-### 3. Start the project with Docker Compose
+### 3. Generate your HuggingFace token
+Accept the terms and conditions on these models
+https://huggingface.co/pyannote/segmentation
+https://huggingface.co/pyannote/speaker-diarization
+
+
+### 4. Start the project with Docker Compose
 ```bash
 docker-compose up --build
 ```
