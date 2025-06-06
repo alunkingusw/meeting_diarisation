@@ -23,7 +23,7 @@ export function useMeetingManager(){
         }
 
         const data = await res.json();
-    
+        console.log("Fetched meeting data:", data);
         setSelectedMeeting(data);
     };
     const handleAddGuest = async(e:React.FormEvent) => {
@@ -32,41 +32,47 @@ export function useMeetingManager(){
         const nameInput = form.elements.namedItem('guestName') as HTMLInputElement;
         const guestName = nameInput.value.trim();
         if (!guestName) return;
-
+        
         const token = Cookies.get('token');
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${selectedMeeting.groupId}/meetings/${selectedMeeting.id}/attendees/`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${selectedMeeting.group_id}/meetings/${selectedMeeting.id}/attendees/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ name: guestName, guest: true }),
+            body: JSON.stringify({ name: guestName, guest: 1 }),
         });
 
         if (res.ok) {
             nameInput.value = '';
-            handleSelectMeeting(selectedMeeting.groupId, selectedMeeting.id);
+            handleSelectMeeting(selectedMeeting.group_id, selectedMeeting.id);
         } else {
             alert('Failed to add guest');
         }
     }
 
     const handleToggleAttendance = async (memberId: number, present: boolean) => {
-        const url = `${process.env.NEXT_PUBLIC_API_URL}/groups/${selectedMeeting.groupId}/meetings/${selectedMeeting.id}/attendees/`;
+        console.log("selected meeting", selectedMeeting)
         const token = Cookies.get('token');
+
+        const url = present
+        ? `${process.env.NEXT_PUBLIC_API_URL}/groups/${selectedMeeting.group_id}/meetings/${selectedMeeting.id}/attendees/`
+        : `${process.env.NEXT_PUBLIC_API_URL}/groups/${selectedMeeting.group_id}/meetings/${selectedMeeting.id}/attendees/${memberId}`;
+        
         const res = await fetch(url, {
             method: present ? 'POST' : 'DELETE',
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ member_id: memberId }),
+            body: present ? JSON.stringify({ member_id: memberId }) : undefined,
         });
 
         if (!res.ok) {
             console.error('Failed to update attendance');
         } else {
             // Refresh or update selectedMeeting if needed
+            handleSelectMeeting(selectedMeeting.group_id, selectedMeeting.id);
         }
     };
 

@@ -104,27 +104,53 @@ export default function MeetingsPage() {
               <p><strong>Time:</strong> {selectedMeeting.time}</p>
               <p className="mt-4 font-medium">Attendees:</p>
               <ul className="divide-y">
-  {groupMembers.map((member) => {
-    const attending = isAttending(member.id);
+                
+                {groupMembers.map((member) => {
+                  const attending = isAttending(member.id);
+                  return (
+                    <li key={member.id} className="flex items-center justify-between py-2">
+                      <span>{member.name}</span>
+                      <label className="inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={attending}
+                          onChange={(e) => handleToggleAttendance(member.id, e.target.checked)}
+                        />
+                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-all"></div>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+              {/* Guests */}
+              <div className="mt-6">
+                <h3 className="font-semibold">Guests</h3>
+                <ul className="divide-y">
+                  {selectedMeeting.attendees
+                    .filter(att => !groupMembers.some(member => member.id === att.id))
+                    .map(guest => (
+                      <li key={guest.id} className="flex items-center justify-between py-2">
+                        <span>{guest.name || 'Unnamed Guest'}</span>
+                        <label className="inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={true}
+                          onChange={(e) => handleToggleAttendance(guest.id, e.target.checked)}
+                        />
+                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-all"></div>
+                      </label>
+                      </li>
+                    ))
+                  }
+                  {selectedMeeting.attendees.filter(att => !groupMembers.some(m => m.id === att.id)).length === 0 && (
+                    <li className="text-sm text-gray-500 italic">No guests</li>
+                  )}
+                </ul>
+              </div>
 
-    
-
-    return (
-      <li key={member.id} className="flex items-center justify-between py-2">
-        <span>{member.name}</span>
-        <label className="inline-flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            className="sr-only peer"
-            checked={attending}
-            onChange={(e) => handleToggleAttendance(member.id, e.target.checked)}
-          />
-          <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-600 transition-all"></div>
-        </label>
-      </li>
-    );
-  })}
-</ul><div className="mt-6">
+              <div className="mt-6">
   <h3 className="font-semibold">Add Guest</h3>
   <form
     onSubmit={handleAddGuest} 
