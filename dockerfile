@@ -32,6 +32,14 @@ RUN python3 -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('p
 # Pre-download Resemblyzer voice encoder
 RUN python3 -c "from resemblyzer import VoiceEncoder; VoiceEncoder()"
 
+#set models to run offline, to ensure data security
+ENV TRANSFORMERS_OFFLINE=1
+ENV HF_DATASETS_OFFLINE=1
+ENV WANDB_MODE=offline
+ENV XDG_CACHE_HOME=/models
+ENV TRANSFORMERS_CACHE=/models/hf
+ENV PYANNOTE_CACHE=/models/pyannote
+
 # Copy backend code
 COPY backend/ ./backend/
 COPY alembic alembic

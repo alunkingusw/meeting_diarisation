@@ -4,6 +4,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { CiCircleInfo } from "react-icons/ci";
+
 import Link from 'next/link';
 import { useGroupManager } from '@/hooks/groupManager';
 import { useMeetingManager } from '@/hooks/meetingManager';
@@ -12,9 +14,10 @@ import Cookies from 'js-cookie';
 
 export default function MeetingsPage() {
   const { id } = useParams();
+  const [showHelp, setShowHelp] = useState(false);
   const {groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings} = useGroupManager();
   const {handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting} = useMeetingManager();
-  const {uploading, uploadProgress, handleDrop} = useMediaManager();
+  const {isValidFile, uploading, uploadProgress, handleDrop} = useMediaManager();
   useEffect(() => {
     fetchGroupMembers(Number(id))
     fetchGroupMeetings(Number(id))
@@ -176,8 +179,27 @@ export default function MeetingsPage() {
           )}
         </div>
 {/* Media */}
-<div className="bg-white rounded-xl shadow p-4">
-  <h2 className="font-semibold mb-2">Media</h2>
+<div className="bg-white rounded-xl shadow p-4 relative">
+  <div className="flex items-center justify-between mb-2">
+    <h2 className="font-semibold">Media</h2>
+    <button
+      onClick={() => setShowHelp(!showHelp)}
+      className="text-gray-400 hover:text-gray-600"
+      aria-label="Media help"
+    >
+      <CiCircleInfo size={20}/>
+     
+    </button>
+  </div>
+
+  {/* Help Box */}
+  {showHelp && (
+    <div className="mb-4 p-3 text-sm bg-blue-50 border border-blue-200 rounded">
+      <p className="text-blue-700">
+        You can upload audio and transcript files here for diarisation.<br/>Supported audio formats are MP3, M4A, and WAV.<br />Supported transcription formats are JSON*, VTT*, SRT*, and TXT. (*preferred).<br/><br />Uploading audio along with existing transcripts is helpful, as transcripts can be used to train the AI on the meeting participants and improve recognition of individuals.
+      </p>
+    </div>
+  )}
 
   {!selectedMeeting ? (
     <p>Select a meeting to view or upload media</p>
@@ -205,7 +227,18 @@ export default function MeetingsPage() {
 
       {/* Upload Box */}
       <div
-        onDrop={handleDrop(Number(id), selectedMeeting.id)}
+        onDrop={(e) => {
+          e.preventDefault();
+          const files = Array.from(e.dataTransfer.files);
+          const validFiles = files.filter(isValidFile);
+
+          if (validFiles.length === 0) {
+            alert("Unsupported file type. Please upload audio (.wav, .mp3, .m4a) or transcript (.json, .vtt, .srt, .txt) files. Click the info icon for help");
+            return;
+          }
+
+          handleDrop(Number(id), selectedMeeting.id)(e); // Pass through if valid
+        }}
         onDragOver={(e) => e.preventDefault()}
         className="border-2 border-dashed border-gray-400 p-6 rounded-xl text-center"
       >

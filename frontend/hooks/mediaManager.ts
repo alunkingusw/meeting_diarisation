@@ -3,6 +3,12 @@ import Cookies from 'js-cookie';
 export function useMediaManager() {
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [uploading, setUploading] = useState(false);
+    const allowedExtensions = ['.wav', '.mp3', '.m4a', '.json', '.vtt', '.srt', '.txt'];
+
+    const isValidFile = (file: File) => {
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      return ext && allowedExtensions.includes(`.${ext}`);
+    };
     const handleDrop = (groupId: number, meetingId: number) => async (
     event: React.DragEvent<HTMLDivElement>
   ) => {
@@ -13,6 +19,9 @@ export function useMediaManager() {
 
     const files = event.dataTransfer.files;
     if (files.length === 0) return;
+
+    
+
 
     const file = files[0];
     const formData = new FormData();
@@ -56,6 +65,7 @@ export function useMediaManager() {
         handleDrop,
         uploadProgress, 
         uploading,
+        isValidFile,
     };
     
 }

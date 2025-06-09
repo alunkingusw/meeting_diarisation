@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.startup import UPLOAD_DIR
 from backend.models import RawFile
@@ -6,6 +6,7 @@ from werkzeug.utils import secure_filename
 from backend.db_dependency import get_db
 from backend.auth import get_current_user_id
 import uuid
+import os
 
 
 
@@ -14,6 +15,8 @@ from backend.processing import process_audio
 
 router = APIRouter()
 
+# Allowed file extensions
+ALLOWED_EXTENSIONS = {'.wav', '.mp3', '.m4a', '.json', '.vtt', '.srt', '.txt'}
 
 @router.post("/groups/{group_id}/meetings/{meeting_id}/upload/")
 async def upload_file(
@@ -23,6 +26,14 @@ async def upload_file(
         db: Session = Depends(get_db),
         user_id: int = Depends(get_current_user_id)
     ):
+    # Extract extension and validate
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: '{ext}'. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"
+        )
+    
     human_filename = secure_filename(file.filename)
     safe_filename = f"{uuid.uuid4().hex}_{human_filename}"
     
