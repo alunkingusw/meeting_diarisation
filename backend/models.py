@@ -84,6 +84,8 @@ class RawFile(Base):
     human_name = Column(Text, nullable=True)
     description = Column(Text, nullable=True)
     meeting_id = Column(Integer, ForeignKey("meetings.id"),nullable=False)
+    processed_date = Column(DateTime, nullable=True)
+    type = Column(String(255), nullable=False)
     meeting=relationship("Meeting", back_populates="media_files")
 
 class GroupMemberOut(BaseModel):
@@ -107,6 +109,8 @@ class RawFileOut(BaseModel):
     human_name:str
     file_name:str
     description:Optional[str]
+    processed_date:Optional[datetime]
+    type:str
     class Config:
         orm_mode=True
 
