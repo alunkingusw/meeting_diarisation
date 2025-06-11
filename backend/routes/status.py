@@ -54,7 +54,7 @@ def check_model_status():
             "version": "unknown"
         }
 
-    # PyAnnote check
+    # PyAnnote diarisation check
     try:
         from pyannote.audio import Pipeline
         import pyannote
@@ -69,18 +69,16 @@ def check_model_status():
             "version": "unknown"
         }
 
-    # Resemblyzer check
+    # ✅ PyAnnote embedding model check
     try:
-        from resemblyzer import VoiceEncoder
-        import resemblyzer
-        VoiceEncoder()
-        version = getattr(resemblyzer, '__version__', 'unknown')
-        status["resemblyzer_voice_encoder"] = {
+        from pyannote.audio import Inference
+        Inference("pyannote/embedding", use_auth_token=HUGGING_FACE_TOKEN)
+        status["pyannote_embedding"] = {
             "status": "available",
-            "version": version
+            "version": "included with pyannote.audio"
         }
     except Exception as e:
-        status["resemblyzer_voice_encoder"] = {
+        status["pyannote_embedding"] = {
             "status": f"unavailable ({str(e)})",
             "version": "unknown"
         }

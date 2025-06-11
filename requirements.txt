@@ -16,4 +16,3 @@ openai-whisper
 pyannote.audio
 torch
 torchaudio
-resemblyzer

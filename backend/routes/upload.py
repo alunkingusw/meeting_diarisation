@@ -16,7 +16,10 @@ from backend.processing import process_audio
 router = APIRouter()
 
 # Allowed file extensions
-ALLOWED_EXTENSIONS = {'.wav', '.mp3', '.m4a', '.json', '.vtt', '.srt', '.txt'}
+ALLOWED_AUDIO_EXTENSIONS = {'.wav', '.mp3', '.m4a'}
+ALLOWED_TRANSCRIPT_EXTENSIONS = {'.json', '.vtt', '.srt', '.txt'}
+ALL_ALLOWED_EXTENSIONS = ALLOWED_AUDIO_EXTENSIONS | ALLOWED_TRANSCRIPT_EXTENSIONS
+
 
 @router.post("/groups/{group_id}/meetings/{meeting_id}/upload/")
 async def upload_file(
@@ -28,11 +31,19 @@ async def upload_file(
     ):
     # Extract extension and validate
     ext = os.path.splitext(file.filename)[1].lower()
-    if ext not in ALLOWED_EXTENSIONS:
+    if ext not in ALL_ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported file type: '{ext}'. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"
+            detail=f"Unsupported file type: '{ext}'. Allowed types: {', '.join(sorted(ALL_ALLOWED_EXTENSIONS))}"
         )
+    
+    file_type=""
+    if ext in ALLOWED_AUDIO_EXTENSIONS:
+        file_type="audio"
+    else:
+        file_type="transcript_provided"
+    
+
     
     human_filename = secure_filename(file.filename)
     safe_filename = f"{uuid.uuid4().hex}_{human_filename}"
@@ -46,13 +57,14 @@ async def upload_file(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # add file upload to the database
+    # add file upload to the database. Leave processed as null as it has not yet been looked at.
     
     raw_file = RawFile(
         file_name=safe_filename,
         human_name=human_filename,
         description=None,
         meeting_id = meeting_id,
+        type=file_type,
     )
     db.add(raw_file)
     db.commit()

@@ -3,6 +3,8 @@ services:
     build: 
       context: .
       dockerfile: Dockerfile
+      args:
+        HUGGING_FACE_TOKEN: $(HUGGING_FACE_TOKEN)
     container_name: diarisation-api
     ports:
       - "8000:8000"
