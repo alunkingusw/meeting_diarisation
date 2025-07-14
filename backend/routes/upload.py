@@ -1,5 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks
+from sqlalchemy.orm import Session, and_
 from backend.startup import UPLOAD_DIR
 from backend.models import RawFile
 from werkzeug.utils import secure_filename
@@ -73,3 +73,39 @@ async def upload_file(
 
     # Trigger processing (placeholder)
     # result = process_audio(file_path)
+
+
+
+
+@router.post("/groups/{group_id}/meetings/{meeting_id}/transcribe/")
+async def start_transcription_job(
+    group_id: int,
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+    background_tasks: BackgroundTasks = None
+):
+    # Check if there's at least one audio file uploaded for this meeting
+    audio_file = db.query(RawFile).filter(
+        and_(
+            RawFile.meeting_id == meeting_id,
+            RawFile.type == "audio"
+        )
+    ).first()
+
+    if not audio_file:
+        raise HTTPException(
+            status_code=400,
+            detail="No audio files found for this meeting. Please upload an audio file before starting transcription."
+        )
+
+    # STUB: Kick off transcription (e.g., background task or job queue)
+    # Example: background_tasks.add_task(process_audio, audio_file.file_name)
+    # Replace with actual logic, e.g., pass file path, IDs, etc.
+    print(f"Stub: Would kick off transcription for file {audio_file.file_name}")
+
+    return {
+        "message": "Transcription job started.",
+        "file": audio_file.file_name,
+        "status_check_url": f"/groups/{group_id}/meetings/{meeting_id}/transcription/status"
+    }

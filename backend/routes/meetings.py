@@ -1,7 +1,7 @@
 # backend/routers/meetings.py
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from backend.models import Meeting, MeetingOut, GroupMember
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from sqlalchemy.orm import Session, and_
+from backend.models import Meeting, MeetingOut, GroupMember, RawFile
 from backend.db_dependency import get_db
 from datetime import datetime
 from backend.validation import MeetingCreateEdit, MeetingAttendee
@@ -118,3 +118,36 @@ def remove_attendee(
         return {"message": "Attendee removed"}
     else:
         raise HTTPException(status_code=404, detail="Member is not an attendee of this meeting")
+    
+@router.post("/{meeting_id}/transcribe")
+async def start_transcription_job(
+    group_id: int,
+    meeting_id: int,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(is_group_user),
+    background_tasks: BackgroundTasks = None
+):
+    # Check if there's at least one audio file uploaded for this meeting
+    audio_file = db.query(RawFile).filter(
+        and_(
+            RawFile.meeting_id == meeting_id,
+            RawFile.type == "audio"
+        )
+    ).first()
+
+    if not audio_file:
+        raise HTTPException(
+            status_code=400,
+            detail="No audio files found for this meeting. Please upload an audio file before starting transcription."
+        )
+
+    # STUB: Kick off transcription (e.g., background task or job queue)
+    # Example: background_tasks.add_task(process_audio, audio_file.file_name)
+    # Replace with actual logic, e.g., pass file path, IDs, etc.
+    print(f"Stub: Would kick off transcription for file {audio_file.file_name}")
+
+    return {
+        "message": "Transcription job started.",
+        "file": audio_file.file_name,
+        "status_check_url": f"/groups/{group_id}/meetings/{meeting_id}/transcription/status"
+    }

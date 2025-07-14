@@ -3,6 +3,11 @@ FROM python:3.10-slim
 ARG HUGGING_FACE_TOKEN
 ENV HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
 
+#set model locations for cache (we set them offline later)
+ENV XDG_CACHE_HOME=/models
+ENV TRANSFORMERS_CACHE=/models/hf
+ENV PYANNOTE_CACHE=/models/pyannote
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg git libsndfile1 build-essential \
@@ -31,12 +36,10 @@ RUN python3 -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('p
 RUN python3 -c "from pyannote.audio import Model; Model.from_pretrained('pyannote/embedding', use_auth_token=['HUGGING_FACE_TOKEN'])"
 
 #set models to run offline, to ensure data security
-ENV TRANSFORMERS_OFFLINE=1
-ENV HF_DATASETS_OFFLINE=1
+#ENV TRANSFORMERS_OFFLINE=1
+#ENV HF_DATASETS_OFFLINE=1
 ENV WANDB_MODE=offline
-ENV XDG_CACHE_HOME=/models
-ENV TRANSFORMERS_CACHE=/models/hf
-ENV PYANNOTE_CACHE=/models/pyannote
+
 
 # Set work directory
 WORKDIR /backend
