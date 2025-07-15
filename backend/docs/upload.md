@@ -1,12 +1,12 @@
-# 🧠 Transcription Flow Overview
+# Transcription Flow Overview
 
 This diagram illustrates the backend process for handling meeting audio file uploads and triggering transcription.
 
 ```mermaid
 flowchart TD
     subgraph User Interaction
-        A[1. User uploads file] --> B[/POST /groups/{group_id}/meetings/{meeting_id}/upload/]
-        E[6. User calls transcribe endpoint] --> F[/POST /groups/{group_id}/meetings/{meeting_id}/transcribe/]
+        A[User uploads file] --> B[POST /upload]
+        E[User calls transcribe endpoint] --> F[POST /transcribe]
     end
 
     subgraph Backend Upload Handler
@@ -33,9 +33,9 @@ flowchart TD
     end
 
     subgraph Status Checking
-        M[7. User polls status] --> N[/GET /groups/{group_id}/meetings/{meeting_id}/transcription/status]
+        M[User polls status] --> N[GET transcriptions/status]
         N --> DB3[Query RawFile.processed_date]
         DB3 --> O{Processed?}
         O -->|Yes| P[Return transcript or download URL]
-        O -->|No| Q[Return "processing" status]
+        O -->|No| Q[Return 'processing' status]
     end
