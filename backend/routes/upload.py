@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from backend.startup import UPLOAD_DIR
@@ -12,7 +12,7 @@ import os
 
 
 import shutil
-from backend.processing import process_audio
+#from backend.processing import transcribe
 
 router = APIRouter()
 
@@ -22,7 +22,7 @@ ALLOWED_TRANSCRIPT_EXTENSIONS = {'.json', '.vtt', '.srt', '.txt'}
 ALL_ALLOWED_EXTENSIONS = ALLOWED_AUDIO_EXTENSIONS | ALLOWED_TRANSCRIPT_EXTENSIONS
 
 
-@router.post("/groups/{group_id}/meetings/{meeting_id}/upload/")
+@router.post("/groups/{group_id}/meetings/{meeting_id}/upload/", tags=["meetings"])
 async def upload_file(
         group_id:int,
         meeting_id:int,
@@ -74,50 +74,4 @@ async def upload_file(
 
     # Trigger processing (placeholder)
     # result = process_audio(file_path)
-
-
-
-
-@router.post("/groups/{group_id}/meetings/{meeting_id}/transcribe/")
-async def start_transcription_job(
-    group_id: int,
-    meeting_id: int,
-    reprocess: bool = Query(False),
-    db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
-    background_tasks: BackgroundTasks = None
-):
-    # Find first audio file for this meeting
-    audio_file = db.query(RawFile).filter(
-        and_(
-            RawFile.meeting_id == meeting_id,
-            RawFile.type == "audio"
-        )
-    ).first()
-
-    if not audio_file:
-        raise HTTPException(
-            status_code=400,
-            detail="No audio files found for this meeting. Please upload an audio file before starting transcription."
-        )
-
-    # Prevent accidental reprocessing
-    if audio_file.processed_date is not None and not reprocess:
-        raise HTTPException(
-            status_code=409,
-            detail="This file has already been processed. To reprocess, set the 'reprocess=true' query parameter."
-        )
-
-    # STUB: Enqueue or trigger transcription
-    # STUB: Kick off transcription (e.g., background task or job queue)
-    # Example: background_tasks.add_task(process_audio, audio_file.file_name)
-    # Replace with actual logic, e.g., pass file path, IDs, etc.
-    print(f"Stub: Would {'re' if audio_file.processed_date else ''}process {audio_file.file_name}")
-
-    return {
-        "message": f"{'Reprocessing' if reprocess else 'Transcription job started'}.",
-        "file": audio_file.file_name,
-        "status_check_url": f"/groups/{group_id}/meetings/{meeting_id}/transcription/status"
-    }
-
 

@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, func
+    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, func
 )
 from sqlalchemy.orm import relationship
 from backend.db import Base
@@ -62,6 +62,10 @@ class GroupMember(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=True)
     created = Column(DateTime, nullable=False, default=func.now())
+
+    embedding = Column(JSON, nullable=True)  # Stores list of floats from pyannote
+    embedding_audio_path = Column(String(255), nullable=True)  # Optional: for reference/debugging
+    embedding_updated_at = Column(DateTime, nullable=True)
 
     groups = relationship("Group", secondary=groups_group_members, back_populates="members")
     attended_meetings = relationship("Meeting", secondary=meetings_group_members, back_populates="attendees")

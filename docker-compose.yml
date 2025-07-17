@@ -15,7 +15,12 @@ services:
     env_file:
       - .env
     command: bash -c "alembic upgrade head && uvicorn backend.main:backend --host 0.0.0.0 --port 8000"
-    
+    #enable GPU access
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
 
   db:
     image: postgres:15

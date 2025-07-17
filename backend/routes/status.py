@@ -37,6 +37,29 @@ def get_status(db: Session = Depends(get_db)):
         "database": db_status
     }
 
+@router.get("/gpu-status")
+def get_gpu_status():
+    import torch
+
+    if not torch.cuda.is_available():
+        return {"cuda_available": False, "message": "CUDA not available."}
+
+    device_index = torch.cuda.current_device()
+    device_name = torch.cuda.get_device_name(device_index)
+    memory_allocated = torch.cuda.memory_allocated(device_index)
+    memory_reserved = torch.cuda.memory_reserved(device_index)
+    total_memory = torch.cuda.get_device_properties(device_index).total_memory
+
+    return {
+        "cuda_available": True,
+        "device_index": device_index,
+        "device_name": device_name,
+        "memory_allocated_MB": round(memory_allocated / 1024**2, 2),
+        "memory_reserved_MB": round(memory_reserved / 1024**2, 2),
+        "total_memory_MB": round(total_memory / 1024**2, 2),
+    }
+
+
 def check_model_status():
     status = {}
 
@@ -81,6 +104,24 @@ def check_model_status():
         status["pyannote_embedding"] = {
             "status": f"unavailable ({str(e)})",
             "version": "unknown"
+        }
+
+    # Torch and CUDA status
+    try:
+        import torch
+        cuda_available = torch.cuda.is_available()
+        device_name = torch.cuda.get_device_name(0) if cuda_available else "CPU"
+
+        status["torch"] = {
+            "version": torch.__version__,
+            "cuda_available": cuda_available,
+            "device": device_name
+        }
+    except Exception as e:
+        status["torch"] = {
+            "version": "unknown",
+            "cuda_available": False,
+            "device": f"unavailable ({str(e)})"
         }
 
     return status

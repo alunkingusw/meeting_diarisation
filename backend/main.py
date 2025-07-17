@@ -7,7 +7,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
-from backend.processing import process_audio
+#from backend.processing import process_audio
 from fastapi.middleware.cors import CORSMiddleware
 
 backend = FastAPI()

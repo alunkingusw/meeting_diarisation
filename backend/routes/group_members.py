@@ -1,10 +1,14 @@
 # backend/routers/group_members.py
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from backend.models import GroupMember, Group
 from backend.db_dependency import get_db
 from backend.auth import get_current_user_id
 from backend.validation import GroupMembersCreateEdit
+from backend.startup import UPLOAD_DIR
+from backend.processing.generate_embedding import generate_embedding
+import shutil
+import os
 
 router = APIRouter(prefix="/groups/{group_id}/members", tags=["group_members"])
 
@@ -86,3 +90,54 @@ def delete_member(
     db.delete(member)
     db.commit()
     return {"message": "Member deleted"}
+
+@router.post("/{member_id}/embedding")
+def upload_member_embedding(
+        group_id: int,
+        member_id: int,
+        background_tasks: BackgroundTasks,
+        file: UploadFile = File(...),
+        overwrite: bool = Query(False),
+        db: Session = Depends(get_db),
+        user_id: int = Depends(get_current_user_id),
+    ):
+    # Validate group and member
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    member = db.query(GroupMember).filter(
+        GroupMember.id == member_id
+    ).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    # Define path
+    embedding_dir = UPLOAD_DIR / "embeddings"
+    embedding_dir.mkdir(parents=True, exist_ok=True)
+    file_name = f"{member_id}.wav"
+    audio_path = embedding_dir / file_name
+
+    # Check for existing audio
+    if audio_path.exists() and not overwrite:
+        raise HTTPException(
+            status_code=409,
+            detail="Embedding audio already exists. Use `overwrite=true` to replace it."
+        )
+
+    # Save file
+    with open(audio_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    #update member with file name
+    member.embedding_audio_path = file_name
+    db.commit()
+
+    # Queue background embedding process
+    background_tasks.add_task(generate_embedding, member_id, db)
+
+    return {
+        "message": "Audio file uploaded. Embedding will be processed shortly.",
+        "member_id": member_id,
+        "file_name":file_name,
+    }

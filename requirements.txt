@@ -16,3 +16,6 @@ openai-whisper
 pyannote.audio
 torch
 torchaudio
+scikit-learn
+git+https://github.com/alunkingusw/brouhaha-vad.git@main
+numpy
