@@ -6,6 +6,7 @@ from backend.models import RawFile
 from werkzeug.utils import secure_filename
 from backend.db_dependency import get_db
 from backend.auth import get_current_user_id
+from backend.models import RawFileType
 import uuid
 import os
 
@@ -38,11 +39,11 @@ async def upload_file(
             detail=f"Unsupported file type: '{ext}'. Allowed types: {', '.join(sorted(ALL_ALLOWED_EXTENSIONS))}"
         )
     
-    file_type=""
+    # if it's not an audio file, then it's a provided transcript
+    file_type=RawFileType.TRANSCRIPT_PROVIDED
     if ext in ALLOWED_AUDIO_EXTENSIONS:
-        file_type="audio"
-    else:
-        file_type="transcript_provided"
+        file_type=RawFileType.AUDIO
+    
     
 
     
