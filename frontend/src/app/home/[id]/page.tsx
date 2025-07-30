@@ -20,6 +20,7 @@ const {loading, getGroup, group, error, newMemberName, setNewMemberName, handleC
       router.push('/');
       return;
     }
+    
     getGroup(Number(id));
     if(error){
       router.replace('/home')
@@ -43,6 +44,11 @@ const {loading, getGroup, group, error, newMemberName, setNewMemberName, handleC
         <li className="me-2">
         <Link href={`/home/${id}`}>
           <span className="text-blue-600 hover:underline inline-block p-4 text-blue-600 bg-gray-100 rounded-t-lg active dark:bg-gray-800 dark:text-blue-500">Group Overview</span>
+        </Link>
+        </li>
+        <li className="me-2">
+        <Link href={`/home/${id}/members`}>
+          <span className="text-blue-600 hover:underline inline-block p-4 rounded-t-lg hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 dark:hover:text-gray-300">View Members</span>
         </Link>
         </li>
         <li className="me-2">

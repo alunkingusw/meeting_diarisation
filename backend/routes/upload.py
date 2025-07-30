@@ -1,11 +1,12 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from backend.startup import UPLOAD_DIR
+from backend.config import settings
 from backend.models import RawFile
 from werkzeug.utils import secure_filename
 from backend.db_dependency import get_db
 from backend.auth import get_current_user_id
+from fastapi.responses import FileResponse
 import uuid
 import os
 
@@ -50,7 +51,7 @@ async def upload_file(
     safe_filename = f"{uuid.uuid4().hex}_{human_filename}"
     
     # Build target directory path: uploads/group_id/meeting_id
-    target_dir = UPLOAD_DIR / str(group_id) / str(meeting_id)
+    target_dir = settings.UPLOAD_DIR / str(group_id) / str(meeting_id)
     target_dir.mkdir(parents=True, exist_ok=True)
 
     file_path = target_dir / safe_filename
@@ -75,3 +76,16 @@ async def upload_file(
     # Trigger processing (placeholder)
     # result = process_audio(file_path)
 
+# TODO: Finish this file access call for any requested files.
+# TODO: Check the file in the database and validate the user_id against the access rules
+@router.get("/files/{filename}")
+def serve_file(
+        filename: str, 
+        user_id: int = Depends(get_current_user_id)
+    ):
+    if not user_can_access(user, filename):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    file_path = os.path.join(settings.UPLOAD_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(file_path)

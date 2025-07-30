@@ -1,7 +1,4 @@
 import logging
-from sklearn.preprocessing import normalize
-from backend.startup import UPLOAD_DIR
-from sqlalchemy.orm import Session
 
 # Configure logging level and format
 logging.basicConfig(
@@ -11,6 +8,10 @@ logging.basicConfig(
         logging.StreamHandler()  # prints to console
     ]
 )
+
+from sklearn.preprocessing import normalize
+from backend.config import settings
+from sqlalchemy.orm import Session
 from datetime import datetime
 import torch
 from pyannote.audio import Model, Inference
@@ -46,7 +47,7 @@ def generate_embedding(member_id: int, db: Session):
             return  # Or log
         
         # Define path
-        embedding_dir = UPLOAD_DIR / "embeddings"
+        embedding_dir = settings.EMBEDDING_DIR
         audio_path = embedding_dir / member.embedding_audio_path
 
         #check file exists before processing

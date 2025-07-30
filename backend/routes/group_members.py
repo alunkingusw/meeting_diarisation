@@ -1,11 +1,12 @@
 # backend/routers/group_members.py
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, BackgroundTasks, Query
 from sqlalchemy.orm import Session
-from backend.models import GroupMember, Group
+from typing import List
+from backend.models import GroupMember, Group, GroupMemberOut
 from backend.db_dependency import get_db
 from backend.auth import get_current_user_id
 from backend.validation import GroupMembersCreateEdit
-from backend.startup import UPLOAD_DIR
+from backend.config import settings
 from backend.processing.generate_embedding import generate_embedding
 import shutil
 import os
@@ -35,7 +36,8 @@ def create_member(
 def list_members(
         group_id: int,
         db: Session = Depends(get_db), 
-        user_id: int = Depends(get_current_user_id)
+        user_id: int = Depends(get_current_user_id),
+        response_model=List[GroupMemberOut]
     ):
     group = db.query(Group).get(group_id)
     if not group:
@@ -52,7 +54,8 @@ def get_member(
         group_id:int,
         member_id: int, 
         db: Session = Depends(get_db), 
-        user_id: int = Depends(get_current_user_id)
+        user_id: int = Depends(get_current_user_id),
+        response_model=GroupMemberOut
     ):
     member = db.query(GroupMember).filter(
         GroupMember.id == member_id, GroupMember.group_id == group_id
@@ -113,7 +116,7 @@ def upload_member_embedding(
         raise HTTPException(status_code=404, detail="Member not found")
 
     # Define path
-    embedding_dir = UPLOAD_DIR / "embeddings"
+    embedding_dir = settings.EMBEDDING_DIR
     embedding_dir.mkdir(parents=True, exist_ok=True)
     file_name = f"{member_id}.wav"
     audio_path = embedding_dir / file_name

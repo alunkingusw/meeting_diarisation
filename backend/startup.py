@@ -2,6 +2,7 @@ from datetime import datetime
 from pathlib import Path
 from backend import models
 from backend.db import Base, engine
+from backend.config import settings
 
 import logging
 
@@ -24,5 +25,5 @@ try:
 except Exception as e:
     logging.error(f"Error initializing the database: {e}")
 
-UPLOAD_DIR = Path("backend/uploads")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

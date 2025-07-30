@@ -7,7 +7,7 @@ import { useParams } from 'next/navigation';
 import { CiCircleInfo } from "react-icons/ci";
 
 import Link from 'next/link';
-import { useGroupManager } from '@/hooks/groupManager';
+import { useGroupManager, Person } from '@/hooks/groupManager';
 import { useMeetingManager } from '@/hooks/meetingManager';
 import {useMediaManager} from '@/hooks/mediaManager'
 import Cookies from 'js-cookie';
@@ -40,6 +40,11 @@ export default function MeetingsPage() {
         </Link>
         </li>
         <li className="me-2">
+        <Link href={`/home/${id}/members`}>
+          <span className="text-blue-600 hover:underline inline-block p-4 rounded-t-lg hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 dark:hover:text-gray-300">View Members</span>
+        </Link>
+        </li>
+        <li className="me-2">
         <Link href={`/home/${id}/meetings`}>
           <span className="text-blue-600 hover:underline inline-block p-4 text-blue-600 bg-gray-100 rounded-t-lg active dark:bg-gray-800 dark:text-blue-500">View Meetings</span>
         </Link>
@@ -61,9 +66,10 @@ export default function MeetingsPage() {
               <li key={meeting.id}>
                 <button
                   onClick={() => handleSelectMeeting(Number(id), meeting.id)}
-                  className="hover:underline"
-                >
-                  {new Date(meeting.date).toLocaleDateString()}
+                  className={`hover:underline ${
+        selectedMeeting?.id === meeting.id ? 'font-semibold text-blue-600' : 'text-blue-600'
+      }`}>
+                          {new Date(meeting.date).toLocaleDateString()}
                 </button>
               </li>
             ))}
@@ -131,8 +137,8 @@ export default function MeetingsPage() {
                 <h3 className="font-semibold">Guests</h3>
                 <ul className="divide-y">
                   {selectedMeeting.attendees
-                    .filter(att => !groupMembers.some(member => member.id === att.id))
-                    .map(guest => (
+                    .filter((att:Person) => !groupMembers.some(member => member.id === att.id))
+                    .map((guest:Person) => (
                       <li key={guest.id} className="flex items-center justify-between py-2">
                         <span>{guest.name || 'Unnamed Guest'}</span>
                         <label className="inline-flex items-center cursor-pointer">
@@ -147,7 +153,7 @@ export default function MeetingsPage() {
                       </li>
                     ))
                   }
-                  {selectedMeeting.attendees.filter(att => !groupMembers.some(m => m.id === att.id)).length === 0 && (
+                  {selectedMeeting.attendees.filter((att:Person) => !groupMembers.some(m => m.id === att.id)).length === 0 && (
                     <li className="text-sm text-gray-500 italic">No guests</li>
                   )}
                 </ul>

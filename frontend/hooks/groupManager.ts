@@ -2,11 +2,19 @@ import {useState, useEffect} from 'react';
 import {Group} from '@/types/group';
 import Cookies from 'js-cookie';
 
+export type Person = {
+  id: number;
+  name: string;
+  created: string;
+  embedding_audio_path?: string | null;
+};
+
 export function useGroupManager(){
-    const [groupMembers, setGroupMembers] = useState<any[]>([]);
+    const [groupMembers, setGroupMembers] = useState<Person[]>([]);
     const [meetings, setMeetings] = useState<any[]>([]);
     const [group, setGroup] = useState<Group | null>(null)
     const [error, setError] = useState(false);
+    const [selectedMember, setSelectedMember] = useState<Person | null>(null);
     const [loading, setLoading] = useState(true); // Track loading state
     const [newMemberName, setNewMemberName] = useState('');
 
@@ -64,6 +72,8 @@ export function useGroupManager(){
     .catch(console.error);
   };
 
+  
+
   const handleCreateMember = async (e: React.FormEvent) => {
       e.preventDefault();
       const token = Cookies.get('token');
@@ -109,6 +119,8 @@ export function useGroupManager(){
     getGroup,
     group,
     error,
+    selectedMember,
+    setSelectedMember,
     newMemberName,
     setNewMemberName
   };

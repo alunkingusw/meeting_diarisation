@@ -3,10 +3,11 @@
 # python -m alembic revision --autogenerate -m "Describe your changes here"
 # then apply to the database using the following command
 # python -m alembic upgrade head
-from pydantic import BaseModel
-from typing import List
+from pydantic import BaseModel, field_validator
+from typing import List, Optional
 from datetime import datetime
-from typing import Optional
+from backend.config import settings
+
 
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, func
@@ -96,9 +97,15 @@ class GroupMemberOut(BaseModel):
     id: int
     name: str
     created: datetime
-
+    embedding_audio_path: Optional[str]
+    @field_validator("embedding_audio_path", mode="before")
+    def add_base_url(cls, v):
+        if v and not v.startswith("http"):
+            return f"{settings.EMBEDDING_DIR}{v}"
+        return v
+    
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class GroupOut(BaseModel):
     id: int
@@ -106,7 +113,7 @@ class GroupOut(BaseModel):
     created: datetime
     members: List[GroupMemberOut]  # Include related members
     class Config:
-        orm_mode = True
+        from_attributes  = True
 
 class RawFileOut(BaseModel):
     id: int
@@ -116,7 +123,7 @@ class RawFileOut(BaseModel):
     processed_date:Optional[datetime]
     type:str
     class Config:
-        orm_mode=True
+        from_attributes =True
 
 class MeetingAttendeeOut(BaseModel):
     id: int
@@ -124,7 +131,7 @@ class MeetingAttendeeOut(BaseModel):
     created: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes  = True
 
 class MeetingOut(BaseModel):
     id:int
@@ -134,4 +141,4 @@ class MeetingOut(BaseModel):
     attendees: List[MeetingAttendeeOut]  # Include all attendees
     media_files: List[RawFileOut]
     class Config:
-        orm_mode = True
+        from_attributes  = True

@@ -7,6 +7,7 @@ from backend.db_dependency import get_db
 from datetime import datetime
 from backend.validation import MeetingCreateEdit, MeetingAttendee
 from backend.auth import get_current_user_id, is_group_user
+from backend.processing.transcribe import transcribe_meeting
 
 router = APIRouter(prefix="/groups/{group_id}/meetings", tags=["meetings"])
 
@@ -150,11 +151,8 @@ async def start_transcription_job(
             detail="This file has already been processed. To reprocess, set the 'reprocess=true' query parameter."
         )
 
-    # STUB: Enqueue or trigger transcription
-    # STUB: Kick off transcription (e.g., background task or job queue)
-    # Example: background_tasks.add_task(process_audio, audio_file.file_name)
-    # Replace with actual logic, e.g., pass file path, IDs, etc.
-    print(f"Stub: Would {'re' if audio_file.processed_date else ''}process {audio_file.file_name}")
+    # Queue background transcription process
+    background_tasks.add_task(transcribe_meeting, group_id, meeting_id, db)
 
     return {
         "message": f"{'Reprocessing' if reprocess else 'Transcription job started'}.",
