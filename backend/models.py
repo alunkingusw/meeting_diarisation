@@ -8,9 +8,10 @@ from typing import List, Optional
 from datetime import datetime
 from backend.config import settings
 
+from enum import Enum
 
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, func
+    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, func, Enum as SQLEnum
 )
 from sqlalchemy.orm import relationship
 from backend.db import Base
@@ -82,6 +83,14 @@ class Meeting(Base):
     attendees = relationship("GroupMember", secondary=meetings_group_members, back_populates="attended_meetings")
     media_files = relationship("RawFile", back_populates="meeting", cascade="all, delete-orphan")
 
+
+
+class RawFileType(str, Enum):
+    AUDIO = "audio"
+    TRANSCRIPT_PROVIDED = "transcript_provided"
+    TRANSCRIPT_GENERATED = "transcript_generated"
+
+
 class RawFile(Base):
     __tablename__ = "raw_files"
     id = Column(Integer, primary_key=True)
@@ -90,8 +99,9 @@ class RawFile(Base):
     description = Column(Text, nullable=True)
     meeting_id = Column(Integer, ForeignKey("meetings.id"),nullable=False)
     processed_date = Column(DateTime, nullable=True)
-    type = Column(String(255), nullable=False)
+    type = Column(SQLEnum(RawFileType, name="raw_file_type"), nullable=False)
     meeting=relationship("Meeting", back_populates="media_files")
+    status=Column(Text, nullable=True)
 
 class GroupMemberOut(BaseModel):
     id: int
@@ -113,7 +123,21 @@ class GroupOut(BaseModel):
     created: datetime
     members: List[GroupMemberOut]  # Include related members
     class Config:
-        from_attributes  = True
+        from_attributes = True
+
+class RawFileCreate(BaseModel):
+    file_name: str
+    human_name: str
+    description: Optional[str]
+    type: RawFileType
+    meeting_id: int
+
+class RawFileCreate(BaseModel):
+    file_name: str
+    human_name: str
+    description: Optional[str]
+    type: RawFileType
+    meeting_id: int
 
 class RawFileOut(BaseModel):
     id: int
@@ -121,7 +145,7 @@ class RawFileOut(BaseModel):
     file_name:str
     description:Optional[str]
     processed_date:Optional[datetime]
-    type:str
+    type:RawFileType
     class Config:
         from_attributes =True
 
