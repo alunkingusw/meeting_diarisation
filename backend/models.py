@@ -108,11 +108,6 @@ class GroupMemberOut(BaseModel):
     name: str
     created: datetime
     embedding_audio_path: Optional[str]
-    @field_validator("embedding_audio_path", mode="before")
-    def add_base_url(cls, v):
-        if v and not v.startswith("http"):
-            return f"{settings.EMBEDDING_DIR}{v}"
-        return v
     
     class Config:
         from_attributes = True

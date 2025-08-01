@@ -2,14 +2,14 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Backgro
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from backend.config import settings
-from backend.models import RawFile
+from backend.models import RawFile, RawFileType, GroupMember, User, Group
 from werkzeug.utils import secure_filename
 from backend.db_dependency import get_db
 from backend.auth import get_current_user_id
 from fastapi.responses import FileResponse
-from backend.models import RawFileType
 import uuid
 import os
+import re
 
 
 
@@ -22,7 +22,12 @@ router = APIRouter()
 ALLOWED_AUDIO_EXTENSIONS = {'.wav', '.mp3', '.m4a'}
 ALLOWED_TRANSCRIPT_EXTENSIONS = {'.json', '.vtt', '.srt', '.txt'}
 ALL_ALLOWED_EXTENSIONS = ALLOWED_AUDIO_EXTENSIONS | ALLOWED_TRANSCRIPT_EXTENSIONS
+FILENAME_RE = re.compile(r"^[\w.\-]+$")  # Allows: a-zA-Z0-9 _ . -
 
+def validate_filename(filename: str) -> str:
+    if not FILENAME_RE.fullmatch(filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    return filename
 
 @router.post("/groups/{group_id}/meetings/{meeting_id}/upload/", tags=["meetings"])
 async def upload_file(
@@ -77,16 +82,42 @@ async def upload_file(
     # Trigger processing (placeholder)
     # result = process_audio(file_path)
 
-# TODO: Finish this file access call for any requested files.
-# TODO: Check the file in the database and validate the user_id against the access rules
-@router.get("/files/{filename}")
+@router.get("/files/embedding/{filename}")
 def serve_file(
-        filename: str, 
-        user_id: int = Depends(get_current_user_id)
+        filename: str = Depends(validate_filename), 
+        user_id: int = Depends(get_current_user_id),
+        db: Session = Depends(get_db)
     ):
-    if not user_can_access(user, filename):
+
+    if not user_can_access_embedding(db, user_id, filename):
         raise HTTPException(status_code=403, detail="Forbidden")
-    file_path = os.path.join(settings.UPLOAD_DIR, filename)
+    file_path = os.path.join(settings.EMBEDDING_DIR, filename)
+
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
-    return FileResponse(file_path)
+        raise HTTPException(status_code=404, detail="File not found: "+file_path)
+    
+    response = FileResponse(file_path)
+    return response
+
+def user_can_access_embedding(db: Session, user_id: int, filename: str) -> bool:
+    # Find the GroupMember(s) that own this file
+    member = db.query(GroupMember).filter(GroupMember.embedding_audio_path == filename).first()
+    if not member:
+        return False
+
+    # Get groups of the member
+    member_group_ids = [group.id for group in member.groups]
+
+    # Get groups of the user
+    user_group_ids = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .join(User.groups)
+        .with_entities(Group.id)
+        .all()
+    )
+    user_group_ids = [g[0] for g in user_group_ids]
+
+    # Check if any group overlaps
+    return any(gid in user_group_ids for gid in member_group_ids)
+

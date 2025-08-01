@@ -92,7 +92,7 @@ def check_model_status():
             "version": "unknown"
         }
 
-    # ✅ PyAnnote embedding model check
+    # PyAnnote embedding model check
     try:
         from pyannote.audio import Inference
         Inference("pyannote/embedding", use_auth_token=HUGGING_FACE_TOKEN)

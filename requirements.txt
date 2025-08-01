@@ -5,6 +5,7 @@ psycopg2-binary
 sqlalchemy
 python-dotenv
 pydantic
+pydantic-settings
 werkzeug
 alembic
 python-jose[cryptography]

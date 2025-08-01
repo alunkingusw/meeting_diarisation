@@ -1,17 +1,24 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings
+from pydantic import PrivateAttr
+from pathlib import Path
 import os
 
 class Settings(BaseSettings):
-    UPLOAD_DIR: str = "backend/uploads"
-    BASE_UPLOAD_URL: str = "https://yourdomain.com/uploads"  # HTTP base URL
+    # this is the default value, overridden by the value in .env
+    UPLOAD_DIR: Path = Path("/backend/uploads")
+    
 
     # Sub-paths built from the base path, built on initialisation
-    EMBEDDING_DIR: str = ""
+    _embedding_dir: Path = PrivateAttr()
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.EMBEDDING_DIR = os.path.join(self.UPLOAD_DIR, "embeddings")
+        self._embedding_dir = self.UPLOAD_DIR / "embeddings"
 
+    @property
+    def EMBEDDING_DIR(self) -> Path:
+        return self._embedding_dir
+    
     class Config:
         env_file = ".env"
 

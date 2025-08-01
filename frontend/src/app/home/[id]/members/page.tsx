@@ -9,14 +9,14 @@ import { CiCircleInfo } from "react-icons/ci";
 import Link from 'next/link';
 import { useGroupManager, Person } from '@/hooks/groupManager';
 import { useMeetingManager } from '@/hooks/meetingManager';
-import {useMediaManager} from '@/hooks/mediaManager'
+import {useMediaManager, EmbeddingAudioPlayer} from '@/hooks/mediaManager'
 import Cookies from 'js-cookie'; 
 
 export default function MembersPage() {
   const { id } = useParams();
   const [showHelp, setShowHelp] = useState(false);
   const {loading, getGroup, group, groupMembers, error, selectedMember, setSelectedMember, newMemberName, setNewMemberName, handleCreateMember, fetchGroupMembers} = useGroupManager();
-  const {isValidFile, uploading, uploadProgress, handleDrop} = useMediaManager();
+  const {isValidMeetingFile, isValidAudioFile, uploading, uploadProgress, handleEmbeddingAudioDrop} = useMediaManager();
   useEffect(() => {
     if (!id) return;
     getGroup(Number(id));
@@ -115,17 +115,44 @@ export default function MembersPage() {
     <p><strong>Name:</strong> {selectedMember.name}</p>
     <p><strong>ID:</strong> {selectedMember.id}</p>
     {selectedMember?.embedding_audio_path ? (
-  <div className="mt-4">
-    <p className="text-sm text-gray-600 mb-1">Reference Audio:</p>
-    <audio controls className="w-full">
-      <source src={selectedMember.embedding_audio_path} type="audio/mpeg" />
-      Your browser does not support the audio element.
-    </audio>
-  </div>
+  <EmbeddingAudioPlayer selectedMember={selectedMember} />
 ) : (
-  <p className="text-sm text-gray-400 italic mt-4">No reference audio available.</p>
+  <p className="text-sm text-gray-400 italic mt-4">No embedding audio available.</p>
 )}
-    {/* Add more fields as needed */}
+{/* Upload embedding section*/}
+    <div className="mt-6">
+  <h3 className="text-sm font-medium text-gray-700 mb-2">Upload embedding Audio</h3>
+  <div
+    onDrop={(e) => {
+      e.preventDefault();
+      const files = Array.from(e.dataTransfer.files);
+      const validFiles = files.filter(isValidAudioFile);
+
+          if (validFiles.length === 0) {
+            alert("Unsupported file type. Please upload audio (.wav, .mp3, .m4a) files. Click the info icon for help");
+            return;
+          }
+      
+
+      handleEmbeddingAudioDrop(group.id, selectedMember.id, validFiles[0]);
+    }}
+    onDragOver={(e) => e.preventDefault()}
+    className="border-2 border-dashed border-gray-400 p-6 rounded-xl text-center"
+  >
+    <p className="text-gray-600">Drag and drop a reference audio file here</p>
+
+    {uploading && (
+      <div className="mt-4 w-full bg-gray-200 rounded-full">
+        <div
+          className="bg-blue-600 text-xs leading-none py-1 text-center text-white rounded-full"
+          style={{ width: `${uploadProgress}%` }}
+        >
+          {uploadProgress}%
+        </div>
+      </div>
+    )}
+  </div>
+</div>
   </div>
 ) : (
   <p className="text-sm text-gray-500 italic">Select a member to view details.</p>

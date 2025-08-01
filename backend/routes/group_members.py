@@ -32,12 +32,12 @@ def create_member(
     db.refresh(member)
     return member
 
-@router.get("/")
+@router.get("/", response_model=List[GroupMemberOut])
 def list_members(
         group_id: int,
         db: Session = Depends(get_db), 
         user_id: int = Depends(get_current_user_id),
-        response_model=List[GroupMemberOut]
+        
     ):
     group = db.query(Group).get(group_id)
     if not group:
@@ -49,13 +49,13 @@ def list_members(
 
     return group.members  # Access via relationship
 
-@router.get("/{member_id}")
+@router.get("/{member_id}",response_model=GroupMemberOut)
 def get_member(
         group_id:int,
         member_id: int, 
         db: Session = Depends(get_db), 
         user_id: int = Depends(get_current_user_id),
-        response_model=GroupMemberOut
+        
     ):
     member = db.query(GroupMember).filter(
         GroupMember.id == member_id, GroupMember.group_id == group_id

@@ -31,4 +31,6 @@ backend.add_middleware(
 def root():
     return {"message": "Diarisation API is running."}
 
+
 backend.include_router(api_router)
+#logging.info("Middleware stack: %s", backend.user_middleware)

@@ -17,7 +17,7 @@ export default function MeetingsPage() {
   const [showHelp, setShowHelp] = useState(false);
   const {groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings} = useGroupManager();
   const {handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting} = useMeetingManager();
-  const {isValidFile, uploading, uploadProgress, handleDrop} = useMediaManager();
+  const {isValidMeetingFile, uploading, uploadProgress, handleDrop} = useMediaManager();
   useEffect(() => {
     fetchGroupMembers(Number(id))
     fetchGroupMeetings(Number(id))
@@ -236,7 +236,7 @@ export default function MeetingsPage() {
         onDrop={(e) => {
           e.preventDefault();
           const files = Array.from(e.dataTransfer.files);
-          const validFiles = files.filter(isValidFile);
+          const validFiles = files.filter(isValidMeetingFile);
 
           if (validFiles.length === 0) {
             alert("Unsupported file type. Please upload audio (.wav, .mp3, .m4a) or transcript (.json, .vtt, .srt, .txt) files. Click the info icon for help");
