@@ -140,7 +140,7 @@ export function EmbeddingAudioPlayer({ selectedMember }: { selectedMember: Perso
       try {
         const url = `${process.env.NEXT_PUBLIC_API_URL}/files/embedding/${encodeURIComponent(selectedMember.embedding_audio_path)}`;
         console.log("Fetching audio from:", url);
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/files/embedding/${encodeURIComponent(selectedMember.embedding_audio_path)}`, {
+        const response = await fetch(url, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

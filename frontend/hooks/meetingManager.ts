@@ -13,7 +13,9 @@ export function useMeetingManager(){
     };
     const handleSelectMeeting = async (groupId:number, meetingId: number) => {
         const token = Cookies.get('token');
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}/meetings/${meetingId}`, {
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}/meetings/${meetingId}`;
+        console.log("Fetching selected meeting from:", url);
+        const res = await fetch(url, {
             headers: { Authorization: `Bearer ${token}` },
         });
 

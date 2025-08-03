@@ -127,13 +127,6 @@ class RawFileCreate(BaseModel):
     type: RawFileType
     meeting_id: int
 
-class RawFileCreate(BaseModel):
-    file_name: str
-    human_name: str
-    description: Optional[str]
-    type: RawFileType
-    meeting_id: int
-
 class RawFileOut(BaseModel):
     id: int
     human_name:str
