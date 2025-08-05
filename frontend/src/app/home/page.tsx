@@ -8,7 +8,7 @@ import { useGroupsManager } from '@/hooks/groupsManager';
 import Cookies from 'js-cookie';
 
 export default function HomePage() {
-  const {groups, loading, error, fetchAllGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDelete} = useGroupsManager();
+  const {groups, loading, error, fetchAllGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDeleteGroup} = useGroupsManager();
   
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const router = useRouter();
@@ -61,7 +61,7 @@ export default function HomePage() {
             {openDropdownId === group.id && (
               <div className="absolute right-0 mt-2 w-32 bg-white shadow-lg rounded border z-10">
                 <button
-                  onClick={() => handleDelete(group.id)}
+                  onClick={() => handleDeleteGroup(group.id)}
                   className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
                 >
                   Delete Group

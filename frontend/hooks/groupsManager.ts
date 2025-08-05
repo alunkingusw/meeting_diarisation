@@ -36,7 +36,7 @@ export function useGroupsManager(){
       });
     }
     
-    const handleDelete = async (groupId: number) => {
+    const handleDeleteGroup = async (groupId: number) => {
 
     const confirmed = confirm("Are you sure you want to delete this group? This will delete all associated data!!");
     if (!confirmed) return;
@@ -99,7 +99,7 @@ export function useGroupsManager(){
     setNewGroupName,
     creatingGroup, 
     handleCreateGroup, 
-    handleDelete
+    handleDeleteGroup
   };
 }
 

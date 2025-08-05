@@ -4,7 +4,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { CiCircleInfo } from "react-icons/ci";
+import { CiCircleInfo} from "react-icons/ci";
+import { FaCog} from "react-icons/fa";
 
 import Link from 'next/link';
 import { useGroupManager, Person } from '@/hooks/groupManager';
@@ -15,16 +16,18 @@ import Cookies from 'js-cookie';
 export default function MeetingsPage() {
   const { id } = useParams();
   const [showHelp, setShowHelp] = useState(false);
-  const {groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings} = useGroupManager();
-  const {handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting} = useMeetingManager();
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
+  const {groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings, group, getGroup} = useGroupManager();
+  const {handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting, handleDeleteMeeting} = useMeetingManager();
   const {isValidMeetingFile, uploading, uploadProgress, handleDrop} = useMediaManager();
   useEffect(() => {
+    getGroup(Number(id))
     fetchGroupMembers(Number(id))
-    fetchGroupMeetings(Number(id))
-    
+    fetchGroupMeetings(Number(id))    
   }, [id]);
   
-  
+     // Show fallback if group wasn't loaded or access was denied
+  if (!group) return <p>Group not found or access denied.</p>;
 
 
   return (
@@ -64,6 +67,7 @@ export default function MeetingsPage() {
           <ul className="text-sm text-blue-600">
             {meetings.map(meeting => (
               <li key={meeting.id}>
+                <div className="flex items-center justify-between">
                 <button
                   onClick={() => handleSelectMeeting(Number(id), meeting.id)}
                   className={`hover:underline ${
@@ -71,6 +75,26 @@ export default function MeetingsPage() {
       }`}>
                           {new Date(meeting.date).toLocaleDateString()}
                 </button>
+                <div className="relative ml-2">
+                <button
+                    onClick={() =>
+                      setOpenDropdownId(openDropdownId === meeting.id ? null : meeting.id)
+                    }
+                   className="text-gray-600 hover:text-gray-800">
+                    <FaCog />
+                    
+                  </button>
+                  {openDropdownId === meeting.id && (
+                    <div className="absolute right-0 mt-2 w-32 bg-white shadow-lg rounded border z-10">
+                      <button
+                        onClick={() => handleDeleteMeeting(group.id, meeting.id)}
+                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                      >
+                        Delete Meeting
+                      </button>
+                    </div>
+                  )}
+                </div></div>
               </li>
             ))}
           </ul>

@@ -109,10 +109,37 @@ export function useGroupManager(){
         alert("Error adding member");
       }
     }
+
+  const handleRemoveMember = async (groupId: number, memberId:number) => {
+  const confirmed = confirm("Are you sure you want to remove this member? This will delete all associated data!!");
+    if (!confirmed) return;
+    const token = Cookies.get('token');
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}/members/${memberId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        // Update the group list
+        setGroupMembers(prev => prev.filter(member => member.id !== memberId));
+        if (selectedMember?.id === memberId) {
+          setSelectedMember(null);
+        }
+      } else {
+        alert("Failed to remove member");
+      }
+    } catch (error) {
+      console.error("Error removing member:", error);
+    }
+  };
   return{ 
     fetchGroupMembers,
     fetchGroupMeetings,
     handleCreateMember,
+    handleRemoveMember,
     groupMembers,
     meetings,
     loading,

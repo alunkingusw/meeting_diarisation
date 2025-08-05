@@ -110,9 +110,37 @@ export function useMeetingManager(){
         setCreatingMeeting(false);
     };
 
+    const handleDeleteMeeting = async (groupId: number, meetingId: number) => {
+
+    const confirmed = confirm("Are you sure you want to delete this meeting? This will delete all associated data!!");
+    if (!confirmed) return;
+    const token = Cookies.get('token');
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}/meetings/${meetingId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        // Update the group list
+        setMeetings(prev => prev.filter(meeting => meeting.id !== meetingId));
+        if (selectedMeeting?.id === meetingId) {
+          setSelectedMeeting(null);
+        }
+      } else {
+        alert("Failed to delete meeting");
+      }
+    } catch (error) {
+      console.error("Error deleting meeting:", error);
+    }
+  };
+
     return{
         handleSelectMeeting, 
         handleCreateMeeting,
+        handleDeleteMeeting,
         newMeetingDate, 
         setNewMeetingDate, 
         creatingMeeting, 

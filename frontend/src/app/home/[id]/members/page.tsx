@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { CiCircleInfo } from "react-icons/ci";
+import { FaCog } from "react-icons/fa";
 
 import Link from 'next/link';
 import { useGroupManager, Person } from '@/hooks/groupManager';
@@ -15,12 +15,14 @@ import Cookies from 'js-cookie';
 export default function MembersPage() {
   const { id } = useParams();
   const [showHelp, setShowHelp] = useState(false);
-  const {loading, getGroup, group, groupMembers, error, selectedMember, setSelectedMember, newMemberName, setNewMemberName, handleCreateMember, fetchGroupMembers} = useGroupManager();
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
+  const {loading, getGroup, group, groupMembers, error, selectedMember, setSelectedMember, newMemberName, setNewMemberName, handleCreateMember, handleRemoveMember, fetchGroupMembers} = useGroupManager();
   const {isValidMeetingFile, isValidAudioFile, uploading, uploadProgress, handleEmbeddingAudioDrop} = useMediaManager();
   useEffect(() => {
     if (!id) return;
     getGroup(Number(id));
     fetchGroupMembers(Number(id))
+
   
   if (selectedMember) {
     console.log("Selected member:", selectedMember);
@@ -68,10 +70,32 @@ export default function MembersPage() {
             
             {group.members?.map((m: Person) => (
               <li key={m.id}>
+                <div className="flex items-center justify-between">
                 <button onClick={() => setSelectedMember(m)}
       className={`hover:underline ${
         selectedMember?.id === m.id ? 'font-semibold text-blue-600' : 'text-blue-600'
-      }`}>{m.name}</button></li>
+      }`}>{m.name}</button>
+      <div className="relative ml-2">
+                  <button
+                    onClick={() =>
+                      setOpenDropdownId(openDropdownId === m.id ? null : m.id)
+                    }
+                   className="text-gray-600 hover:text-gray-800">
+                    <FaCog />
+                    
+                  </button>
+      
+                  {openDropdownId === m.id && (
+                    <div className="absolute right-0 mt-2 w-32 bg-white shadow-lg rounded border z-10">
+                      <button
+                        onClick={() => handleRemoveMember(group.id, m.id)}
+                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                      >
+                        Remove Member
+                      </button>
+                    </div>
+                  )}
+                </div></div></li>
             ))}
           </ul>
           ):(
