@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useGroupManager } from '@/hooks/groupManager';
 import Cookies from 'js-cookie';
+import NavigationTabs from '@/components/NavigationTabs';
 
 export default function GroupPage() {
   const { id } = useParams(); // Extract the group ID from the URL (/home/[id])
@@ -40,23 +41,7 @@ const {loading, getGroup, group, error, newMemberName, setNewMemberName, handleC
           back to groups
         </Link>
       {/* Tabs */}
-      <ul className="mb-4 flex flex-wrap text-sm font-medium text-center text-gray-500 border-b border-gray-200 dark:border-gray-700 dark:text-gray-400">
-        <li className="me-2">
-        <Link href={`/home/${id}`}>
-          <span className="text-blue-600 hover:underline inline-block p-4 text-blue-600 bg-gray-100 rounded-t-lg active dark:bg-gray-800 dark:text-blue-500">Group Overview</span>
-        </Link>
-        </li>
-        <li className="me-2">
-        <Link href={`/home/${id}/members`}>
-          <span className="text-blue-600 hover:underline inline-block p-4 rounded-t-lg hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 dark:hover:text-gray-300">View Members</span>
-        </Link>
-        </li>
-        <li className="me-2">
-        <Link href={`/home/${id}/meetings`}>
-          <span className="text-blue-600 hover:underline inline-block p-4 rounded-t-lg hover:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 dark:hover:text-gray-300">View Meetings</span>
-        </Link>
-        </li>
-      </ul>
+      <NavigationTabs groupId={Number(id)} />
 
       {/* Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -76,34 +61,9 @@ const {loading, getGroup, group, error, newMemberName, setNewMemberName, handleC
             ))}
           </ul>
           ):(
-            <p className="text-sm text-gray-500 italic"> No members yet</p>
+            <p className="text-sm text-gray-500 italic"> No members yet. Go to 'members' tab to manage members.</p>
           )}
 
-          {/* Add Member Form */}
-  <form
-    onSubmit={handleCreateMember}
-    className="mt-4 space-y-2"
-  >
-    <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-      Add Member
-    </label>
-    <input
-      type="text"
-      name="name"
-      id="name"
-      value={newMemberName}
-      onChange={e => setNewMemberName(e.target.value)}
-      required
-      className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-      placeholder="New member name"
-    />
-    <button
-      type="submit"
-      className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 text-sm"
-    >
-      Add Member
-    </button>
-  </form>
         </div>
 
         {/* Data column */}
