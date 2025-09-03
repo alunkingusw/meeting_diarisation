@@ -23,5 +23,6 @@
     "eslint": "^9",
     "eslint-config-next": "15.3.2",
     "@eslint/eslintrc": "^3"
-  }
+  },
+  "license":"Apache-2.0"
 }
