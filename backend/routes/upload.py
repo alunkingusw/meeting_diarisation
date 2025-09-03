@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, exists
 from backend.config import settings
 from backend.models import RawFile, RawFileType, GroupMember, User, Group
 from werkzeug.utils import secure_filename
@@ -50,9 +50,6 @@ async def upload_file(
     if ext in ALLOWED_AUDIO_EXTENSIONS:
         file_type=RawFileType.AUDIO
     
-    
-
-    
     human_filename = secure_filename(file.filename)
     safe_filename = f"{uuid.uuid4().hex}_{human_filename}"
     
@@ -81,7 +78,25 @@ async def upload_file(
 
     # Trigger processing (placeholder)
     # result = process_audio(file_path)
+@router.get("/files/media/{group_id}/{meeting_id}/{filename}")
+def serve_media(
+        group_id:int,
+        meeting_id:int,
+        filename:str = Depends(validate_filename),
+        user_id: int = Depends(get_current_user_id),
+        db: Session = Depends(get_db)
+    ):
 
+    if not user_can_access_group(db, user_id, group_id):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    file_path = os.path.join(settings.UPLOAD_DIR, group_id, meeting_id, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found: "+file_path)
+    
+    response = FileResponse(file_path)
+    return response
+    
 @router.get("/files/embedding/{filename}")
 def serve_file(
         filename: str = Depends(validate_filename), 
@@ -120,4 +135,12 @@ def user_can_access_embedding(db: Session, user_id: int, filename: str) -> bool:
 
     # Check if any group overlaps
     return any(gid in user_group_ids for gid in member_group_ids)
+
+def user_can_access_group(db: Session, user_id: int, group_id: int) -> bool:
+    return db.query(
+        exists().where(
+            Group.id == group_id,
+            Group.users.any(User.id == user_id)
+        )
+    ).scalar()
 

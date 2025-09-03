@@ -13,6 +13,7 @@ import { useMeetingManager } from '@/hooks/meetingManager';
 import { useMediaManager } from '@/hooks/mediaManager'
 import NavigationTabs from '@/components/NavigationTabs';
 import TranscriptPreview from '@/components/TranscriptPreview';
+import MediaHelper from '@/components/MediaHelper';
 import Cookies from 'js-cookie';
 
 
@@ -239,6 +240,9 @@ export default function MeetingsPage() {
               ) : (
                 <p>No media currently available</p>
               )}
+
+              {/* Media Helper */}
+              {selectedMeeting && <MediaHelper meeting={selectedMeeting} />}
 
               {/* Upload Box */}
               <div

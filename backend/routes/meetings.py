@@ -31,7 +31,7 @@ def list_meetings(
         db: Session = Depends(get_db), 
         user_id: int = Depends(is_group_user)
     ):
-    return db.query(Meeting).filter(Meeting.group_id == group_id).all()
+    return db.query(Meeting).filter(Meeting.group_id == group_id).order_by(Meeting.date).all()
 
 @router.get("/{meeting_id}", response_model=MeetingOut)
 def get_meeting(
