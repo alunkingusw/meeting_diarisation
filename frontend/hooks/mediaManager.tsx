@@ -18,6 +18,8 @@ import {useState, useEffect} from 'react';
 import Cookies from 'js-cookie';
 import {Person} from '@/hooks/groupManager';
 import { useGroupManager } from './groupManager';
+import { MediaFile } from '@/components/MediaHelper';
+
 export function useMediaManager() {
     const [uploadProgress, setUploadProgress] = useState<number | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -185,6 +187,71 @@ export function EmbeddingAudioPlayer({ selectedMember }: { selectedMember: Perso
   return (
     <div className="mt-4">
       <p className="text-sm text-gray-600 mb-1">Reference Audio:</p>
+      <audio key={audioUrl} controls className="w-full">
+        <source src={audioUrl} type="audio/mpeg" />
+        Your browser does not support the audio element.
+      </audio>
+    </div>
+  );
+}
+
+export function MeetingMediaPlayer({
+  groupId,
+  meetingId,
+  selectedMedia,
+}: {
+  groupId: number;
+  meetingId: number;
+  selectedMedia: MediaFile | null;
+}) {
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    const token = Cookies.get("token");
+
+    const fetchAudio = async () => {
+      if (!selectedMedia) {
+        setAudioUrl(null);
+        return;
+      }
+
+      try {
+        // Use groupId + meetingId to fetch the audio
+        const url = `${process.env.NEXT_PUBLIC_API_URL}/files/media/${groupId}/${meetingId}/${encodeURIComponent(
+          selectedMedia.file_name
+        )}`;
+        console.log("Fetching meeting audio from:", url);
+
+        const response = await fetch(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+        setAudioUrl(objectUrl);
+      } catch (err) {
+        console.error("Failed to fetch meeting audio", err);
+        setAudioUrl(null);
+      }
+    };
+
+    fetchAudio();
+
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [groupId, meetingId, selectedMedia]);
+
+  if (!audioUrl) return null;
+
+  return (
+    <div className="mt-2">
+      <p className="text-sm text-gray-600 mb-1">Meeting Audio:</p>
       <audio key={audioUrl} controls className="w-full">
         <source src={audioUrl} type="audio/mpeg" />
         Your browser does not support the audio element.

@@ -103,7 +103,7 @@ def serve_media(
 
     if not user_can_access_group(db, user_id, group_id):
         raise HTTPException(status_code=403, detail="Forbidden")
-    file_path = os.path.join(settings.UPLOAD_DIR, group_id, meeting_id, filename)
+    file_path = os.path.join(settings.UPLOAD_DIR, str(group_id), str(meeting_id), filename)
 
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found: "+file_path)

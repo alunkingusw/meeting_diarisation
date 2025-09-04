@@ -25,11 +25,11 @@ import { FaCog } from "react-icons/fa";
 import Link from 'next/link';
 import { useGroupManager, Person } from '@/hooks/groupManager';
 import { useMeetingManager } from '@/hooks/meetingManager';
-import { useMediaManager } from '@/hooks/mediaManager'
+import { useMediaManager, MeetingMediaPlayer } from '@/hooks/mediaManager'
 import NavigationTabs from '@/components/NavigationTabs';
 import TranscriptPreview from '@/components/TranscriptPreview';
 import MediaHelper from '@/components/MediaHelper';
-import Cookies from 'js-cookie';
+import { MediaFile } from '@/components/MediaHelper';
 
 
 export default function MeetingsPage() {
@@ -39,12 +39,15 @@ export default function MeetingsPage() {
   const { groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings, group, getGroup } = useGroupManager();
   const { handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting, handleDeleteMeeting } = useMeetingManager();
   const { isValidMeetingFile, uploading, uploadProgress, handleDrop } = useMediaManager();
-  const [selectedMedia, setSelectedMedia] = useState<any | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
   useEffect(() => {
     getGroup(Number(id))
     fetchGroupMembers(Number(id))
     fetchGroupMeetings(Number(id))
   }, [id]);
+  useEffect(() => {
+    setSelectedMedia(null);
+  }, [selectedMeeting]);
 
   // Show fallback if group wasn't loaded or access was denied
   if (!group) return <p>Group not found or access denied.</p>;
@@ -75,7 +78,10 @@ export default function MeetingsPage() {
                   <li key={meeting.id}>
                     <div className="flex items-center justify-between">
                       <button
-                        onClick={() => handleSelectMeeting(Number(id), meeting.id)}
+                        onClick={() => {
+                          setSelectedMedia(null);
+                          handleSelectMeeting(Number(id), meeting.id)
+                        }}
                         className={`hover:underline ${selectedMeeting?.id === meeting.id ? 'font-semibold text-blue-600' : 'text-blue-600'
                           }`}>
                         {new Date(meeting.date).toLocaleDateString()}
@@ -304,17 +310,22 @@ export default function MeetingsPage() {
       <h3 className="font-medium mb-2">{selectedMedia.human_name}</h3>
 
       {/* Audio Player */}
-      {selectedMedia?.url?.match(/\.(mp3|m4a|wav)$/i) && (
-        <audio controls className="w-full">
-          <source src={selectedMedia.url} />
-          Your browser does not support the audio element.
-        </audio>
-      )}
+      {selectedMedia?.file_name?.match(/\.(mp3|m4a|wav)$/i) && selectedMeeting && (
+        <MeetingMediaPlayer
+          groupId={Number(id)}
+          meetingId={selectedMeeting.id}
+          selectedMedia={selectedMedia}
+        />
+)}
 
       {/* Transcript Preview */}
-      {selectedMedia?.url?.match(/\.(json|txt|vtt|srt)$/i) && (
+      {selectedMedia?.file_name?.match(/\.(json|txt|vtt|srt)$/i) && (
         <div className="bg-gray-50 border border-gray-200 rounded p-3 max-h-60 overflow-auto text-sm font-mono whitespace-pre-wrap">
-          <TranscriptPreview url={selectedMedia.url} />
+          <TranscriptPreview 
+            groupId={Number(id)}
+            meetingId={selectedMeeting.id}
+            selectedMedia={selectedMedia} 
+          />
         </div>
       )}
     </div>

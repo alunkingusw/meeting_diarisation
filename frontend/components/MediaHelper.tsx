@@ -16,10 +16,10 @@
 
 import React from "react";
 
-type MediaFile = {
+export type MediaFile = {
   id: number;
-  human_name?: string;
-  url?: string;
+  file_name: string;
+  human_name: string;
 };
 
 type Meeting = {
@@ -48,10 +48,10 @@ function getMediaStatus(meeting: Meeting) {
   }
 
   const hasAudio = meeting.media_files.some((file) =>
-    /\.(mp3|m4a|wav)$/i.test(file.human_name || file.url || "")
+    /\.(mp3|m4a|wav)$/i.test(file.human_name || file.file_name || "")
   );
   const hasTranscript = meeting.media_files.some((file) =>
-    /\.(json|txt|vtt|srt)$/i.test(file.human_name || file.url || "")
+    /\.(json|txt|vtt|srt)$/i.test(file.human_name || file.file_name || "")
   );
 
   if (hasTranscript) return "ready";
