@@ -18,6 +18,16 @@ from pathlib import Path
 import os
 
 class Settings(BaseSettings):
+    postgres_db: str
+    postgres_user: str
+    postgres_password: str
+    postgres_host: str
+    postgres_port: str
+    pgadmin_default_email: str
+    pgadmin_default_password: str
+    secret_key: str
+    hugging_face_token: str
+    
     # this is the default value, overridden by the value in .env
     UPLOAD_DIR: Path = Path("/backend/uploads")
     
