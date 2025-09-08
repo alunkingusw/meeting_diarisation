@@ -37,7 +37,7 @@ export default function MeetingsPage() {
   const [showHelp, setShowHelp] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const { groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings, group, getGroup } = useGroupManager();
-  const { handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting, handleDeleteMeeting } = useMeetingManager();
+  const { handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting, handleDeleteMeeting, handleProcessMeetingAudio } = useMeetingManager();
   const { isValidMeetingFile, uploading, uploadProgress, handleDrop } = useMediaManager();
   const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
   useEffect(() => {
@@ -248,14 +248,24 @@ export default function MeetingsPage() {
               {selectedMeeting.media_files?.length > 0 ? (
                 <ul className="list-disc pl-5 mb-4">
                   {selectedMeeting.media_files.map((m: any) => (
-                    <li key={m.id}>
-                      <button
-                        onClick={() => setSelectedMedia(m)}
-                        className="text-blue-600 hover:underline"
-                      >
-                        {m.human_name}
-                      </button>
-                    </li>
+                    <li key={m.id} className="flex items-center justify-between">
+    <button
+      onClick={() => setSelectedMedia(m)}
+      className="text-blue-600 hover:underline"
+    >
+      {m.human_name}
+    </button>
+
+    {/* Show 'Process' button only for audio files */}
+    {m.file_name.match(/\.(mp3|m4a|wav)$/i) && (
+      <button
+        onClick={() => handleProcessMeetingAudio(group.id, selectedMeeting.id)}
+        className="ml-2 bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 text-xs"
+      >
+        Process
+      </button>
+    )}
+  </li>
                   ))}
                 </ul>
               ) : (

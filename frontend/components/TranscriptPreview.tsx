@@ -82,8 +82,6 @@ export default function TranscriptPreview({
           onClick={() => setIsFullScreen(true)}
           className="absolute top-2 right-2 bg-blue-600 text-white px-2 py-1 text-xs rounded hover:bg-blue-700"
           aria-label="Enter fullscreen"
-          role="dialog"
-          aria-modal="true"
         >
           <FaExpand />
         </button>
@@ -91,7 +89,7 @@ export default function TranscriptPreview({
       </div>
 
       {isFullScreen && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-80 z-50 flex flex-col" role="dialog" aria-modal="true" aria-label={selectedMedia?.human_name}>
           <div className="flex justify-between items-center p-4 bg-gray-900 text-white">
             <h2 className="text-lg font-semibold">{selectedMedia?.human_name}</h2>
             <button onClick={() => setIsFullScreen(false)} aria-label="Close fullscreen">

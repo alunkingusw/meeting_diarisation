@@ -23,6 +23,8 @@ import whisper
 import torch
 import torchaudio
 
+device = "cpu"
+
 #diarisation
 from pyannote.audio import Pipeline
 from pyannote.audio import Model
@@ -35,7 +37,7 @@ from sklearn.preprocessing import normalize
 import numpy
 
 #other
-import datetime
+from datetime import datetime
 from collections import defaultdict
 import os
 import uuid
@@ -57,6 +59,13 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     MIN_SEGMENT_DURATION = 5.0
     EMBEDDING_MATCH_THRESHOLD = embedding_match_threshold
 
+    # work out the group_id for the meeting
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise ValueError(f"Meeting {meeting_id} not found")
+
+    group_id = meeting.group_id
+
     # Find first audio file for this meeting
     audio_file = db.query(RawFile).filter(
         and_(
@@ -71,7 +80,7 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
 
     # Get audio file path
     audio_dir = settings.UPLOAD_DIR
-    input_file = audio_dir / audio_file.file_name
+    input_file = audio_dir / str(group_id) / str(audio_file.meeting_id) / audio_file.file_name
     #check file exists before processing
     if not input_file.exists():
         logging.warning(f"Audio file at {input_file} not found to process.")
@@ -103,16 +112,16 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     #diarisation by Pyannote
     pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token=HUGGING_FACE_TOKEN)
     #transcription by Whisper
-    transcription_model = whisper.load_model(model_name)
+    transcription_model = whisper.load_model(model_name, device=device)
 
 
     # Move models to the GPU if available
-    if torch.cuda.is_available():
-        pipeline.to(torch.device("cuda"))
-        transcription_model.to(torch.device("cuda"))
-        logging.info("Pyannote and Whisper models moved to GPU")
-    else:
-        logging.info("GPU not available, Pyannote and Whisper models running on CPU")
+    #if torch.cuda.is_available():
+        #pipeline.to(torch.device("cuda"))
+        #transcription_model.to(torch.device("cuda"))
+        #logging.info("Pyannote and Whisper models moved to GPU")
+    #else:
+    logging.info("GPU not available, Pyannote and Whisper models running on CPU")
 
     # Perform the intensive stuff - transcription
     diarisation_result = pipeline(input_file, num_speakers=NUM_SPEAKERS)
@@ -153,9 +162,14 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
         """
         best_match = None
         highest_similarity = -1
+        #ensure the reference embeddings are the correct dimension
+        #embedding = embedding.reshape(1, -1)
 
         # Compare with reference embeddings
-        for speaker in speaker_embeddings.items():
+        for speaker in speaker_embeddings:
+            #ensure the speakers embeddings are the correct dimension
+            #speaker_embedding = speaker["embedding"].reshape(1, -1)
+
             similarity = cosine_similarity(embedding, speaker["embedding"])[0][0]
             if similarity > highest_similarity:
                 highest_similarity = similarity
@@ -178,13 +192,13 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
 
     #load speaker samples and generate the embeddings to be tested below
     embedding_model = Model.from_pretrained("pyannote/embedding",
-                                use_auth_token=HUGGING_FACE_TOKEN)
+                                use_auth_token=HUGGING_FACE_TOKEN, device=device)
     # Move model to GPU if available
-    if torch.cuda.is_available():
-        embedding_model.to(torch.device("cuda"))
-        logging.info("Embedding model moved to GPU")
-    else:
-        logging.info("GPU not available, embedding model running on CPU")
+    #if torch.cuda.is_available():
+        #embedding_model.to(torch.device("cuda"))
+        #logging.info("Embedding model moved to GPU")
+    #else:
+    logging.info("GPU not available, embedding model running on CPU")
 
     embedding_inference = Inference(embedding_model, window="whole")
 
@@ -198,7 +212,7 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
             attendee_embeddings.append({
                 "id": attendee.id,
                 "name": attendee.name,
-                "embedding": attendee.embedding,
+                "embedding": torch.tensor(attendee.embedding, dtype=torch.float32).unsqueeze(0)
             })
     logging.info(f"Embeddings for {len(attendee_embeddings)} out of {len(meeting.attendees)} generated.")
     # Use diarisation from previous code block to loop through identified speakers
@@ -212,11 +226,11 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     snr_model = Model.from_pretrained("pyannote/brouhaha", use_auth_token=HUGGING_FACE_TOKEN)
 
     # Move model to GPU if available
-    if torch.cuda.is_available():
-        snr_model.to(torch.device("cuda"))
-        logging.info("SNR model moved to GPU")
-    else:
-        logging.info("GPU not available, SNR model running on CPU")
+    #if torch.cuda.is_available():
+        #snr_model.to(torch.device("cuda"))
+        #logging.info("SNR model moved to GPU")
+    #else:
+    logging.info("GPU not available, SNR model running on CPU")
 
     # apply model
     snr_inference = Inference(snr_model)
@@ -290,10 +304,36 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
 
     vtt_lines = ["WEBVTT\n"]
     index = 1
+    logging.info(f"Performing transcription on audio file")
 
+     # Get total duration in seconds from waveform and sample_rate
+    total_duration = waveform.shape[1] / sample_rate
     for segment, _, speaker in diarisation_result.itertracks(yield_label=True):
-        waveform, sample_rate = audio.crop(input_file, segment)
-        text = transcription_model.transcribe(waveform.squeeze().numpy())["text"]
+        # Adjust segment end if it exceeds audio duration
+        seg_start = segment.start
+        seg_end = min(segment.end, total_duration)
+        if seg_start >= total_duration:
+            logging.warning(f"Segment [{seg_start}, {seg_end}] is outside audio bounds, skipping.")
+            continue
+        # Create a new segment with the adjusted end
+        safe_segment = Segment(seg_start, seg_end)
+
+        waveform, sample_rate = audio.crop(input_file, safe_segment)
+
+        # Convert to mono if needed
+        if waveform.ndim > 1:
+            waveform = waveform.mean(axis=0)
+
+        # Resample if needed
+        if sample_rate != 16000:
+            resampler = torchaudio.transforms.Resample(orig_freq=sample_rate, new_freq=16000)
+            waveform = resampler(torch.tensor(waveform)).numpy()
+            sample_rate = 16000
+
+        audio_np = waveform.squeeze().cpu().numpy().astype("float32")
+
+        result = transcription_model.transcribe(audio_np, language="en", fp16=False)
+        text = result["text"]
 
         start = format_timestamp(segment.start)
         end = format_timestamp(segment.end)
@@ -308,6 +348,7 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     audio_base_name = Path(audio_file.human_name).stem
     human_filename = f"{audio_base_name}.vtt"
 
+    logging.info(f"File is being created.")
     # Safe UUID-based file name
     safe_filename = f"{uuid.uuid4().hex}_{human_filename}"
     
@@ -321,7 +362,7 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     with open(dest_path, "w", encoding="utf-8") as f:
         f.write("\n".join(vtt_lines))
 
-    
+    logging.info(f"Database is being updated.")
     # finally, update the database for the status of the transcription.
     # Check for existing transcript entry for this meeting
     existing_transcript = db.query(RawFile).filter_by(
@@ -340,9 +381,10 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
         description="Auto-generated transcript",
         meeting_id=meeting_id,
         type="transcript_generated",
-        processed_date=datetime.utcnow()
+        processed_date=datetime.now().astimezone() 
     )
     db.add(transcript_file)
     db.commit()
     db.refresh(transcript_file)
+    logging.info(f"Transcription process complete for meeting {meeting_id}.")
 

@@ -153,6 +153,30 @@ export function useMeetingManager(){
     }
   };
 
+  const handleProcessMeetingAudio = async (groupId: number, meetingId: number, reprocess:Boolean=false) => {
+  const token = Cookies.get('token');
+  if (!token) return alert("Not authenticated");
+
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/groups/${groupId}/meetings/${meetingId}/transcribe`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reprocess }),
+      }
+    );
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    } catch (err) {
+        console.error("Failed to start transcription", err);
+    }
+  };
+
     return{
         handleSelectMeeting, 
         handleCreateMeeting,
@@ -163,6 +187,7 @@ export function useMeetingManager(){
         selectedMeeting, 
         handleToggleAttendance, 
         isAttending,
-        handleAddGuest
+        handleAddGuest,
+        handleProcessMeetingAudio
     }
 }
