@@ -64,15 +64,25 @@ def get_gpu_status():
     memory_reserved = torch.cuda.memory_reserved(device_index)
     total_memory = torch.cuda.get_device_properties(device_index).total_memory
 
+    # Capability of the current GPU (e.g. GTX 1070 → (6, 1))
+    device_capability = torch.cuda.get_device_capability(device_index)
+
+    # Architectures supported by the installed PyTorch build
+    supported_arches = torch.cuda.get_arch_list()
+
     return {
         "cuda_available": True,
+        "torch_version": torch.__version__,
+        "cuda_version": torch.version.cuda,
         "device_index": device_index,
         "device_name": device_name,
+        "device_capability": f"sm_{device_capability[0]}{device_capability[1]}",
+        "supported_arches": supported_arches,
+        "is_compatible": f"sm_{device_capability[0]}{device_capability[1]}" in supported_arches,
         "memory_allocated_MB": round(memory_allocated / 1024**2, 2),
         "memory_reserved_MB": round(memory_reserved / 1024**2, 2),
         "total_memory_MB": round(total_memory / 1024**2, 2),
     }
-
 
 def check_model_status():
     status = {}
@@ -129,7 +139,8 @@ def check_model_status():
         status["torch"] = {
             "version": torch.__version__,
             "cuda_available": cuda_available,
-            "device": device_name
+            "device": device_name,
+            "info": "See /gpu-status endpoint for more details" if cuda_available else ""
         }
     except Exception as e:
         status["torch"] = {
