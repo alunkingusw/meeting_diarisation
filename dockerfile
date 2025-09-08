@@ -14,17 +14,15 @@ RUN apt-get update && apt-get install -y \
     libglib2.0-0 libsm6 libxext6 libxrender-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install torch and other related tools. Version is set for cache
-# Optional: GPU support setup
-# ENV PYTORCH_ENABLE_MPS_FALLBACK=1
-# RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
-# otherwise install CPU support
-RUN pip install torch torchvision torchaudio
+# Install torch/torchaudio separately so they get cached
+COPY torch-requirements.txt .
+RUN pip install -r torch-requirements.txt \
+    --extra-index-url https://download.pytorch.org/whl/cu121
 
 # Copy requirements and install
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
 #download and install a local version of Whisper
 RUN python3 -c "import whisper; whisper.load_model('base')"

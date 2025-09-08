@@ -13,7 +13,6 @@ python-jose[cryptography]
 # Audio processing and transcription
 openai-whisper
 ffmpeg-python
-openai-whisper
 pyannote.audio
 torch
 torchaudio
