@@ -33,7 +33,7 @@ import shutil
 router = APIRouter()
 
 # Allowed file extensions
-ALLOWED_AUDIO_EXTENSIONS = {'.wav', '.mp3', '.m4a'}
+ALLOWED_AUDIO_EXTENSIONS = {'.wav', '.mp3'}
 ALLOWED_TRANSCRIPT_EXTENSIONS = {'.json', '.vtt', '.srt', '.txt'}
 ALL_ALLOWED_EXTENSIONS = ALLOWED_AUDIO_EXTENSIONS | ALLOWED_TRANSCRIPT_EXTENSIONS
 FILENAME_RE = re.compile(r"^[\w.\-]+$")  # Allows: a-zA-Z0-9 _ . -

@@ -23,7 +23,7 @@ from backend.auth import get_current_user_id
 from backend.validation import GroupMembersCreateEdit
 from backend.config import settings
 from backend.processing.generate_embedding import generate_embedding
-from backend.upload import ALLOWED_AUDIO_EXTENSIONS
+from backend.routes.upload import ALLOWED_AUDIO_EXTENSIONS
 import shutil
 import os
 
