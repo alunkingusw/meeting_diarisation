@@ -71,7 +71,6 @@ def get_gpu_status():
     supported_arches = torch.cuda.get_arch_list()
 
     return {
-        "cuda_available": True,
         "torch_version": torch.__version__,
         "cuda_version": torch.version.cuda,
         "device_index": device_index,

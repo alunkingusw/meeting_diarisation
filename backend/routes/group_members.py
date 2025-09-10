@@ -23,6 +23,7 @@ from backend.auth import get_current_user_id
 from backend.validation import GroupMembersCreateEdit
 from backend.config import settings
 from backend.processing.generate_embedding import generate_embedding
+from backend.upload import ALLOWED_AUDIO_EXTENSIONS
 import shutil
 import os
 
@@ -133,7 +134,18 @@ def upload_member_embedding(
     # Define path
     embedding_dir = settings.EMBEDDING_DIR
     embedding_dir.mkdir(parents=True, exist_ok=True)
-    file_name = f"{member_id}.wav"
+
+    # Keep original extension (fall back to .wav if missing)
+    _, ext = os.path.splitext(file.filename)
+    ext = ext.lower()
+
+    if not ext or ext not in ALLOWED_AUDIO_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file extension '{ext}'. Allowed: {', '.join(ALLOWED_AUDIO_EXTENSIONS)}"
+        )
+    
+    file_name = f"{member_id}{ext}"
     audio_path = embedding_dir / file_name
 
     # Check for existing audio
