@@ -55,10 +55,12 @@ from datetime import datetime
 from collections import defaultdict
 import os
 import uuid
+from backend.processing.device_management import get_safe_device, safe_run_model
 
-#file handling
+#file and report handling
 from backend.config import settings
 from pathlib import Path
+import json
 
 #set up files to load
 #logging.info("Mounting Google Drive. Please follow the instructions to authenticate.")
@@ -115,6 +117,7 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     logging.info(f"Processing transcription file with {num_attendees} attendees.")
 
     NUM_SPEAKERS = num_attendees
+    #TODO: This could be improved by moving the settings to be configured in the app settings page.
     language = 'English'
     model_size = 'medium'
     model_name = model_size
@@ -130,15 +133,22 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
 
 
     # Move models to the GPU if available
-    #if torch.cuda.is_available():
-        #pipeline.to(torch.device("cuda"))
-        #transcription_model.to(torch.device("cuda"))
-        #logging.info("Pyannote and Whisper models moved to GPU")
-    #else:
-    logging.info("GPU not available, Pyannote and Whisper models running on CPU")
+    device, msg = get_safe_device()
+    logging.info(msg)
+    transcription_model.to(torch.device(device))
+    pipeline.to(device)
 
     # Perform the intensive stuff - transcription
-    diarisation_result = pipeline(input_file, num_speakers=NUM_SPEAKERS)
+    def run_pyannote_inference(audio_path, inference_obj):
+        return inference_obj(audio_path)
+
+    diarization_result = safe_run_model(
+        run_pyannote_inference, 
+        input_file, 
+        inference_obj=pipeline
+        num_speakers=NUM_SPEAKERS
+    )
+    
 
     # ------ This next section deals with the embeddings and comparison used to label speakers ------
 
@@ -208,11 +218,9 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     embedding_model = Model.from_pretrained("pyannote/embedding",
                                 use_auth_token=HUGGING_FACE_TOKEN, device=device)
     # Move model to GPU if available
-    #if torch.cuda.is_available():
-        #embedding_model.to(torch.device("cuda"))
-        #logging.info("Embedding model moved to GPU")
-    #else:
-    logging.info("GPU not available, embedding model running on CPU")
+    device, msg = get_safe_device()
+    logging.info(msg)
+    embedding_model.to(torch.device(device))
 
     embedding_inference = Inference(embedding_model, window="whole")
 
@@ -238,13 +246,11 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
 
     # Load SNR model which will help identify the best audio clip to compare
     snr_model = Model.from_pretrained("pyannote/brouhaha", use_auth_token=HUGGING_FACE_TOKEN)
-
+    
     # Move model to GPU if available
-    #if torch.cuda.is_available():
-        #snr_model.to(torch.device("cuda"))
-        #logging.info("SNR model moved to GPU")
-    #else:
-    logging.info("GPU not available, SNR model running on CPU")
+    device, msg = get_safe_device()
+    logging.info(msg)
+    snr_model.to(torch.device(device))
 
     # apply model
     snr_inference = Inference(snr_model)
@@ -265,7 +271,12 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
             cropped = crop_waveform(waveform, sample_rate, segment)
 
             # Apply SNR model to filter out low-quality audio
-            snr_result = snr_inference({"waveform": cropped, "sample_rate": sample_rate})
+            def run_snr_inference(audio_dict, inference_obj):
+                return inference_obj(audio_dict)
+
+            snr_result = safe_run_model(run_snr_inference, {"waveform": cropped, "sample_rate": sample_rate}, inference_obj=snr_inference)
+            
+            # Extract SNR values where speech is detected
             snr_values = [snr for frame, (vad, snr, c50) in snr_result if vad > 0.5]
 
             if not snr_values:
@@ -277,10 +288,10 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
                 continue
 
             # Compute embedding for this valid segment
-            embedding = embedding_inference({
-                "waveform": cropped,
-                "sample_rate": sample_rate
-            }).reshape(1, -1)
+            def run_embedding_inference(audio_dict, inference_obj):
+                return inference_obj(audio_dict)
+
+            embedding = safe_run_model(run_embedding_inference, {"waveform": cropped, "sample_rate": sample_rate}, inference_obj=embedding_inference).reshape(1, -1)
 
             embedding = normalize(embedding)
             valid_embeddings.append(embedding)
@@ -400,5 +411,27 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     db.add(transcript_file)
     db.commit()
     db.refresh(transcript_file)
+
+    # Build speaker report for logging and future database storage
+    speaker_report = []
+    for speaker, segments in segments_by_speaker.items():
+        segment_times = []
+        for segment in segments:
+            segment_times.append({
+                "start": float(segment.start),
+                "end": float(segment.end)
+            })
+        speaker_report.append({
+            "speaker": speaker,
+          "segments": segment_times
+        })
+
+    report_json = json.dumps({"speakers": speaker_report}, indent=2)
+
+    # Print the report to the log
+    logging.info("Speaker report:\n%s", report_json)
+
+    # TODO: Store report_json in the database (e.g., as a new table or column)
+
     logging.info(f"Transcription process complete for meeting {meeting_id}.")
 
