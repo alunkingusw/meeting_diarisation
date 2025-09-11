@@ -14,8 +14,6 @@ python-jose[cryptography]
 openai-whisper
 ffmpeg-python
 pyannote.audio
-torch
-torchaudio
 scikit-learn
 git+https://github.com/alunkingusw/brouhaha-vad.git@main
 numpy
