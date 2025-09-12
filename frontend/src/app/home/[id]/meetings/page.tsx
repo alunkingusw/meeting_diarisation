@@ -249,23 +249,37 @@ export default function MeetingsPage() {
                 <ul className="list-disc pl-5 mb-4">
                   {selectedMeeting.media_files.map((m: any) => (
                     <li key={m.id} className="flex items-center justify-between">
-    <button
-      onClick={() => setSelectedMedia(m)}
-      className="text-blue-600 hover:underline"
-    >
-      {m.human_name}
-    </button>
+                      <button
+                        onClick={() => setSelectedMedia(m)}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {m.human_name}
+                      </button>
 
-    {/* Show 'Process' button only for audio files */}
-    {m.file_name.match(/\.(mp3|m4a|wav)$/i) && (
-      <button
-        onClick={() => handleProcessMeetingAudio(group.id, selectedMeeting.id)}
-        className="ml-2 bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 text-xs"
-      >
-        Process
-      </button>
-    )}
-  </li>
+                      {/* Show 'Process' or 'Reprocess' button only for audio files */}
+                      {m.file_name.match(/\.(mp3|m4a|wav)$/i) && (
+                        <button
+                          onClick={() => {
+                            if (m.processed_date) {
+                              const confirmReprocess = window.confirm(
+                                "Transcription of audio already exists. Overwrite?"
+                              );
+                              if (confirmReprocess) {
+                                handleProcessMeetingAudio(group.id, selectedMeeting.id, { reprocess: true });
+                              }
+                            } else {
+                              handleProcessMeetingAudio(group.id, selectedMeeting.id);
+                            }
+                          }}
+                          className={`ml-2 px-2 py-1 rounded text-xs ${m.processed_date
+                              ? 'bg-transparent text-gray-500 border border-gray-300'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                            }`}
+                        >
+                          {m.processed_date ? 'Reprocess' : 'Process'}
+                        </button>
+                      )}
+                    </li>
                   ))}
                 </ul>
               ) : (
@@ -314,32 +328,32 @@ export default function MeetingsPage() {
         <div className="bg-white rounded-xl shadow p-4">
           <h2 className="font-semibold mb-2">Media Viewer</h2>
           {!selectedMedia ? (
-    <p className="text-sm text-gray-600 italic">Select a media file to preview it here.</p>
-  ) : (
-    <div className="mt-2">
-      <h3 className="font-medium mb-2">{selectedMedia.human_name}</h3>
+            <p className="text-sm text-gray-600 italic">Select a media file to preview it here.</p>
+          ) : (
+            <div className="mt-2">
+              <h3 className="font-medium mb-2">{selectedMedia.human_name}</h3>
 
-      {/* Audio Player */}
-      {selectedMedia?.file_name?.match(/\.(mp3|m4a|wav)$/i) && selectedMeeting && (
-        <MeetingMediaPlayer
-          groupId={Number(id)}
-          meetingId={selectedMeeting.id}
-          selectedMedia={selectedMedia}
-        />
-)}
+              {/* Audio Player */}
+              {selectedMedia?.file_name?.match(/\.(mp3|m4a|wav)$/i) && selectedMeeting && (
+                <MeetingMediaPlayer
+                  groupId={Number(id)}
+                  meetingId={selectedMeeting.id}
+                  selectedMedia={selectedMedia}
+                />
+              )}
 
-      {/* Transcript Preview */}
-      {selectedMedia?.file_name?.match(/\.(json|txt|vtt|srt)$/i) && (
-        <div className="bg-gray-50 border border-gray-200 rounded p-3 max-h-60 overflow-auto text-sm font-mono whitespace-pre-wrap">
-          <TranscriptPreview 
-            groupId={Number(id)}
-            meetingId={selectedMeeting.id}
-            selectedMedia={selectedMedia} 
-          />
-        </div>
-      )}
-    </div>
-  )}
+              {/* Transcript Preview */}
+              {selectedMedia?.file_name?.match(/\.(json|txt|vtt|srt)$/i) && (
+                <div className="bg-gray-50 border border-gray-200 rounded p-3 max-h-60 overflow-auto text-sm font-mono whitespace-pre-wrap">
+                  <TranscriptPreview
+                    groupId={Number(id)}
+                    meetingId={selectedMeeting.id}
+                    selectedMedia={selectedMedia}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </main>
