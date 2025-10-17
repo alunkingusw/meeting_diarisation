@@ -38,7 +38,7 @@ git clone https://github.com/yourusername/group-meeting-transcripts.git
 cd group-meeting-transcripts
 ```
 
-### 2. Create a .env file in ./
+### 2. Create a .env.docker file in ./
 ```
 # .env
 POSTGRES_USER=your_user
