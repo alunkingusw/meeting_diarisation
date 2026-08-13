@@ -19,6 +19,9 @@ from .group_members import router as group_members_router
 from .groups import router as groups_router
 from .meetings import router as meetings_router
 from .users import router as users_router
+from .aliases import router as aliases_router
+from .transcripts import router as transcripts_router
+from .admin import router as admin_router
 
 router = APIRouter()
 router.include_router(upload_router)
@@ -27,3 +30,6 @@ router.include_router(group_members_router)
 router.include_router(groups_router)
 router.include_router(meetings_router)
 router.include_router(users_router)
+router.include_router(aliases_router)
+router.include_router(transcripts_router)
+router.include_router(admin_router)

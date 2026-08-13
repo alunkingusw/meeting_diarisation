@@ -28,7 +28,8 @@ logging.basicConfig(
 #database
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
-from backend.models import RawFile, Meeting
+from backend.models import RawFile, Meeting, Group
+from backend.transcript_rag.indexer import index_transcript
 
 #transcription
 import whisper
@@ -411,6 +412,22 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     db.add(transcript_file)
     db.commit()
     db.refresh(transcript_file)
+
+    group = db.query(Group).get(group_id)
+    try:
+        index_transcript(
+            group_id=group_id,
+            group_name=group.name,
+            meeting_id=meeting_id,
+            vtt_path=dest_path,
+            meeting_title=group.name,
+            meeting_date=meeting.date.date().isoformat(),
+        )
+    except Exception:
+        # Same non-fatal handling as the direct-upload path (backend/routes/upload.py) -
+        # transcription itself already succeeded and is recorded, so a chunking/indexing
+        # failure here is logged, not raised.
+        logging.exception("Transcript indexing failed for meeting %s", meeting_id)
 
     # Build speaker report for logging and future database storage
     speaker_report = []

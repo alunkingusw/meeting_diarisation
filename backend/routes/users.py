@@ -51,7 +51,7 @@ async def generate_token(
     }
 @router.post("/")
 def create_user(user_data:UserCreateEdit, db: Session = Depends(get_db)):
-    user = User(username=user_data.get.username)
+    user = User(username=user_data.username)
     db.add(user)
     db.commit()
     db.refresh(user)

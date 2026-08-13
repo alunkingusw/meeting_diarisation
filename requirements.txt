@@ -14,6 +14,14 @@ python-jose[cryptography]
 openai-whisper
 ffmpeg-python
 pyannote.audio
+# pyannote.audio 3.3.2 only declares huggingface_hub>=0.13.0 (no ceiling), and its
+# Pipeline.from_pretrained()/Model.from_pretrained() calls still use the use_auth_token kwarg
+# that huggingface_hub removed in 1.0 - pin below that until pyannote.audio itself moves to `token`.
+huggingface_hub<1.0
 scikit-learn
 git+https://github.com/alunkingusw/brouhaha-vad.git@main
 numpy
+
+# Transcript chunking + retrieval (backend/transcript_rag)
+chromadb
+sentence-transformers

@@ -30,7 +30,14 @@ class Settings(BaseSettings):
     
     # this is the default value, overridden by the value in .env
     UPLOAD_DIR: Path = Path("/backend/uploads")
-    
+
+    # Transcript RAG indexing (backend/transcript_rag) - Chroma persist dir and the local
+    # sentence-transformers model used to embed transcript chunks, same defaults GitHub-RAGinator
+    # uses for its own Chroma indexing so the two projects' embeddings stay comparable.
+    TRANSCRIPT_CHROMA_DIR: Path = Path("/backend/transcript_chroma")
+    TRANSCRIPT_EMBEDDING_MODEL_NAME: str = "all-MiniLM-L6-v2"
+    TRANSCRIPT_EMBEDDING_DEVICE: str = "cpu"
+
 
     # Sub-paths built from the base path, built on initialisation
     _embedding_dir: Path = PrivateAttr()

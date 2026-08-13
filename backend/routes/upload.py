@@ -16,14 +16,18 @@ from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Backgro
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, exists
 from backend.config import settings
-from backend.models import RawFile, RawFileType, GroupMember, User, Group
+from backend.models import RawFile, RawFileType, GroupMember, User, Group, Meeting
 from werkzeug.utils import secure_filename
 from backend.db_dependency import get_db
 from backend.auth import get_current_user_id
+from backend.transcript_rag.indexer import index_transcript
 from fastapi.responses import FileResponse
+import logging
 import uuid
 import os
 import re
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -88,6 +92,24 @@ async def upload_file(
     db.add(raw_file)
     db.commit()
     db.refresh(raw_file)
+
+    if ext == ".vtt" and file_type == RawFileType.TRANSCRIPT_PROVIDED:
+        group = db.query(Group).get(group_id)
+        meeting = db.query(Meeting).get(meeting_id)
+        try:
+            index_transcript(
+                group_id=group_id,
+                group_name=group.name,
+                meeting_id=meeting_id,
+                vtt_path=file_path,
+                meeting_title=group.name,
+                meeting_date=meeting.date.date().isoformat(),
+            )
+        except Exception:
+            # Chunking/indexing is not part of this endpoint's contract - the upload itself
+            # already succeeded and is recorded, so a failure here is logged, not raised.
+            logger.exception("Transcript indexing failed for meeting %s", meeting_id)
+
     return raw_file
 
     # Trigger processing (placeholder)

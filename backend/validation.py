@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from datetime import datetime
 
@@ -27,6 +27,8 @@ class LoginRequest(BaseModel):
 
 class GroupCreateEdit(BaseModel):
     name: str
+    github_repo_url: Optional[str] = None
+    trello_board_id: Optional[str] = None
 
 class MeetingCreateEdit(BaseModel):
     date: datetime
@@ -41,3 +43,7 @@ class MeetingAttendee(BaseModel):
     name: Optional[str] = None
     guest: Optional[int] = 0
     member_id: Optional[int] = None
+
+class AliasResolveRequest(BaseModel):
+    names: List[str]
+    source: Optional[str] = None

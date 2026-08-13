@@ -15,12 +15,13 @@
 #use this file to check auth tokens when user uploads work.
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
-from fastapi import HTTPException, Depends, Path
+from fastapi import HTTPException, Depends, Path, Header
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from backend.db_dependency import get_db
 from backend.models import Group
 import os
+import secrets
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")  # This URL is for OpenAPI docs only
 
@@ -28,6 +29,12 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/users/login")  # This URL is for
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Token expires after 1 hour
+
+# Separate from the per-user JWT flow above: a shared secret for trusted backend-to-backend
+# callers (e.g. GroupAssessmentAgent) that need read access to admin data without impersonating
+# a specific user. Checked via the X-Service-Key header, never Authorization, so the two
+# credential types can never be confused with or accepted in place of one another.
+SERVICE_API_KEY = os.getenv("SERVICE_API_KEY")
 
 def create_token_for_user(user_id: int) -> str:
     expire = datetime.now().astimezone() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -61,3 +68,10 @@ def is_group_user(
         raise HTTPException(status_code=403, detail="Not authorised to view this group")
 
     return user_id  # You can return group if you prefer!
+
+
+def get_service_caller(x_service_key: str = Header(default=None)) -> None:
+    """Gate for trusted service-to-service endpoints (backend/routes/admin.py). Requires
+    SERVICE_API_KEY to be set - if it isn't, every call is rejected rather than left open."""
+    if not SERVICE_API_KEY or not x_service_key or not secrets.compare_digest(x_service_key, SERVICE_API_KEY):
+        raise HTTPException(status_code=401, detail="Missing or invalid service key")

@@ -57,6 +57,7 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     username = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)
     created = Column(DateTime, nullable=False, default=func.now())
 
     groups = relationship("Group", secondary=users_groups, back_populates="users")
@@ -66,6 +67,12 @@ class Group(Base):
     __tablename__ = "groups"
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=True)
+    # A 1:1 GitHub repo / Trello board mapping, so meeting_diarisation stays the single source
+    # of truth for group/project-organisation data - GitHub-RAGinator's own repo registration
+    # is synced from this (see GitHub-RAGinator/scripts/sync_repos_from_diarisation.py), not
+    # maintained separately.
+    github_repo_url = Column(String(512), nullable=True)
+    trello_board_id = Column(String(24), nullable=True)
     created = Column(DateTime, nullable=False, default=func.now())
 
     users = relationship("User", secondary=users_groups, back_populates="groups")
@@ -77,6 +84,7 @@ class GroupMember(Base):
     __tablename__ = "group_members"
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=True)
+    email = Column(String(255), nullable=True)  # optional, recorded where known - not a login
     created = Column(DateTime, nullable=False, default=func.now())
 
     embedding = Column(JSON, nullable=True)  # Stores list of floats from pyannote
@@ -130,6 +138,8 @@ class GroupOut(BaseModel):
     id: int
     name: str
     created: datetime
+    github_repo_url: Optional[str] = None
+    trello_board_id: Optional[str] = None
     members: List[GroupMemberOut]  # Include related members
     class Config:
         from_attributes = True

@@ -30,7 +30,11 @@ def create_group(group_data: GroupCreateEdit, db: Session = Depends(get_db), use
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    new_group = Group(name=group_data.name)
+    new_group = Group(
+        name=group_data.name,
+        github_repo_url=group_data.github_repo_url,
+        trello_board_id=group_data.trello_board_id,
+    )
     new_group.users.append(user)  # Associate this group with the user
     db.add(new_group)
     db.commit()
@@ -50,10 +54,13 @@ def get_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depend
     return group
 
 @router.put("/{group_id}")
-def update_group(group_id: int, name: str, group_data: GroupCreateEdit, db: Session = Depends(get_db), user_id:int = Depends(is_group_user)):
+def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depends(get_db), user_id:int = Depends(is_group_user)):
     group = db.query(Group).get(group_id)
-    group.name = name
+    group.name = group_data.name
+    group.github_repo_url = group_data.github_repo_url
+    group.trello_board_id = group_data.trello_board_id
     db.commit()
+    db.refresh(group)
     return group
 
 @router.delete("/{group_id}")

@@ -1,3 +1,9 @@
 .env
 .env.docker
 uploads/*
+
+__pycache__/
+*.pyc
+
+# Chroma's persistent files for backend/transcript_rag - rebuildable by re-running indexing.
+transcript_chroma/

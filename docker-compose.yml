@@ -10,6 +10,7 @@ services:
       - "8000:8000"
     volumes:
       - ./uploads:/backend/uploads
+      - ./transcript_chroma:/backend/transcript_chroma
     depends_on:
       - db
     env_file:
@@ -57,4 +58,18 @@ services:
       - api
 
 volumes:
+  # Pinned to an explicit name, not left to Compose's default (which prefixes it with the
+  # invoking compose project's name - "meeting_diarisation" run standalone from this
+  # directory, but "deploy" if brought up via ../deploy/docker-compose.yml's `include:`).
+  # Without this, the two invocation styles would silently resolve to two different volumes,
+  # and running via the umbrella file would start against an empty database.
   postgres_data:
+    name: meeting_diarisation_postgres_data
+
+# Shared with GitHub-RAGinator and GroupAssessmentAgent's own docker-compose.yml files - see
+# the matching comment there for why. Created once with `docker network create project_net`
+# before any of the three projects are brought up.
+networks:
+  default:
+    name: project_net
+    external: true
