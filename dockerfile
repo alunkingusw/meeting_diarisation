@@ -16,8 +16,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install torch/torchaudio separately so they get cached
 COPY torch-requirements.txt .
-RUN pip install -r torch-requirements.txt \
-    --extra-index-url https://download.pytorch.org/whl/cu118
+RUN pip install -r torch-requirements.txt
 
 # Copy requirements and install
 COPY requirements.txt .
