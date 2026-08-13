@@ -145,7 +145,7 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
     diarization_result = safe_run_model(
         run_pyannote_inference, 
         input_file, 
-        inference_obj=pipeline
+        inference_obj=pipeline,
         num_speakers=NUM_SPEAKERS
     )
     
