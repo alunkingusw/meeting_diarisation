@@ -18,7 +18,7 @@ raw_file_type_enum = postgresql.ENUM(
 
 # revision identifiers, used by Alembic.
 revision: str = '68e27f62dd30'
-down_revision: Union[str, None] = None
+down_revision: Union[str, None] = '74252ed682e8'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -1,0 +1,9 @@
+# Test-only dependencies. Install alongside requirements.txt:
+#   pip install -r requirements.txt -r requirements-test.txt
+#
+# Not merged into requirements.txt since these are never needed in production.
+
+pytest
+pytest-cov
+httpx              # required by FastAPI/Starlette's TestClient
+testcontainers[postgres]

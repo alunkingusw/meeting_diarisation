@@ -74,8 +74,8 @@ def get_member(
         
     ):
     member = db.query(GroupMember).filter(
-        GroupMember.id == member_id, GroupMember.group_id == group_id
-    ).first()
+        GroupMember.id == member_id
+    ).filter(GroupMember.groups.any(id=group_id)).first()
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     return member
@@ -89,12 +89,13 @@ def update_member(
         user_id: int = Depends(get_current_user_id)
     ):
     member = db.query(GroupMember).filter(
-        GroupMember.id == member_id, GroupMember.group_id == group_id
-    ).first()
+        GroupMember.id == member_id
+    ).filter(GroupMember.groups.any(id=group_id)).first()
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     member.name = group_member_data.name
     db.commit()
+    db.refresh(member)
     return member
 
 @router.delete("/{member_id}")

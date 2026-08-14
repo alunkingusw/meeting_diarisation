@@ -17,7 +17,7 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
-from backend.models import Meeting, MeetingOut, GroupMember, RawFile
+from backend.models import Meeting, MeetingOut, GroupMember, GroupMemberOut, RawFile
 from backend.db_dependency import get_db
 from datetime import datetime
 from backend.validation import MeetingCreateEdit, MeetingAttendee
@@ -74,7 +74,7 @@ def delete_meeting(
     db.commit()
     return {"message": "Meeting deleted"}
 
-@router.post("/{meeting_id}/attendees")
+@router.post("/{meeting_id}/attendees", response_model=GroupMemberOut)
 def add_attendee(
         group_id:int,
         meeting_id:int,
