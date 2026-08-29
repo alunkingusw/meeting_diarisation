@@ -38,6 +38,14 @@ class Settings(BaseSettings):
     TRANSCRIPT_EMBEDDING_MODEL_NAME: str = "all-MiniLM-L6-v2"
     TRANSCRIPT_EMBEDDING_DEVICE: str = "cpu"
 
+    # Local LLM (backend/llm/ollama_client.py) used for meeting summarisation
+    # (backend/summarization). Same server/conventions as GitHub-RAGinator's own
+    # OLLAMA_* settings - see that project's app/llm/ollama_client.py.
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1:8b"
+    ollama_timeout_seconds: float = 300.0
+    ollama_temperature: float = 0.2
+
 
     # Sub-paths built from the base path, built on initialisation
     _embedding_dir: Path = PrivateAttr()

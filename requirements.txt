@@ -25,3 +25,6 @@ numpy
 # Transcript chunking + retrieval (backend/transcript_rag)
 chromadb
 sentence-transformers
+
+# Meeting summarisation (backend/summarization) - local Ollama server client
+httpx

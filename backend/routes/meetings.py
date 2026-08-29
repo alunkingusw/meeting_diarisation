@@ -17,12 +17,14 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
-from backend.models import Meeting, MeetingOut, GroupMember, GroupMemberOut, RawFile
+from backend.models import Meeting, MeetingOut, GroupMember, GroupMemberOut, RawFile, Group
 from backend.db_dependency import get_db
 from datetime import datetime
 from backend.validation import MeetingCreateEdit, MeetingAttendee
 from backend.auth import get_current_user_id, is_group_user
 from backend.processing.transcribe import transcribe_meeting
+from backend.llm.ollama_client import OllamaError
+from backend.summarization.summariser import generate_meeting_summary
 
 router = APIRouter(prefix="/groups/{group_id}/meetings", tags=["meetings"])
 
@@ -173,4 +175,44 @@ async def start_transcription_job(
         "message": f"{'Reprocessing' if reprocess else 'Transcription job started'}.",
         "file": audio_file.file_name,
         "status_check_url": f"/groups/{group_id}/meetings/{meeting_id}/transcription/status"
+    }
+
+
+@router.get("/{meeting_id}/summarise")
+def summarise_meeting(
+        group_id: int,
+        meeting_id: int,
+        regenerate: bool = Query(False),
+        db: Session = Depends(get_db),
+        user_id: int = Depends(is_group_user)
+    ):
+    """Returns this meeting's summary, generating it via the local LLM
+    (backend/summarization) on first request if none is cached yet. Pass
+    ?regenerate=true to force a fresh summary even if one is already stored -
+    e.g. after the transcript has been corrected."""
+    meeting = db.query(Meeting).filter(
+        and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    if meeting.summary and not regenerate:
+        return {
+            "summary": meeting.summary,
+            "generated_at": meeting.summary_generated_at,
+            "cached": True,
+        }
+
+    group = db.query(Group).get(group_id)
+    try:
+        summary = generate_meeting_summary(db, group, meeting)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="No transcript available for this meeting yet")
+    except OllamaError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    return {
+        "summary": summary,
+        "generated_at": meeting.summary_generated_at,
+        "cached": False,
     }

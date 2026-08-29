@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from backend.models import RawFile, Meeting, Group
 from backend.transcript_rag.indexer import index_transcript
+from backend.summarization.summariser import summarise_meeting_task
 
 #transcription
 import whisper
@@ -428,6 +429,12 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
         # transcription itself already succeeded and is recorded, so a chunking/indexing
         # failure here is logged, not raised.
         logging.exception("Transcript indexing failed for meeting %s", meeting_id)
+
+    # Already running off the request thread (this function is itself queued via
+    # BackgroundTasks from backend/routes/meetings.py's /transcribe endpoint), so this
+    # runs inline rather than queuing another background task. Non-fatal for the same
+    # reason as indexing above - summarise_meeting_task logs its own failures.
+    summarise_meeting_task(group_id, meeting_id, db)
 
     # Build speaker report for logging and future database storage
     speaker_report = []

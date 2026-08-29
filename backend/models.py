@@ -105,6 +105,12 @@ class Meeting(Base):
     attendees = relationship("GroupMember", secondary=meetings_group_members, back_populates="attended_meetings")
     media_files = relationship("RawFile", back_populates="meeting", cascade="all, delete-orphan")
 
+    # LLM-generated summary (backend/summarization), cached here so a meeting is only
+    # summarised once - GET /groups/{group_id}/meetings/{meeting_id}/summarise serves this
+    # if present rather than calling the local LLM again.
+    summary = Column(Text, nullable=True)
+    summary_generated_at = Column(DateTime, nullable=True)
+
 
 
 class RawFileType(str, Enum):
@@ -176,5 +182,7 @@ class MeetingOut(BaseModel):
     created:datetime
     attendees: List[MeetingAttendeeOut]  # Include all attendees
     media_files: List[RawFileOut]
+    summary: Optional[str] = None
+    summary_generated_at: Optional[datetime] = None
     class Config:
         from_attributes  = True

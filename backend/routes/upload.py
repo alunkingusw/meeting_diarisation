@@ -21,6 +21,7 @@ from werkzeug.utils import secure_filename
 from backend.db_dependency import get_db
 from backend.auth import get_current_user_id
 from backend.transcript_rag.indexer import index_transcript
+from backend.summarization.summariser import summarise_meeting_task
 from fastapi.responses import FileResponse
 import logging
 import uuid
@@ -51,6 +52,7 @@ def validate_filename(filename: str) -> str:
 async def upload_file(
         group_id:int,
         meeting_id:int,
+        background_tasks: BackgroundTasks,
         file: UploadFile = File(...),
         db: Session = Depends(get_db),
         user_id: int = Depends(get_current_user_id)
@@ -109,6 +111,11 @@ async def upload_file(
             # Chunking/indexing is not part of this endpoint's contract - the upload itself
             # already succeeded and is recorded, so a failure here is logged, not raised.
             logger.exception("Transcript indexing failed for meeting %s", meeting_id)
+        else:
+            # Queued rather than called inline so the LLM call doesn't add to this
+            # request's latency - same non-fatal handling as indexing (see
+            # summarise_meeting_task), just deferred to the background thread.
+            background_tasks.add_task(summarise_meeting_task, group_id, meeting_id, db)
 
     return raw_file
 
