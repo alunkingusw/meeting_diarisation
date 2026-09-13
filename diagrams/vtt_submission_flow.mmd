@@ -1,0 +1,32 @@
+flowchart TD
+    A["User submits a .vtt through POST /groups/{group_id}/meetings/{meeting_id}/upload/"] --> B["Validate extension and save file under uploads/{group_id}/{meeting_id}"]
+    B --> C["Create RawFile with type transcript_provided"]
+    C --> D{"Call index_transcript(...)"}
+
+    E["Audio has already been diarised/transcribed"] --> F["transcribe_meeting writes generated VTT to disk"]
+    F --> G["Replace existing generated RawFile, then create new RawFile"]
+    G --> H{"Call index_transcript(...)"}
+
+    D --> I["Shared VTT indexing pipeline"]
+    H --> I
+    I --> J["process_vtt_file(...) validates VTT"]
+    J --> K["Parse cues and merge speaker turns"]
+    K --> L["Build retrieval chunks with timestamps and provenance"]
+    L --> M["Write chunks.jsonl and stats.json"]
+    M --> N["Embed chunk text with SentenceTransformer"]
+    N --> O["Upsert documents, embeddings, and metadata into the group's Chroma collection"]
+
+    O --> P{"Origin of VTT?"}
+    P -->|"Direct upload"| Q["Queue summarise_meeting_task as a FastAPI background task"]
+    P -->|"Post-diarisation"| R["Call summarise_meeting_task inline in the transcription task"]
+
+    Q --> S["Load latest transcript and parse/merge it again"]
+    R --> S
+    S --> T["Send complete transcript to Ollama"]
+    T --> U["Store generated summary on Meeting.summary"]
+
+    D -. "Indexing error is logged; upload remains successful" .-> V["No automatic summary is queued"]
+    H -. "Indexing error is logged; summarisation is still called" .-> R
+
+    classDef shared fill:#e8f3ff,stroke:#2563eb,color:#111827
+    class I,J,K,L,M,N,O,S,T,U shared

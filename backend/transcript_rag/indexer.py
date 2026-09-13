@@ -84,19 +84,23 @@ def index_transcript(
 
     chunks_path = Path(summary["chunks_path"])
     chunks = [json.loads(line) for line in chunks_path.read_text(encoding="utf-8").splitlines() if line]
-    if not chunks:
-        return summary
 
     collection = _get_chroma_client().get_or_create_collection(
         name=transcripts_collection_name(group_name)
     )
+    existing_ids = set(collection.get(where={"meeting_id": str(meeting_id)})["ids"])
     documents = [c["text"] for c in chunks]
-    collection.upsert(
-        ids=[c["chunk_id"] for c in chunks],
-        documents=documents,
-        metadatas=[{**c, "group_id": group_id} for c in chunks],
-        embeddings=_embed_texts(documents),
-    )
+    current_ids = {c["chunk_id"] for c in chunks}
+    if chunks:
+        collection.upsert(
+            ids=[c["chunk_id"] for c in chunks],
+            documents=documents,
+            metadatas=[{**c, "group_id": group_id} for c in chunks],
+            embeddings=_embed_texts(documents),
+        )
+    stale_ids = existing_ids - current_ids
+    if stale_ids:
+        collection.delete(ids=list(stale_ids))
     logger.info("Indexed %d transcript chunks for meeting %s (group %s)", len(chunks), meeting_id, group_id)
     return summary
 
