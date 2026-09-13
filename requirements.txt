@@ -23,8 +23,10 @@ git+https://github.com/alunkingusw/brouhaha-vad.git@main
 numpy
 
 # Transcript chunking + retrieval (backend/transcript_rag)
-chromadb
-sentence-transformers
+chromadb==0.5.15
+langchain-core==0.3.79
+langchain-chroma==0.2.6
+sentence-transformers==3.1.1
 
 # Meeting summarisation (backend/summarization) - local Ollama server client
 httpx

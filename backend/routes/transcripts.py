@@ -40,7 +40,9 @@ def search(
     backend/transcript_rag/indexer.py). Retrieval only - no LLM call - the
     caller is responsible for turning results into prose if it wants that."""
     group = db.query(Group).get(group_id)
-    hits: List[dict[str, Any]] = search_transcripts(group.name, payload.query)
-    if payload.meeting_id is not None:
-        hits = [h for h in hits if h.get("meeting_id") == str(payload.meeting_id)]
+    hits: List[dict[str, Any]] = search_transcripts(
+        group.name,
+        payload.query,
+        meeting_id=payload.meeting_id,
+    )
     return {"results": hits}
