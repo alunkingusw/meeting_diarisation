@@ -14,6 +14,8 @@
 
 from typing import List, Optional
 from pydantic import BaseModel, Field
+from pydantic import field_validator
+import bleach
 from datetime import datetime
 
 #define the required and optional fields that accompany a file upload. Specify default values.
@@ -33,6 +35,18 @@ class GroupCreateEdit(BaseModel):
 
 class MeetingCreateEdit(BaseModel):
     date: datetime
+
+class MeetingCommentCreate(BaseModel):
+    comment: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("comment")
+    @classmethod
+    def sanitise_comment(cls, value: str) -> str:
+        cleaned = bleach.clean(value, tags=[], attributes={}, strip=True)
+        cleaned = cleaned.strip()
+        if not cleaned:
+            raise ValueError("Comment must contain text")
+        return cleaned
 
 class UserCreateEdit(BaseModel):
     username: str

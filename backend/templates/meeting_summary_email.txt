@@ -1,0 +1,15 @@
+# Available placeholders: $group_name, $meeting_date, $meeting_id, $summary
+# Lines beginning with # are template comments and are removed before sending.
+
+Hello,
+
+A new meeting transcript was submitted for this group with the date $meeting_date.
+Here is the summary for the meeting.
+
+Summary:
+$summary
+
+Meeting ID: $meeting_id
+
+If you believe this to be an inaccurate summary, please reply to this email with comments and these comments will be recorded.
+Do not alter the subject of the email, so that the email can be routed to the right place.

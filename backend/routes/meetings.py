@@ -17,10 +17,10 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
-from backend.models import Meeting, MeetingOut, GroupMember, GroupMemberOut, RawFile, Group
+from backend.models import Meeting, MeetingOut, MeetingComment, MeetingCommentOut, GroupMember, GroupMemberOut, RawFile, Group
 from backend.db_dependency import get_db
-from datetime import datetime
-from backend.validation import MeetingCreateEdit, MeetingAttendee
+from datetime import date, datetime, timedelta
+from backend.validation import MeetingCreateEdit, MeetingCommentCreate, MeetingAttendee
 from backend.auth import get_current_user_id, is_group_user
 from backend.processing.transcribe import transcribe_meeting
 from backend.llm.ollama_client import OllamaError
@@ -45,10 +45,21 @@ def create_meeting(
 @router.get("/")
 def list_meetings(
         group_id: int,
+        from_date: date | None = Query(None, description="Include meetings on or after this date"),
+        to_date: date | None = Query(None, description="Include meetings on or before this date"),
         db: Session = Depends(get_db), 
         user_id: int = Depends(is_group_user)
     ):
-    return db.query(Meeting).filter(Meeting.group_id == group_id).order_by(Meeting.date).all()
+    if from_date and to_date and from_date > to_date:
+        raise HTTPException(status_code=400, detail="from_date must be on or before to_date")
+
+    query = db.query(Meeting).filter(Meeting.group_id == group_id)
+    if from_date:
+        query = query.filter(Meeting.date >= datetime.combine(from_date, datetime.min.time()))
+    if to_date:
+        exclusive_end = datetime.combine(to_date + timedelta(days=1), datetime.min.time())
+        query = query.filter(Meeting.date < exclusive_end)
+    return query.order_by(Meeting.date).all()
 
 @router.get("/{meeting_id}", response_model=MeetingOut)
 def get_meeting(
@@ -61,6 +72,30 @@ def get_meeting(
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting
+
+@router.post("/{meeting_id}/comments", response_model=MeetingCommentOut, status_code=201)
+def add_meeting_comment(
+        group_id: int,
+        meeting_id: int,
+        comment_data: MeetingCommentCreate,
+        db: Session = Depends(get_db),
+        user_id: int = Depends(is_group_user)
+    ):
+    meeting = db.query(Meeting).filter(
+        and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    comment = MeetingComment(
+        meeting_id=meeting_id,
+        user_id=user_id,
+        comment=comment_data.comment,
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return comment
 
 @router.delete("/{meeting_id}")
 def delete_meeting(

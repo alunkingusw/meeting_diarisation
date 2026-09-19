@@ -27,19 +27,21 @@ import logging
 import uuid
 import os
 import re
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
 
 import shutil
+import pysubs2
 #from backend.processing import transcribe
 
 router = APIRouter()
 
 # Allowed file extensions
 ALLOWED_AUDIO_EXTENSIONS = {'.wav', '.mp3'}
-ALLOWED_TRANSCRIPT_EXTENSIONS = {'.json', '.vtt', '.srt', '.txt'}
+ALLOWED_TRANSCRIPT_EXTENSIONS = {'.vtt', '.srt'}
 ALL_ALLOWED_EXTENSIONS = ALLOWED_AUDIO_EXTENSIONS | ALLOWED_TRANSCRIPT_EXTENSIONS
 FILENAME_RE = re.compile(r"^[\w.\-]+$")  # Allows: a-zA-Z0-9 _ . -
 
@@ -82,6 +84,21 @@ async def upload_file(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    if ext == ".srt":
+        converted_filename = f"{Path(safe_filename).stem}.vtt"
+        converted_path = target_dir / converted_filename
+        try:
+            subtitles = pysubs2.load(str(file_path), encoding="utf-8")
+            subtitles.save(str(converted_path), format_="vtt")
+        except Exception as exc:
+            file_path.unlink(missing_ok=True)
+            converted_path.unlink(missing_ok=True)
+            raise HTTPException(status_code=400, detail="Invalid SRT transcript") from exc
+
+        file_path.unlink()
+        safe_filename = converted_filename
+        file_path = converted_path
+
     # add file upload to the database. Leave processed as null as it has not yet been looked at.
     
     raw_file = RawFile(
@@ -95,7 +112,7 @@ async def upload_file(
     db.commit()
     db.refresh(raw_file)
 
-    if ext == ".vtt" and file_type == RawFileType.TRANSCRIPT_PROVIDED:
+    if file_path.suffix.lower() == ".vtt" and file_type == RawFileType.TRANSCRIPT_PROVIDED:
         group = db.query(Group).get(group_id)
         meeting = db.query(Meeting).get(meeting_id)
         try:

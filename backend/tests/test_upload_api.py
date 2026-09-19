@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_upload_requires_auth(client, make_user, make_group, make_meeting):
     owner = make_user(username="owner")
     group = make_group(name="Team A", owner=owner)
@@ -38,6 +41,49 @@ def test_upload_transcript_file(client, make_user, make_group, make_meeting, aut
     )
     assert response.status_code == 200
     assert response.json()["type"] == "transcript_provided"
+
+
+def test_upload_srt_converts_to_vtt(client, make_user, make_group, make_meeting, auth_header_for):
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    meeting = make_meeting(group)
+
+    srt = b"1\n00:00:01,000 --> 00:00:02,000\nSpeaker 1: Hello\n"
+    response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/upload/",
+        files={"file": ("transcript.srt", srt, "application/x-subrip")},
+        headers=auth_header_for(owner.id),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["type"] == "transcript_provided"
+    assert body["file_name"].endswith(".vtt")
+
+    converted_response = client.get(
+        f"/files/media/{group.id}/{meeting.id}/{body['file_name']}",
+        headers=auth_header_for(owner.id),
+    )
+    assert converted_response.status_code == 200
+    assert converted_response.content.startswith(b"WEBVTT")
+    assert b"Speaker 1: Hello" in converted_response.content
+
+
+@pytest.mark.parametrize("filename", ["transcript.txt", "transcript.json"])
+def test_upload_rejects_removed_transcript_formats(
+    client, make_user, make_group, make_meeting, auth_header_for, filename
+):
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    meeting = make_meeting(group)
+
+    response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/upload/",
+        files={"file": (filename, b"transcript", "text/plain")},
+        headers=auth_header_for(owner.id),
+    )
+
+    assert response.status_code == 400
 
 
 def test_upload_rejects_unsupported_extension(client, make_user, make_group, make_meeting, auth_header_for):

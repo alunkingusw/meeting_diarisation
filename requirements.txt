@@ -6,6 +6,7 @@ sqlalchemy
 python-dotenv
 pydantic
 pydantic-settings
+bleach
 werkzeug
 alembic
 python-jose[cryptography]
@@ -30,3 +31,6 @@ sentence-transformers==3.1.1
 
 # Meeting summarisation (backend/summarization) - local Ollama server client
 httpx
+
+# Transcript format conversion
+pysubs2

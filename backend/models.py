@@ -109,12 +109,25 @@ class Meeting(Base):
     group = relationship("Group", back_populates="meetings")
     attendees = relationship("GroupMember", secondary=meetings_group_members, back_populates="attended_meetings")
     media_files = relationship("RawFile", back_populates="meeting", cascade="all, delete-orphan")
+    comments = relationship("MeetingComment", back_populates="meeting", cascade="all, delete-orphan")
 
     # LLM-generated summary (backend/summarization), cached here so a meeting is only
     # summarised once - GET /groups/{group_id}/meetings/{meeting_id}/summarise serves this
     # if present rather than calling the local LLM again.
     summary = Column(Text, nullable=True)
     summary_generated_at = Column(DateTime, nullable=True)
+
+
+class MeetingComment(Base):
+    __tablename__ = "meeting_comments"
+    id = Column(Integer, primary_key=True)
+    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    comment = Column(Text, nullable=False)
+    created = Column(DateTime, nullable=False, default=func.now())
+
+    meeting = relationship("Meeting", back_populates="comments")
+    user = relationship("User")
 
 
 
@@ -192,3 +205,13 @@ class MeetingOut(BaseModel):
     summary_generated_at: Optional[datetime] = None
     class Config:
         from_attributes  = True
+
+class MeetingCommentOut(BaseModel):
+    id: int
+    meeting_id: int
+    user_id: int
+    comment: str
+    created: datetime
+
+    class Config:
+        from_attributes = True

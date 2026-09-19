@@ -25,10 +25,12 @@ Two call sites feed this automatically, same split as transcript indexing
 import logging
 from datetime import datetime
 from pathlib import Path
+from string import Template
 
 from sqlalchemy.orm import Session
 
 from backend.config import settings
+from backend.email_client import EmailError, send_email
 from backend.llm.ollama_client import OllamaClient
 from backend.models import Group, Meeting, RawFile, RawFileType
 from backend.transcript_rag.vtt_rag.chunker import merge_cues_into_turns
@@ -42,6 +44,7 @@ SYSTEM_PROMPT = (
     "(including who owns them, if stated). Only use information present in the "
     "transcript - do not invent names, dates, or outcomes."
 )
+EMAIL_TEMPLATE_PATH = Path(__file__).resolve().parents[1] / "templates" / "meeting_summary_email.txt"
 
 
 def _latest_transcript_file(db: Session, meeting_id: int) -> RawFile:
@@ -67,6 +70,48 @@ def _transcript_text(group_id: int, meeting_id: int, transcript: RawFile) -> str
     raw_text = vtt_path.read_text(encoding="utf-8", errors="replace")
     turns = merge_cues_into_turns(parse_vtt_cues(raw_text))
     return "\n\n".join(f"{turn.speaker}: {turn.text}" for turn in turns)
+
+
+def _render_summary_email(group: Group, meeting: Meeting, summary: str) -> tuple[str, str]:
+    template_lines = EMAIL_TEMPLATE_PATH.read_text(encoding="utf-8").splitlines()
+    template_text = "\n".join(line for line in template_lines if not line.startswith("#"))
+    body = Template(template_text).substitute(
+        group_name=group.name or "Unnamed group",
+        meeting_date=meeting.date.date().isoformat(),
+        meeting_id=meeting.id,
+        summary=summary,
+    )
+    subject = (
+        f"Meeting summary: {group.name or 'Unnamed group'} "
+        f"[group_id={group.id}, meeting_id={meeting.id}]"
+    )
+    return subject, body.strip()
+
+
+def _send_summary_notifications(group: Group, meeting: Meeting, summary: str) -> None:
+    if not group.notify:
+        return
+
+    recipients = list(dict.fromkeys(
+        member.email.strip()
+        for member in group.members
+        if member.email and member.email.strip()
+    ))
+    if not recipients:
+        logger.info("Notifications enabled but no member email addresses exist for group %s", group.id)
+        return
+
+    try:
+        subject, body = _render_summary_email(group, meeting, summary)
+    except Exception:
+        logger.exception("Could not render summary email for meeting %s", meeting.id)
+        return
+
+    for recipient in recipients:
+        try:
+            send_email(to=recipient, subject=subject, body=body)
+        except EmailError:
+            logger.exception("Could not send summary email for meeting %s to %s", meeting.id, recipient)
 
 
 def generate_meeting_summary(db: Session, group: Group, meeting: Meeting) -> str:
@@ -95,6 +140,7 @@ def generate_meeting_summary(db: Session, group: Group, meeting: Meeting) -> str
     db.refresh(meeting)
 
     logger.info("Generated summary for meeting %s (group %s)", meeting.id, group.id)
+    _send_summary_notifications(group, meeting, meeting.summary)
     return meeting.summary
 
 
