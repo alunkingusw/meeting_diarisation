@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     pgadmin_default_password: str
     secret_key: str
     hugging_face_token: str
+    email_api_token: str = ""
+    email_api_url: str = "http://agent:8080/internal/email"
+    email_timeout_seconds: float = 10.0
     
     # this is the default value, overridden by the value in .env
     UPLOAD_DIR: Path = Path("/backend/uploads")
