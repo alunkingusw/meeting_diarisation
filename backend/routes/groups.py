@@ -34,6 +34,7 @@ def create_group(group_data: GroupCreateEdit, db: Session = Depends(get_db), use
         name=group_data.name,
         github_repo_url=group_data.github_repo_url,
         trello_board_id=group_data.trello_board_id,
+        notify=group_data.notify,
     )
     new_group.users.append(user)  # Associate this group with the user
     db.add(new_group)
@@ -59,6 +60,7 @@ def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depen
     group.name = group_data.name
     group.github_repo_url = group_data.github_repo_url
     group.trello_board_id = group_data.trello_board_id
+    group.notify = group_data.notify
     db.commit()
     db.refresh(group)
     return group

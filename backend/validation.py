@@ -29,6 +29,7 @@ class GroupCreateEdit(BaseModel):
     name: str
     github_repo_url: Optional[str] = None
     trello_board_id: Optional[str] = None
+    notify: bool = False
 
 class MeetingCreateEdit(BaseModel):
     date: datetime

@@ -32,18 +32,21 @@ from backend.db import Base
 
 # Association Tables
 
+# supervisor ownership of groups, so they can manage group members and meetings
 users_groups = Table(
     "users_groups", Base.metadata,
     Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
     Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True)
 )
 
+#regular group members who are part of the group and can be invited to meetings
 groups_group_members = Table(
     "groups_group_members", Base.metadata,
     Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True),
     Column("group_member_id", Integer, ForeignKey("group_members.id"), primary_key=True)
 )
 
+#for when there is a one off guest in the meeting.
 meetings_group_members = Table(
     "meetings_group_members", Base.metadata,
     Column("meeting_id", Integer, ForeignKey("meetings.id"), primary_key=True),
@@ -53,6 +56,7 @@ meetings_group_members = Table(
 
 # Tables
 
+#a user is a supervisor who can manage groups
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
@@ -73,18 +77,19 @@ class Group(Base):
     # maintained separately.
     github_repo_url = Column(String(512), nullable=True)
     trello_board_id = Column(String(24), nullable=True)
+    notify = Column(Boolean, nullable=False, default=False)
     created = Column(DateTime, nullable=False, default=func.now())
 
     users = relationship("User", secondary=users_groups, back_populates="groups")
     members = relationship("GroupMember", secondary=groups_group_members, back_populates="groups")
     meetings = relationship("Meeting", back_populates="group")
 
-
+#group members are the students or other participants who are part of the group and can be invited to meetings
 class GroupMember(Base):
     __tablename__ = "group_members"
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=True)
-    email = Column(String(255), nullable=True)  # optional, recorded where known - not a login
+    email = Column(String(255), nullable=True)  # optional, but can be used to send updates to the group member
     created = Column(DateTime, nullable=False, default=func.now())
 
     embedding = Column(JSON, nullable=True)  # Stores list of floats from pyannote
@@ -146,6 +151,7 @@ class GroupOut(BaseModel):
     created: datetime
     github_repo_url: Optional[str] = None
     trello_board_id: Optional[str] = None
+    notify: bool = False
     members: List[GroupMemberOut]  # Include related members
     class Config:
         from_attributes = True
