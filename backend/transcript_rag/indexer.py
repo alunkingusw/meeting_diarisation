@@ -22,43 +22,14 @@ shape, so one indexing path covers both.
 
 import json
 import logging
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-import chromadb
-from sentence_transformers import SentenceTransformer
-
-from backend.config import settings
 from backend.transcript_rag.vtt_rag import process_vtt_file
+from backend.config import settings
+from backend.transcript_rag.vectorstore import replace_meeting_chunks, search_chunks, transcripts_collection_name
 
 logger = logging.getLogger(__name__)
-
-
-@lru_cache(maxsize=1)
-def _get_chroma_client() -> chromadb.ClientAPI:
-    return chromadb.PersistentClient(path=str(settings.TRANSCRIPT_CHROMA_DIR))
-
-
-@lru_cache(maxsize=1)
-def _get_embedding_model() -> SentenceTransformer:
-    return SentenceTransformer(
-        settings.TRANSCRIPT_EMBEDDING_MODEL_NAME, device=settings.TRANSCRIPT_EMBEDDING_DEVICE
-    )
-
-
-def _embed_texts(texts: list[str]) -> list[list[float]]:
-    if not texts:
-        return []
-    model = _get_embedding_model()
-    return model.encode(texts, show_progress_bar=False, convert_to_numpy=True).tolist()
-
-
-def transcripts_collection_name(group_name: str) -> str:
-    """One Chroma collection per group, named to match GitHub-RAGinator's
-    `{group}_commits`/`{group}_discussions`/`{group}_trello` convention."""
-    safe_name = group_name.strip().replace(" ", "_").lower()
-    return f"{safe_name}_transcripts"
 
 
 def index_transcript(
@@ -84,38 +55,28 @@ def index_transcript(
 
     chunks_path = Path(summary["chunks_path"])
     chunks = [json.loads(line) for line in chunks_path.read_text(encoding="utf-8").splitlines() if line]
-    if not chunks:
-        return summary
 
-    collection = _get_chroma_client().get_or_create_collection(
-        name=transcripts_collection_name(group_name)
-    )
-    documents = [c["text"] for c in chunks]
-    collection.upsert(
-        ids=[c["chunk_id"] for c in chunks],
-        documents=documents,
-        metadatas=[{**c, "group_id": group_id} for c in chunks],
-        embeddings=_embed_texts(documents),
+    replace_meeting_chunks(
+        collection_name=transcripts_collection_name(group_name),
+        meeting_id=meeting_id,
+        group_id=group_id,
+        chunks=chunks,
     )
     logger.info("Indexed %d transcript chunks for meeting %s (group %s)", len(chunks), meeting_id, group_id)
     return summary
 
 
-def search_transcripts(group_name: str, query: str, n_results: int = 5) -> list[dict[str, Any]]:
+def search_transcripts(
+    group_name: str,
+    query: str,
+    n_results: int = 5,
+    meeting_id: int | None = None,
+) -> list[dict[str, Any]]:
     """Semantic search over one group's indexed transcript chunks. Returns
     an empty list if the group has nothing indexed yet, rather than raising."""
-    client = _get_chroma_client()
-    try:
-        collection = client.get_collection(name=transcripts_collection_name(group_name))
-    except Exception:
-        return []
-
-    result = collection.query(query_embeddings=_embed_texts([query]), n_results=n_results)
-    metadatas = (result.get("metadatas") or [[]])[0]
-    distances = (result.get("distances") or [[]])[0]
-    hits = []
-    for index, metadata in enumerate(metadatas):
-        hit = dict(metadata)
-        hit["distance"] = float(distances[index]) if index < len(distances) else None
-        hits.append(hit)
-    return hits
+    return search_chunks(
+        collection_name=transcripts_collection_name(group_name),
+        query=query,
+        n_results=n_results,
+        meeting_id=meeting_id,
+    )

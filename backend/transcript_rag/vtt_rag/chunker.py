@@ -13,7 +13,6 @@ Chunking strategy:
      embedding itself.
 """
 import re
-import uuid
 
 from .models import Cue, Turn, Chunk
 from .parsing import parse_vtt_cues
@@ -134,7 +133,7 @@ def build_chunks(
 
     chunks: list[Chunk] = []
     for i, piece in enumerate(all_pieces):
-        chunk_id = f"{meeting_id}_{i:05d}_{uuid.uuid4().hex[:8]}"
+        chunk_id = f"{meeting_id}_{i:05d}"
         chunks.append(Chunk(
             chunk_id=chunk_id,
             meeting_id=meeting_id,
