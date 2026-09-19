@@ -7,3 +7,7 @@ __pycache__/
 
 # Chroma's persistent files for backend/transcript_rag - rebuildable by re-running indexing.
 transcript_chroma/
+
+# Email-agent runtime state and local non-secret configuration.
+services/email-agent/data/
+services/email-agent/config/config.yaml

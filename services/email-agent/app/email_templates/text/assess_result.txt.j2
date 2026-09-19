@@ -1,0 +1,20 @@
+Job ID: {{ job_id }}
+{% if group_name %}
+Group: {{ group_name }}
+{% endif %}
+{% if transcript_answer %}
+
+From past meeting transcripts:
+{{ transcript_answer }}
+{% endif %}
+{% if github_trello_answer %}
+
+From your group's GitHub{% if trello_checked %} and Trello{% endif %}:
+{{ github_trello_answer }}
+{% endif %}
+{% if unavailable_notes %}
+
+{% for note in unavailable_notes %}
+- {{ note }}
+{% endfor %}
+{% endif %}

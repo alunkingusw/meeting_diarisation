@@ -1,0 +1,22 @@
+Job ID: {{ job_id }}
+Status: {{ status_text }}
+{% if group_name %}
+Group: {{ group_name }}
+{% endif %}
+{% if meeting_date %}
+Meeting date: {{ meeting_date }}
+{% endif %}
+{% if resolved_attendees %}
+
+Attendees recognised from the transcript:
+{% for name in resolved_attendees %}
+- {{ name }}
+{% endfor %}
+{% endif %}
+{% if unresolved_speakers %}
+
+Speaker labels not matched to a known group member:
+{% for name in unresolved_speakers %}
+- {{ name }}
+{% endfor %}
+{% endif %}

@@ -1,0 +1,13 @@
+WEBVTT
+
+1
+00:00:01.000 --> 00:00:05.000
+Alice: This cue is fine.
+
+2
+00:00:05.500 --> 00:00:09.000
+This cue has no speaker label at all.
+
+3
+00:00:09.500 --> 00:00:12.000
+Bob: This one is fine too.

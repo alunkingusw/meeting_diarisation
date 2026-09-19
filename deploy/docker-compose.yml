@@ -1,0 +1,4 @@
+# Shared deployment entrypoint for the meeting manager and integrated email agent.
+# Service-owned Compose configuration remains in the repository root for local development.
+include:
+  - ../docker-compose.yml

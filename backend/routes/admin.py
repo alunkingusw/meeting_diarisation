@@ -17,15 +17,34 @@ backend/auth.py) - never the per-user JWT flow. Kept to a finite, explicit set o
 endpoints, never a generic passthrough, matching the same trust-boundary principle
 GroupAssessmentAgent (the caller these exist for) applies to its own LLM-facing schema."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional
 from backend.db_dependency import get_db
-from backend.auth import get_service_caller
+from backend.auth import create_token_for_user, get_service_caller
 from backend.models import Group, User
+from backend.validation import ServiceUserTokenRequest
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.post("/user-token")
+def user_token(
+        request: ServiceUserTokenRequest,
+        db: Session = Depends(get_db),
+        _=Depends(get_service_caller),
+    ):
+    """Resolve a verified service-caller email to a short-lived user JWT.
+
+    The service key authenticates the email agent; the returned JWT keeps all existing
+    group-level authorization checks in one place. The agent must verify the inbound
+    message's sender authentication before calling this endpoint.
+    """
+    user = db.query(User).filter(User.email.ilike(request.email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"access_token": create_token_for_user(user.id), "token_type": "bearer"}
 
 
 @router.get("/group-owners", response_model=Dict[str, int])

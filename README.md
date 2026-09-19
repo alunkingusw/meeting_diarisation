@@ -62,7 +62,7 @@ https://huggingface.co/pyannote/embedding
 
 ### 4. Start the project with Docker Compose
 ```bash
-docker-compose up --build
+docker compose -f deploy/docker-compose.yml up --build
 ```
 
 This will:
@@ -77,6 +77,20 @@ This will:
 
 ✔️ Automatically apply Alembic migrations on startup
 
+The repository also includes the email agent under `services/email-agent`. To enable the
+integrated deployment, copy its example files and configure the mailbox, backend, and internal
+API token:
+
+```bash
+cp services/email-agent/config/config.example.yaml services/email-agent/config/config.yaml
+cp services/email-agent/.env.example services/email-agent/.env
+mkdir -p services/email-agent/data
+```
+
+Set `internal_api.enabled: true` in the agent configuration and use the same token as
+`EMAIL_API_TOKEN` in the meeting manager `.env`. The agent is reachable from the API container at
+`http://agent:8080/internal/email`; it is not published to the host by default.
+
 ## API Usage
 Once the server is running, access:
 
@@ -87,6 +101,29 @@ Once the server is running, access:
 **pgAdmin:** http://localhost:5050
 
 **Next.js frontend:** http://localhost:3000
+
+## API contract
+
+The FastAPI application is the source of truth for the service contract. With the backend
+dependencies and environment configured, export the OpenAPI document with:
+
+```bash
+python scripts/export_openapi.py --output docs/openapi.json
+```
+
+The contract tests verify the paths and schemas consumed by the email agent. Generated client
+code is checked into `services/email-agent/app/diarisation/generated_client` and can be
+regenerated with:
+
+```bash
+openapi-python-client generate \
+   --path docs/openapi.json \
+   --output-path services/email-agent/app/diarisation/generated_client \
+   --overwrite
+```
+
+The manual client remains the runtime compatibility layer until the generated operations have
+been compared and adopted incrementally.
 
 ---
 ## Folder Structure

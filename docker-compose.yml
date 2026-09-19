@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        HUGGING_FACE_TOKEN: $(HUGGING_FACE_TOKEN)
+        HUGGING_FACE_TOKEN: ${HUGGING_FACE_TOKEN}
     container_name: diarisation-api
     ports:
       - "8000:8000"
@@ -16,6 +16,30 @@ services:
     env_file:
       - .env
     command: bash -c "alembic upgrade head && uvicorn backend.main:backend --host 0.0.0.0 --port 8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  agent:
+    build:
+      context: ./services/email-agent
+      dockerfile: Dockerfile
+    container_name: group-assessment-agent
+    restart: unless-stopped
+    env_file:
+      - ./services/email-agent/.env
+    expose:
+      - "8080"
+    volumes:
+      - ./services/email-agent/config/config.yaml:/app/config/config.yaml:ro
+      - ./services/email-agent/data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      api:
+        condition: service_healthy
     
 
   db:

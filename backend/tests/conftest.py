@@ -52,13 +52,16 @@ if str(REPO_ROOT) not in sys.path:
 # real package isn't importable in the current environment.
 _STUBBABLE_MODULES = (
     "whisper",
+    "torch",
     "torchaudio",
     "pyannote.audio",
     "pyannote.core",
     "sklearn.preprocessing",
     "sklearn.metrics.pairwise",
     "chromadb",
+    "langchain_chroma",
     "sentence_transformers",
+    "numpy",
 )
 
 
@@ -105,6 +108,7 @@ def app(postgres_container, tmp_path_factory):
     os.environ["POSTGRES_HOST"] = postgres_container.get_container_host_ip()
     os.environ["POSTGRES_PORT"] = str(postgres_container.get_exposed_port(5432))
     os.environ["SECRET_KEY"] = "test-secret-key"
+    os.environ["SERVICE_API_KEY"] = "test-service-key"
     # Prefer a real, already-exported token (needed by the `integration`-marked
     # tests, which load real gated pyannote models) over the dummy placeholder.
     os.environ["HUGGING_FACE_TOKEN"] = os.environ.get("HUGGING_FACE_TOKEN", "test-dummy-token")

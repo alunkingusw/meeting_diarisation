@@ -1,0 +1,16 @@
+.git/
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+data/
+.env
+config/config.yaml
+tests/
+ROADMAP.md
+Specification.md
+README.md

@@ -1,0 +1,24 @@
+services:
+  # Named "agent", not "app" - meeting_diarisation and GitHub-RAGinator's own
+  # docker-compose.yml files each already use the service key "app" for themselves, which
+  # collides when all three are combined by ../deploy/docker-compose.yml's `include:`.
+  agent:
+    container_name: group-assessment-agent
+    build: .
+    env_file: .env
+    restart: unless-stopped
+    expose:
+      - "8080"
+    volumes:
+      - ./config/config.yaml:/app/config/config.yaml:ro
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+# Shared with meeting_diarisation and GitHub-RAGinator's own docker-compose.yml files - see
+# the matching comment there for why. Created once with `docker network create project_net`
+# before any of the three projects are brought up.
+networks:
+  default:
+    name: project_net
+    external: true

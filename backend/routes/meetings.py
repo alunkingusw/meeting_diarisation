@@ -68,7 +68,9 @@ def get_meeting(
         db: Session = Depends(get_db), 
         user_id: int = Depends(is_group_user)
     ):
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    meeting = db.query(Meeting).filter(
+        and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
+    ).first()
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
     return meeting
@@ -120,7 +122,9 @@ def add_attendee(
         user_id: int = Depends(is_group_user)
     ):
     print("Recieved attendee data:", attendee_data)
-    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    meeting = db.query(Meeting).filter(
+        and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
+    ).first()
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
@@ -182,6 +186,12 @@ async def start_transcription_job(
     user_id: int = Depends(get_current_user_id),
     background_tasks: BackgroundTasks = None
 ):
+    meeting = db.query(Meeting).filter(
+        and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
     # Find first audio file for this meeting
     audio_file = db.query(RawFile).filter(
         and_(

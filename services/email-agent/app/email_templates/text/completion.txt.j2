@@ -1,0 +1,21 @@
+Your transcript has been processed successfully.
+
+Job ID: {{ job_id }}
+Group: {{ group_name }}
+Meeting date: {{ meeting_date }}
+{% if resolved_attendees %}
+
+Attendees recognised from the transcript:
+{% for name in resolved_attendees %}
+- {{ name }}
+{% endfor %}
+{% endif %}
+{% if unresolved_speakers %}
+
+The following speaker labels in the transcript could not be matched to a known group member,
+so they were not added as attendees. If these are group members, an alias can be registered
+for them in the app so future transcripts recognise them automatically:
+{% for name in unresolved_speakers %}
+- {{ name }}
+{% endfor %}
+{% endif %}

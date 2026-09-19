@@ -1,0 +1,80 @@
+# Copy this file to config/config.yaml and adjust for your deployment.
+# Secrets (mailbox credentials, admin email, authorised domains) go in .env, not here.
+
+mail:
+  provider: mail                # graph | mail | fake
+  mailbox_upn: yourproject@yourmailbox.example
+  poll_interval_seconds: 30
+  move_to_folder: null          # e.g. "Processed" - optional, mail is never deleted
+  max_body_chars_to_llm: 4000
+
+authorisation:
+  require_auth_pass: true       # fail closed if SPF/DKIM/DMARC don't pass
+  # group_owners is normally left unset - authorised senders are fetched live at startup from
+  # meeting_diarisation's /admin/group-owners endpoint (needs DIARISATION_SERVICE_API_KEY in
+  # .env to match meeting_diarisation's own SERVICE_API_KEY). Set group_owners here only as an
+  # explicit static override, e.g. for a backend-less dev run - if set, it wins outright and
+  # the live backend is never called:
+  # group_owners:
+  #   alice@university.ac.uk: 12
+  #   bob@university.ac.uk: 7
+
+llm:
+  provider: ollama
+  # The model server runs outside this Compose stack by default.
+  host: http://host.docker.internal:11434
+  model: qwen2.5:14b
+  request_timeout_seconds: 60
+  max_parse_retries: 2
+
+backend:
+  # In the integrated monorepo Compose deployment, use the FastAPI service name. For a host
+  # process, use http://localhost:8000 instead.
+  base_url: http://api:8000
+  request_timeout_seconds: 10
+  max_retry_attempts: 3
+  retry_backoff_seconds: 1.0
+
+github_raginator:
+  # Used by assess_query for github_focus/trello_focus. Same networked-vs-host-run note as
+  # backend.base_url above - use http://repo_analysis_app:8000 on the shared project_net
+  # network, or http://localhost:8010 (its published host port) for a host run.
+  base_url: http://localhost:8010
+  request_timeout_seconds: 120
+  max_retry_attempts: 3
+  retry_backoff_seconds: 1.0
+
+limits:
+  max_attachment_size_mb: 20
+  allowed_attachment_extensions: [".vtt"]
+  max_email_body_chars: 20000
+
+storage:
+  incoming: ./data/incoming
+  processing: ./data/processing
+  completed: ./data/completed
+  failed: ./data/failed
+  db_path: ./data/app.db
+  default_timezone: UTC
+
+admin:
+  alert_cooldown_minutes: 15
+
+internal_api:
+  enabled: false
+  host: 0.0.0.0
+  port: 8080
+  max_body_chars: 20000
+
+weekly_update:
+  enabled: false
+  weekday: 0              # Monday=0, Sunday=6
+  hour: 8
+  minute: 0
+  lookback_days: 7
+  recipient_mode: group_owners
+
+logging:
+  level: INFO
+  log_email_bodies: false
+  log_dir: ./data/logs

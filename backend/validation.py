@@ -27,6 +27,18 @@ class FileUploadMetadata(BaseModel):
 class LoginRequest(BaseModel):
     username: str
 
+
+class ServiceUserTokenRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def normalise_email(cls, value: str) -> str:
+        value = value.strip().lower()
+        if "@" not in value or value.startswith("@") or value.endswith("@"):
+            raise ValueError("email must be a valid email address")
+        return value
+
 class GroupCreateEdit(BaseModel):
     name: str
     github_repo_url: Optional[str] = None

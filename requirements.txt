@@ -24,8 +24,9 @@ git+https://github.com/alunkingusw/brouhaha-vad.git@main
 numpy
 
 # Transcript chunking + retrieval (backend/transcript_rag)
-chromadb==0.5.15
-langchain-core==0.3.79
+# Keep the Chroma adapter and client on the same API generation as LangChain Core.
+chromadb==1.5.9
+langchain-core==1.6.3
 langchain-chroma==0.2.6
 sentence-transformers==3.1.1
 
