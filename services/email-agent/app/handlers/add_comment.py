@@ -11,6 +11,7 @@ from app.email_templates.render import render_comment_confirmation, render_failu
 from app.handlers.base import HandlerOutcome
 from app.jobs.models import Job, JobState
 from app.jobs.store import JobStore, Outbox
+from app.llm.command_dispatcher import CommandGraphDispatcher
 
 logger = logging.getLogger(__name__)
 
@@ -50,10 +51,14 @@ def execute(
     parent_message_id = job.in_reply_to_message_id or job.source_message_id
     try:
         job_store.set_status(job.job_id, JobState.PROCESSING)
-        token = diarisation_client.login_for_email(job.sender_email)
-        result = diarisation_client.add_comment(
-            token, job.resolved_group_id, job.backend_meeting_id, job.comment_text
+        dispatcher = CommandGraphDispatcher(diarisation_client)
+        state = dispatcher.execute_add_comment(
+            job.sender_email,
+            job.resolved_group_id,
+            job.backend_meeting_id,
+            job.comment_text,
         )
+        result = state["result"]
         job_store.set_status(job.job_id, JobState.COMPLETED)
         subject, body = render_comment_confirmation(job.job_id, result)
         outbox.enqueue(
