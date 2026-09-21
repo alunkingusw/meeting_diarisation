@@ -8,15 +8,18 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.http_validation_error import HTTPValidationError
 from ...models.meeting_create_edit import MeetingCreateEdit
-from ...types import Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     group_id: int,
     *,
     body: MeetingCreateEdit,
+    idempotency_key: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
+    if not isinstance(idempotency_key, Unset):
+        headers["Idempotency-Key"] = idempotency_key
 
     _kwargs: dict[str, Any] = {
         "method": "post",
@@ -67,11 +70,13 @@ def sync_detailed(
     *,
     client: AuthenticatedClient,
     body: MeetingCreateEdit,
+    idempotency_key: None | str | Unset = UNSET,
 ) -> Response[Any | HTTPValidationError]:
     """Create Meeting
 
     Args:
         group_id (int):
+        idempotency_key (None | str | Unset):
         body (MeetingCreateEdit):
 
     Raises:
@@ -85,6 +90,7 @@ def sync_detailed(
     kwargs = _get_kwargs(
         group_id=group_id,
         body=body,
+        idempotency_key=idempotency_key,
     )
 
     response = client.get_httpx_client().request(
@@ -99,11 +105,13 @@ def sync(
     *,
     client: AuthenticatedClient,
     body: MeetingCreateEdit,
+    idempotency_key: None | str | Unset = UNSET,
 ) -> Any | HTTPValidationError | None:
     """Create Meeting
 
     Args:
         group_id (int):
+        idempotency_key (None | str | Unset):
         body (MeetingCreateEdit):
 
     Raises:
@@ -118,6 +126,7 @@ def sync(
         group_id=group_id,
         client=client,
         body=body,
+        idempotency_key=idempotency_key,
     ).parsed
 
 
@@ -126,11 +135,13 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
     body: MeetingCreateEdit,
+    idempotency_key: None | str | Unset = UNSET,
 ) -> Response[Any | HTTPValidationError]:
     """Create Meeting
 
     Args:
         group_id (int):
+        idempotency_key (None | str | Unset):
         body (MeetingCreateEdit):
 
     Raises:
@@ -144,6 +155,7 @@ async def asyncio_detailed(
     kwargs = _get_kwargs(
         group_id=group_id,
         body=body,
+        idempotency_key=idempotency_key,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -156,11 +168,13 @@ async def asyncio(
     *,
     client: AuthenticatedClient,
     body: MeetingCreateEdit,
+    idempotency_key: None | str | Unset = UNSET,
 ) -> Any | HTTPValidationError | None:
     """Create Meeting
 
     Args:
         group_id (int):
+        idempotency_key (None | str | Unset):
         body (MeetingCreateEdit):
 
     Raises:
@@ -176,5 +190,6 @@ async def asyncio(
             group_id=group_id,
             client=client,
             body=body,
+            idempotency_key=idempotency_key,
         )
     ).parsed

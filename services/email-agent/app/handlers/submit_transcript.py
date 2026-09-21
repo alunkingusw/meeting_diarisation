@@ -128,7 +128,9 @@ def execute(
 
         group = match.group
         meeting_date = datetime.fromisoformat(job.meeting_date)
-        meeting = diarisation_client.create_meeting(token, group.id, meeting_date)
+        meeting = diarisation_client.create_meeting(
+            token, group.id, meeting_date, idempotency_key=job.job_id
+        )
 
         content = Path(job.attachment_storage_path).read_bytes()
         raw_file = diarisation_client.upload_file(

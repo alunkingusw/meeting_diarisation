@@ -166,9 +166,21 @@ class DiarisationClient:
             members=[MemberSummary(id=m.id, name=m.name) for m in data.members],
         )
 
-    def create_meeting(self, token: str, group_id: int, date: datetime) -> MeetingSummary:
+    def create_meeting(
+        self,
+        token: str,
+        group_id: int,
+        date: datetime,
+        idempotency_key: Optional[str] = None,
+    ) -> MeetingSummary:
         """POST /groups/{id}/meetings/"""
-        data = self._retryer(self._generated.create_meeting, token, group_id, date)
+        data = self._retryer(
+            self._generated.create_meeting,
+            token,
+            group_id,
+            date,
+            idempotency_key,
+        )
         return MeetingSummary(id=data["id"], group_id=data["group_id"], date=data["date"])
 
     def list_meetings(

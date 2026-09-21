@@ -19,6 +19,38 @@ def test_create_and_list_meetings(client, make_user, make_group, auth_header_for
     assert [m["id"] for m in list_response.json()] == [meeting_id]
 
 
+def test_create_meeting_idempotency_key_returns_existing_meeting(
+    client, make_user, make_group, auth_header_for
+):
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    headers = {**auth_header_for(owner.id), "Idempotency-Key": "DIAR-2026-0921-0001"}
+    payload = {"date": "2026-09-21T10:00:00+00:00"}
+
+    first = client.post(f"/groups/{group.id}/meetings/", json=payload, headers=headers)
+    second = client.post(f"/groups/{group.id}/meetings/", json=payload, headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["id"] == first.json()["id"]
+
+
+def test_create_meeting_idempotency_key_cannot_cross_groups(
+    client, make_user, make_group, auth_header_for
+):
+    owner = make_user(username="owner")
+    first_group = make_group(name="Team A", owner=owner)
+    second_group = make_group(name="Team B", owner=owner)
+    key_headers = {**auth_header_for(owner.id), "Idempotency-Key": "DIAR-2026-0921-0002"}
+    payload = {"date": "2026-09-21T10:00:00+00:00"}
+
+    first = client.post(f"/groups/{first_group.id}/meetings/", json=payload, headers=key_headers)
+    second = client.post(f"/groups/{second_group.id}/meetings/", json=payload, headers=key_headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+
+
 def test_list_meetings_supports_inclusive_date_range(
     client, make_user, make_group, make_meeting, auth_header_for
 ):

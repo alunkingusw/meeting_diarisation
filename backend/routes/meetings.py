@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Header
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from backend.models import Meeting, MeetingOut, MeetingComment, MeetingCommentOut, GroupMember, GroupMemberOut, RawFile, Group
@@ -33,9 +33,18 @@ def create_meeting(
         group_id: int,
         meeting_data:MeetingCreateEdit,
         db: Session = Depends(get_db), 
-        user_id: int = Depends(is_group_user)
+        user_id: int = Depends(is_group_user),
+        idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ):
+    if idempotency_key:
+        existing = db.query(Meeting).filter(Meeting.idempotency_key == idempotency_key).first()
+        if existing is not None:
+            if existing.group_id != group_id:
+                raise HTTPException(status_code=409, detail="Idempotency key belongs to another group")
+            return existing
+
     new_meeting = Meeting(group_id=group_id, date=meeting_data.date, created=datetime.now())
+    new_meeting.idempotency_key = idempotency_key
     
     db.add(new_meeting)
     db.commit()

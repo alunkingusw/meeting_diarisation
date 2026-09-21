@@ -148,6 +148,20 @@ def test_create_meeting(client):
 
 
 @respx.mock
+def test_create_meeting_sends_idempotency_key(client):
+    route = respx.post(f"{BASE_URL}/groups/1/meetings/").mock(
+        return_value=httpx.Response(
+            200, json={"id": 42, "group_id": 1, "date": "2026-08-11T00:00:00"}
+        )
+    )
+    from datetime import datetime
+
+    client.create_meeting("tok", 1, datetime(2026, 8, 11), idempotency_key="DIAR-2026-0921-0001")
+
+    assert route.calls.last.request.headers["Idempotency-Key"] == "DIAR-2026-0921-0001"
+
+
+@respx.mock
 def test_upload_file(client):
     respx.post(f"{BASE_URL}/groups/1/meetings/42/upload/").mock(
         return_value=httpx.Response(

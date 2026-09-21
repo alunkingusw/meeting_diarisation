@@ -110,6 +110,10 @@ These are the next best candidates, in rough order:
    - most complex; requires transcript/GitHub/Trello tooling and LLM orchestration
    - should be last
 
+5. `submit_transcript`
+   - see `documentation/submit_transcript_graph_design.md`
+   - requires explicit handling for partial backend side effects and retry/idempotency
+
 ## Current status
 
 The following are already proven working:

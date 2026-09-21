@@ -103,6 +103,7 @@ class Meeting(Base):
     __tablename__ = "meetings"
     id = Column(Integer, primary_key=True)
     group_id = Column(Integer, ForeignKey("groups.id"))
+    idempotency_key = Column(String(255), nullable=True, unique=True, index=True)
     date = Column(DateTime, nullable=False, default=func.now())
     created = Column(DateTime, nullable=False, default=func.now())
 

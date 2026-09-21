@@ -235,13 +235,20 @@ class GeneratedDiarisationAdapter:
         finally:
             client.get_httpx_client().close()
 
-    def create_meeting(self, token: str, group_id: int, date: datetime.datetime) -> dict:
+    def create_meeting(
+        self,
+        token: str,
+        group_id: int,
+        date: datetime.datetime,
+        idempotency_key: str | None = None,
+    ) -> dict:
         client = self._authenticated(token)
         try:
             response = create_meeting_detailed(
                 group_id=group_id,
                 client=client,
                 body=MeetingCreateEdit(date=date),
+                idempotency_key=idempotency_key if idempotency_key is not None else Unset(),
             )
             self._raise_for_response(response.status_code, f"POST /groups/{group_id}/meetings/")
             return json.loads(response.content)
