@@ -33,7 +33,7 @@ def create_meeting(
         group_id: int,
         meeting_data:MeetingCreateEdit,
         db: Session = Depends(get_db), 
-        user_id: int = Depends(is_group_owner),
+        user_id: int = Depends(is_group_member),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ):
     if idempotency_key:

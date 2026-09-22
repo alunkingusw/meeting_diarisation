@@ -69,12 +69,13 @@ def _group_role(db: Session, user_id: int, group_id: int) -> str | None:
 def is_group_member(
     group_id: int = Path(...),
     db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id)
+    user_id: int = Depends(get_current_user_id),
 ) -> int:
     if not db.query(Group).filter(Group.id == group_id).first():
         raise HTTPException(status_code=404, detail="Group not found")
 
-    if _group_role(db, user_id, group_id) not in {"owner", "member"}:
+    role = get_group_role(db, user_id, group_id)
+    if role not in {"owner", "member"}:
         raise HTTPException(status_code=403, detail="Not authorised to view this group")
 
     return user_id
