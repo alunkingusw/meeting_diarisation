@@ -19,7 +19,7 @@ from fastapi import HTTPException, Depends, Path, Header
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from backend.db_dependency import get_db
-from backend.models import Group
+from backend.models import Group, users_groups
 import os
 import secrets
 
@@ -55,19 +55,47 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
-def is_group_user(
+def _group_role(db: Session, user_id: int, group_id: int) -> str | None:
+    return db.execute(
+        users_groups.select()
+        .with_only_columns(users_groups.c.role)
+        .where(
+            users_groups.c.user_id == user_id,
+            users_groups.c.group_id == group_id,
+        )
+    ).scalar_one_or_none()
+
+
+def is_group_member(
     group_id: int = Path(...),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id)
 ) -> int:
-    group = db.query(Group).get(group_id)
-    if not group:
+    if not db.query(Group).filter(Group.id == group_id).first():
         raise HTTPException(status_code=404, detail="Group not found")
 
-    if user_id not in [user.id for user in group.users]:
+    if _group_role(db, user_id, group_id) not in {"owner", "member"}:
         raise HTTPException(status_code=403, detail="Not authorised to view this group")
 
-    return user_id  # You can return group if you prefer!
+    return user_id
+
+def get_group_role(db: Session, user_id: int, group_id: int) -> str | None:
+def is_group_owner(
+    group_id: int = Path(...),
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id)
+) -> int:
+    if not db.query(Group).filter(Group.id == group_id).first():
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    if _group_role(db, user_id, group_id) != "owner":
+        raise HTTPException(status_code=403, detail="Group owner permission required")
+
+    return user_id
+
+
+# Existing routes can continue to use this name while they are migrated to explicit roles.
+is_group_user = is_group_member
 
 
 def get_service_caller(x_service_key: str = Header(default=None)) -> None:

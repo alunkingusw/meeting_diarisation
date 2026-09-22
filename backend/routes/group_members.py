@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from backend.models import GroupMember, Group, GroupMemberOut
 from backend.db_dependency import get_db
-from backend.auth import get_current_user_id
+from backend.auth import is_group_owner
 from backend.validation import GroupMembersCreateEdit
 from backend.config import settings
 from backend.processing.generate_embedding import generate_embedding
@@ -34,7 +34,7 @@ def create_member(
         group_id: int,
         group_member_data: GroupMembersCreateEdit, 
         db: Session = Depends(get_db), 
-        user_id: int = Depends(get_current_user_id)
+        user_id: int = Depends(is_group_owner)
     ):
     # check if group exists and belongs to the user
     group = db.query(Group).filter(Group.id == group_id).first()
@@ -52,7 +52,7 @@ def create_member(
 def list_members(
         group_id: int,
         db: Session = Depends(get_db), 
-        user_id: int = Depends(get_current_user_id),
+        user_id: int = Depends(is_group_owner),
         
     ):
     group = db.query(Group).get(group_id)
@@ -70,7 +70,7 @@ def get_member(
         group_id:int,
         member_id: int, 
         db: Session = Depends(get_db), 
-        user_id: int = Depends(get_current_user_id),
+        user_id: int = Depends(is_group_owner),
         
     ):
     member = db.query(GroupMember).filter(
@@ -86,7 +86,7 @@ def update_member(
         member_id: int, 
         group_member_data: GroupMembersCreateEdit,
         db: Session = Depends(get_db),
-        user_id: int = Depends(get_current_user_id)
+        user_id: int = Depends(is_group_owner)
     ):
     member = db.query(GroupMember).filter(
         GroupMember.id == member_id
@@ -103,7 +103,7 @@ def delete_member(
         group_id: int,
         member_id: int,
         db: Session = Depends(get_db),
-        user_id: int = Depends(get_current_user_id)):
+        user_id: int = Depends(is_group_owner)):
     member = db.query(GroupMember).get(member_id)
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
@@ -119,7 +119,7 @@ def upload_member_embedding(
         file: UploadFile = File(...),
         overwrite: bool = Query(False),
         db: Session = Depends(get_db),
-        user_id: int = Depends(get_current_user_id),
+        user_id: int = Depends(is_group_owner),
     ):
     # Validate group and member
     group = db.query(Group).filter(Group.id == group_id).first()

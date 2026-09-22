@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import Dict, Optional
 from backend.db_dependency import get_db
-from backend.auth import is_group_user
+from backend.auth import is_group_member
 from backend.models import Group
 from backend.validation import AliasResolveRequest
 
@@ -28,7 +28,7 @@ def resolve_aliases(
         group_id: int,
         payload: AliasResolveRequest,
         db: Session = Depends(get_db),
-        user_id: int = Depends(is_group_user),
+        user_id: int = Depends(is_group_member),
     ):
     """Match each given name against this group's members by exact,
     case-insensitive name comparison. `source` is accepted but not

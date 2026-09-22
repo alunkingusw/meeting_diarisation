@@ -21,19 +21,19 @@ from backend.models import Meeting, MeetingOut, MeetingComment, MeetingCommentOu
 from backend.db_dependency import get_db
 from datetime import date, datetime, timedelta
 from backend.validation import MeetingCreateEdit, MeetingCommentCreate, MeetingAttendee
-from backend.auth import get_current_user_id, is_group_user
 from backend.processing.transcribe import transcribe_meeting
 from backend.llm.ollama_client import OllamaError
 from backend.summarization.summariser import generate_meeting_summary
 
 router = APIRouter(prefix="/groups/{group_id}/meetings", tags=["meetings"])
+from backend.auth import is_group_member, is_group_owner
 
 @router.post("/")
 def create_meeting(
         group_id: int,
         meeting_data:MeetingCreateEdit,
         db: Session = Depends(get_db), 
-        user_id: int = Depends(is_group_user),
+        user_id: int = Depends(is_group_owner),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ):
     if idempotency_key:
@@ -57,7 +57,7 @@ def list_meetings(
         from_date: date | None = Query(None, description="Include meetings on or after this date"),
         to_date: date | None = Query(None, description="Include meetings on or before this date"),
         db: Session = Depends(get_db), 
-        user_id: int = Depends(is_group_user)
+        user_id: int = Depends(is_group_member)
     ):
     if from_date and to_date and from_date > to_date:
         raise HTTPException(status_code=400, detail="from_date must be on or before to_date")
@@ -75,7 +75,7 @@ def get_meeting(
         group_id: int,
         meeting_id: int, 
         db: Session = Depends(get_db), 
-        user_id: int = Depends(is_group_user)
+        user_id: int = Depends(is_group_member)
     ):
     meeting = db.query(Meeting).filter(
         and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
@@ -90,7 +90,7 @@ def add_meeting_comment(
         meeting_id: int,
         comment_data: MeetingCommentCreate,
         db: Session = Depends(get_db),
-        user_id: int = Depends(is_group_user)
+        user_id: int = Depends(is_group_member)
     ):
     meeting = db.query(Meeting).filter(
         and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
@@ -113,7 +113,7 @@ def delete_meeting(
         group_id: int,
         meeting_id: int,
         db: Session = Depends(get_db),
-        user_id: int = Depends(is_group_user)
+        user_id: int = Depends(is_group_owner)
     ):
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
@@ -128,10 +128,10 @@ def add_attendee(
         meeting_id:int,
         attendee_data:MeetingAttendee,
         db:Session = Depends(get_db),
-        user_id: int = Depends(is_group_user)
+        user_id: int = Depends(is_group_owner)
     ):
     print("Recieved attendee data:", attendee_data)
-    meeting = db.query(Meeting).filter(
+            user_id: int = Depends(is_group_owner),
         and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
     ).first()
     if not meeting:
@@ -166,7 +166,7 @@ def remove_attendee(
     meeting_id: int,
     member_id: int,
     db: Session = Depends(get_db),
-    user_id: int = Depends(is_group_user)
+    user_id: int = Depends(is_group_owner)
 ):
     # Check if meeting exists
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
@@ -192,7 +192,7 @@ async def start_transcription_job(
     meeting_id: int,
     reprocess: bool = Query(False),
     db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
+    user_id: int = Depends(is_group_owner),
     background_tasks: BackgroundTasks = None
 ):
     meeting = db.query(Meeting).filter(
@@ -238,7 +238,7 @@ def summarise_meeting(
         meeting_id: int,
         regenerate: bool = Query(False),
         db: Session = Depends(get_db),
-        user_id: int = Depends(is_group_user)
+        user_id: int = Depends(is_group_owner)
     ):
     """Returns this meeting's summary, generating it via the local LLM
     (backend/summarization) on first request if none is cached yet. Pass

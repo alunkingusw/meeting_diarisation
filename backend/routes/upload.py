@@ -24,6 +24,7 @@ from backend.transcript_rag.indexer import index_transcript
 from backend.summarization.summariser import summarise_meeting_task
 from fastapi.responses import FileResponse
 import logging
+from backend.auth import get_group_role, is_group_member
 import uuid
 import os
 import re
@@ -32,7 +33,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-
+        user_id: int = Depends(is_group_member)
 import shutil
 import pysubs2
 #from backend.processing import transcribe

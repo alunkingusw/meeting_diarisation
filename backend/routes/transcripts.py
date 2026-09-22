@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import Any, List, Optional
 from backend.db_dependency import get_db
-from backend.auth import is_group_user
+from backend.auth import is_group_member
 from backend.models import Group
 from backend.transcript_rag.indexer import search_transcripts
 
@@ -34,7 +34,7 @@ def search(
         group_id: int,
         payload: TranscriptSearchRequest,
         db: Session = Depends(get_db),
-        user_id: int = Depends(is_group_user),
+        user_id: int = Depends(is_group_member),
     ):
     """Semantic search over this group's indexed transcript chunks (see
     backend/transcript_rag/indexer.py). Retrieval only - no LLM call - the

@@ -1,5 +1,7 @@
 from datetime import date, datetime, timezone
 
+from backend.models import users_groups
+
 
 def test_create_and_list_meetings(client, make_user, make_group, auth_header_for):
     owner = make_user(username="owner")
@@ -107,6 +109,43 @@ def test_add_meeting_comment_sanitises_html_and_allows_multiple_comments(
     assert first_response.json()["comment"] == "Useful feedback"
     assert second_response.status_code == 201
     assert second_response.json()["comment"] == "A second comment"
+
+
+def test_group_member_can_add_meeting_comment(
+    client, db_session, make_user, make_group, make_meeting, auth_header_for
+):
+    owner = make_user(username="owner")
+    member = make_user(username="member")
+    group = make_group(name="Team A", owner=owner)
+    db_session.execute(users_groups.insert().values(user_id=member.id, group_id=group.id, role="member"))
+    db_session.commit()
+    meeting = make_meeting(group)
+
+    response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/comments",
+        json={"comment": "Member feedback"},
+        headers=auth_header_for(member.id),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["comment"] == "Member feedback"
+
+
+def test_group_member_cannot_manage_meeting(
+    client, db_session, make_user, make_group, make_meeting, auth_header_for
+):
+    owner = make_user(username="owner")
+    member = make_user(username="member")
+    group = make_group(name="Team A", owner=owner)
+    db_session.execute(users_groups.insert().values(user_id=member.id, group_id=group.id, role="member"))
+    db_session.commit()
+    meeting = make_meeting(group)
+
+    response = client.delete(
+        f"/groups/{group.id}/meetings/{meeting.id}", headers=auth_header_for(member.id)
+    )
+
+    assert response.status_code == 403
 
 
 def test_add_meeting_comment_rejects_empty_sanitised_text(

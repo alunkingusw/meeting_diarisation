@@ -1,5 +1,7 @@
 import pytest
 
+from backend.models import users_groups
+
 
 def test_upload_requires_auth(client, make_user, make_group, make_meeting):
     owner = make_user(username="owner")
@@ -41,6 +43,32 @@ def test_upload_transcript_file(client, make_user, make_group, make_meeting, aut
     )
     assert response.status_code == 200
     assert response.json()["type"] == "transcript_provided"
+
+
+def test_group_member_can_upload_transcript_but_not_audio(
+    client, db_session, make_user, make_group, make_meeting, auth_header_for
+):
+    owner = make_user(username="owner")
+    member = make_user(username="member")
+    group = make_group(name="Team A", owner=owner)
+    db_session.execute(users_groups.insert().values(user_id=member.id, group_id=group.id, role="member"))
+    db_session.commit()
+    meeting = make_meeting(group)
+    headers = auth_header_for(member.id)
+
+    transcript_response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/upload/",
+        files={"file": ("transcript.vtt", b"WEBVTT", "text/vtt")},
+        headers=headers,
+    )
+    audio_response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/upload/",
+        files={"file": ("audio.wav", b"fake audio bytes", "audio/wav")},
+        headers=headers,
+    )
+
+    assert transcript_response.status_code == 200
+    assert audio_response.status_code == 403
 
 
 def test_upload_srt_converts_to_vtt(client, make_user, make_group, make_meeting, auth_header_for):

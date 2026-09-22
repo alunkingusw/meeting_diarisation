@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.models import Group, User, GroupOut
 from backend.db_dependency import get_db
-from backend.auth import is_group_user, get_current_user_id
+from backend.auth import is_group_member, is_group_owner, get_current_user_id
 from backend.validation import GroupCreateEdit
 
 
@@ -50,12 +50,12 @@ def list_groups(db: Session = Depends(get_db), user_id:int = Depends(get_current
     return user.groups  # Only the groups associated with this user
 
 @router.get("/{group_id}", response_model=GroupOut)
-def get_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_user)):
+def get_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_member)):
     group = db.query(Group).get(group_id)
     return group
 
 @router.put("/{group_id}")
-def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depends(get_db), user_id:int = Depends(is_group_user)):
+def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depends(get_db), user_id:int = Depends(is_group_owner)):
     group = db.query(Group).get(group_id)
     group.name = group_data.name
     group.github_repo_url = group_data.github_repo_url
@@ -66,7 +66,7 @@ def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depen
     return group
 
 @router.delete("/{group_id}")
-def delete_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_user)):
+def delete_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_owner)):
     group = db.query(Group).get(group_id)
     db.delete(group)
     db.commit()

@@ -36,7 +36,8 @@ from backend.db import Base
 users_groups = Table(
     "users_groups", Base.metadata,
     Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
-    Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True)
+    Column("group_id", Integer, ForeignKey("groups.id"), primary_key=True),
+    Column("role", String(20), nullable=False, server_default="owner")
 )
 
 #regular group members who are part of the group and can be invited to meetings
