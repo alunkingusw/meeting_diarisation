@@ -7,4 +7,4 @@ pytest
 pytest-cov
 httpx              # required by FastAPI/Starlette's TestClient
 testcontainers[postgres]
-openapi-python-client==0.29.1
+openapi-python-client==0.28.4
