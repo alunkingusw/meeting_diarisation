@@ -19,12 +19,11 @@ from backend.config import settings
 from backend.models import RawFile, RawFileType, GroupMember, User, Group, Meeting
 from werkzeug.utils import secure_filename
 from backend.db_dependency import get_db
-from backend.auth import get_current_user_id
 from backend.transcript_rag.indexer import index_transcript
 from backend.summarization.summariser import summarise_meeting_task
 from fastapi.responses import FileResponse
 import logging
-from backend.auth import get_group_role, is_group_member
+from backend.auth import get_current_user_id, get_group_role, is_group_member
 import uuid
 import os
 import re
@@ -32,8 +31,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-
-        user_id: int = Depends(is_group_member)
 import shutil
 import pysubs2
 #from backend.processing import transcribe
@@ -58,7 +55,7 @@ async def upload_file(
         background_tasks: BackgroundTasks,
         file: UploadFile = File(...),
         db: Session = Depends(get_db),
-        user_id: int = Depends(get_current_user_id)
+        user_id: int = Depends(is_group_member)
     ):
     # Extract extension and validate
     ext = os.path.splitext(file.filename)[1].lower()

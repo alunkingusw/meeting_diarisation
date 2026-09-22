@@ -131,7 +131,7 @@ def add_attendee(
         user_id: int = Depends(is_group_owner)
     ):
     print("Recieved attendee data:", attendee_data)
-            user_id: int = Depends(is_group_owner),
+    meeting = db.query(Meeting).filter(
         and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
     ).first()
     if not meeting:

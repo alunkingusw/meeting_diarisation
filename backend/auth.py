@@ -79,7 +79,11 @@ def is_group_member(
 
     return user_id
 
+
 def get_group_role(db: Session, user_id: int, group_id: int) -> str | None:
+    return _group_role(db, user_id, group_id)
+
+
 def is_group_owner(
     group_id: int = Path(...),
     db: Session = Depends(get_db),
