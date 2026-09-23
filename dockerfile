@@ -1,4 +1,5 @@
-FROM python:3.10-slim
+ARG API_BASE_IMAGE=meeting-api-torch:cpu
+FROM ${API_BASE_IMAGE}
 
 ARG HUGGING_FACE_TOKEN
 ENV HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
@@ -7,16 +8,6 @@ ENV HUGGING_FACE_TOKEN=${HUGGING_FACE_TOKEN}
 ENV XDG_CACHE_HOME=/models
 ENV TRANSFORMERS_CACHE=/models/hf
 ENV PYANNOTE_CACHE=/models/pyannote
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    ffmpeg git libsndfile1 build-essential \
-    libglib2.0-0 libsm6 libxext6 libxrender-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install torch/torchaudio separately so they get cached
-COPY torch-requirements.txt .
-RUN pip install -r torch-requirements.txt
 
 # Copy requirements and install
 COPY requirements.txt .

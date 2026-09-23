@@ -153,6 +153,57 @@ If database connection fails, confirm .env is loaded and Docker volumes are clea
 
 - Use print(os.getenv(...)) to debug env variables in db.py.
 
+## PyTorch Images and GPU Support
+
+The API image uses a separately built local base image containing PyTorch and TorchAudio. This
+prevents the large Torch installation from running when application code is rebuilt. The default
+in `.env` is the CPU image:
+
+```env
+API_BASE_IMAGE=meeting-api-torch:cpu
+```
+
+Build it once (or rebuild it only when `torch-requirements.txt` changes):
+
+```bash
+docker build -f Dockerfile.torch -t meeting-api-torch:cpu .
+```
+
+Then launch the API and its database normally:
+
+```bash
+docker compose up --build api
+```
+
+### NVIDIA GPU
+
+Install an NVIDIA driver and the NVIDIA Container Toolkit on the host before using a GPU image.
+Choose a CUDA wheel index compatible with the host driver; for example, CUDA 12.6:
+
+```bash
+docker build -f Dockerfile.torch --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cu126 -t meeting-api-torch:cu126 .
+```
+
+Set the selected image in `.env`:
+
+```env
+API_BASE_IMAGE=meeting-api-torch:cu126
+```
+
+Start the API with the GPU override, which exposes all host GPUs to the API container:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build api
+```
+
+Verify that Docker can see the GPU before starting the API:
+
+```bash
+docker run --rm --gpus all nvidia/cuda:12.6.3-base-ubuntu22.04 nvidia-smi
+```
+
+For a different supported CUDA release, replace `cu126` in both the wheel URL and image tag.
+
 ## Building Custom PyTorch/TorchAudio Wheels for GPU
 
 If you need to build PyTorch or TorchAudio with support for your specific GPU, you can create a custom wheel (`.whl`) file. This allows you to install PyTorch locally or in Docker without downloading prebuilt binaries.
