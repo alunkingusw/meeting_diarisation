@@ -20,6 +20,7 @@ pyannote.audio==3.3.2
 # that huggingface_hub removed in 1.0 - pin below that until pyannote.audio itself moves to `token`.
 huggingface_hub<1.0
 scikit-learn
+matplotlib
 git+https://github.com/alunkingusw/brouhaha-vad.git@main
 numpy
 

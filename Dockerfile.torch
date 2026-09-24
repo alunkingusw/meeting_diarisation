@@ -8,4 +8,5 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY torch-requirements.txt .
-RUN pip install --no-cache-dir --index-url ${TORCH_INDEX_URL} -r torch-requirements.txt
+# extra-index-url (not index-url) so pure-Python transitive deps still resolve from PyPI
+RUN pip install --no-cache-dir --extra-index-url ${TORCH_INDEX_URL} -r torch-requirements.txt
