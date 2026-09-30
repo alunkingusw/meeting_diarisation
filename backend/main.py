@@ -26,6 +26,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 backend = FastAPI()
 
+
+@backend.on_event("startup")
+def provision_initial_admin():
+    backend.startup.bootstrap_initial_admin()
+
 #add middleware for communication between backend and frontend running on the same server
 origins = [
     "http://localhost:3000",

@@ -77,6 +77,31 @@ This will:
 
 ✔️ Automatically apply Alembic migrations on startup
 
+### Create the first administrator
+
+Set `INITIAL_ADMIN_USERNAME` and `INITIAL_ADMIN_PASSWORD` in the root `.env` before starting the
+API. The password must be at least 12 characters; `INITIAL_ADMIN_EMAIL` is optional. On startup,
+the API creates that administrator only if the database contains no users. Passwords are stored
+as one-way hashes. The frontend login form then accepts that username and password.
+
+For an already-running deployment whose database has no users, add these values to its `.env`
+and recreate the API container:
+
+```bash
+docker compose -f deploy/docker-compose.yml up -d --force-recreate api
+```
+
+Remove the `INITIAL_ADMIN_*` values after the account appears. They are only for first-user
+provisioning. Authenticated administrators can create accounts through `POST /users/` in the API
+docs, and can reset passwords through `PUT /users/{user_id}`.
+
+The new migration adds password hashes and administrator status. Existing accounts are not
+given passwords automatically and cannot log in until an administrator assigns them one. Since
+an existing database with old accounts has no administrator yet, provision/reset its account
+credentials out of band before enabling normal access; do not restore the previous ID-only login.
+Keep `SECRET_KEY` unique and private, and use HTTPS when exposing the frontend or API beyond a
+trusted local network.
+
 The repository also includes the email agent under `services/email-agent`. To enable the
 integrated deployment, copy its example files and configure the mailbox, backend, and internal
 API token:

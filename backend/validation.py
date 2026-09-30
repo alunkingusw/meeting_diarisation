@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic import field_validator
 import bleach
 from datetime import datetime
@@ -24,10 +24,6 @@ class FileUploadMetadata(BaseModel):
     speaker_hint: Optional[int] = Field(None, ge=1, le=10, example=3)
     language: Optional[str] = Field("en", example="en")
 
-class LoginRequest(BaseModel):
-    username: str
-
-
 class ServiceUserTokenRequest(BaseModel):
     email: str = Field(min_length=3, max_length=255)
 
@@ -37,7 +33,7 @@ class ServiceUserTokenRequest(BaseModel):
         value = value.strip().lower()
         if "@" not in value or value.startswith("@") or value.endswith("@"):
             raise ValueError("email must be a valid email address")
-        return value
+        return value.lower()
 
 class GroupCreateEdit(BaseModel):
     name: str
@@ -61,7 +57,45 @@ class MeetingCommentCreate(BaseModel):
         return cleaned
 
 class UserCreateEdit(BaseModel):
-    username: str
+    username: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=12, max_length=1024)
+    email: Optional[str] = Field(None, max_length=255)
+    is_admin: bool = False
+
+    @field_validator("username")
+    @classmethod
+    def normalise_username(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("username cannot be blank")
+        return value.lower()
+
+
+class UserUpdate(BaseModel):
+    username: Optional[str] = Field(None, min_length=1, max_length=255)
+    password: Optional[str] = Field(None, min_length=12, max_length=1024)
+    email: Optional[str] = Field(None, max_length=255)
+    is_admin: Optional[bool] = None
+
+    @field_validator("username")
+    @classmethod
+    def normalise_username(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        value = value.strip()
+        if not value:
+            raise ValueError("username cannot be blank")
+        return value
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    username: Optional[str]
+    email: Optional[str]
+    is_admin: bool
+    created: datetime
 
 class GroupMembersCreateEdit(BaseModel):
     name: str

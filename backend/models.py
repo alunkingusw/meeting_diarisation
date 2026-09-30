@@ -25,7 +25,7 @@ from backend.config import settings
 from enum import Enum
 
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, func, Enum as SQLEnum
+    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, Index, func, Enum as SQLEnum
 )
 from sqlalchemy.orm import relationship
 from backend.db import Base
@@ -60,9 +60,19 @@ meetings_group_members = Table(
 #a user is a supervisor who can manage groups
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+        Index(
+            "uq_users_username_lower",
+            func.lower(username),
+            unique=True,
+            postgresql_where=username.isnot(None),
+        ),
+    )
     id = Column(Integer, primary_key=True)
     username = Column(String(255), nullable=True)
     email = Column(String(255), nullable=True)
+    password_hash = Column(String(255), nullable=True)
+    is_admin = Column(Boolean, nullable=False, default=False, server_default="false")
     created = Column(DateTime, nullable=False, default=func.now())
 
     groups = relationship("Group", secondary=users_groups, back_populates="users")

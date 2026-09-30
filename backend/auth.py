@@ -19,7 +19,7 @@ from fastapi import HTTPException, Depends, Path, Header
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from backend.db_dependency import get_db
-from backend.models import Group, users_groups
+from backend.models import Group, User, users_groups
 import os
 import secrets
 
@@ -53,6 +53,18 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
         return int(user_id)
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+def get_current_admin_id(
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> int:
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if not user.is_admin:
+        raise HTTPException(status_code=403, detail="Administrator permission required")
+    return user_id
 
 
 def _group_role(db: Session, user_id: int, group_id: int) -> str | None:

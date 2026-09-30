@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     pgadmin_default_password: str
     secret_key: str
     hugging_face_token: str
+    initial_admin_username: str | None = None
+    initial_admin_password: str | None = None
+    initial_admin_email: str | None = None
     email_api_token: str = ""
     email_api_url: str = "http://agent:8080/internal/email"
     email_timeout_seconds: float = 10.0

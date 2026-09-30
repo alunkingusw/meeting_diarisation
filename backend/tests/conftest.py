@@ -175,9 +175,14 @@ def auth_header_for(app):
 @pytest.fixture
 def make_user(db_session):
     from backend.models import User
+    from werkzeug.security import generate_password_hash
 
-    def _make(username="alice"):
-        user = User(username=username)
+    def _make(username="alice", password="correct-horse-battery-staple", is_admin=False):
+        user = User(
+            username=username,
+            password_hash=generate_password_hash(password),
+            is_admin=is_admin,
+        )
         db_session.add(user)
         db_session.commit()
         db_session.refresh(user)
