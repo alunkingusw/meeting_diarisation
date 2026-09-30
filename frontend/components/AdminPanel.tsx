@@ -100,7 +100,7 @@ export default function AdminPanel() {
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="Password (optional, min. 12 characters - most users won't need one)"
+              placeholder="Password (optional, min. 12 characters - not needed if interaction is through email)"
               className="border border-gray-300 rounded px-3 py-2 w-full"
               disabled={creatingUser}
               minLength={12}
