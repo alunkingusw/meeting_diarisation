@@ -165,6 +165,7 @@ class RawFile(Base):
 class GroupMemberOut(BaseModel):
     id: int
     name: str
+    email: Optional[str] = None
     created: datetime
     embedding_audio_path: Optional[str]
     

@@ -38,6 +38,8 @@ origins = [
     f"http://localhost:{settings.frontend_port}",
     f"http://frontend:{settings.frontend_port}",  # Docker internal hostname
 ]
+if settings.public_host:
+    origins.append(f"http://{settings.public_host}:{settings.frontend_port}")
 
 backend.add_middleware(
     CORSMiddleware,

@@ -1,0 +1,16 @@
+# Available placeholders: $member_name, $group_name
+# Lines beginning with # are template comments and are removed before sending.
+
+Hello $member_name,
+
+You have been added to the group "$group_name" in the Meeting Diarisation system.
+
+This system automatically identifies speakers in recorded meetings and links transcripts,
+summaries, and comments back to attendees. A few things to know:
+
+You can send emails to this address at any time to record any meetings that have taken place
+ - agree with your team to only send one email about a meeting otherwise they may be duplicated
+ - you can either email explaining the meeting date, and the outline of the meeting
+ - or if you have a transcription (created by a system like Teams), just attach that to the email, and the system will figure out the rest.
+
+If you believe you were added to this group in error, please contact the person who manages it.

@@ -36,6 +36,10 @@ class Settings(BaseSettings):
 
     # Port the frontend dev server runs on - used to build the CORS allow list in main.py.
     frontend_port: str = "5000"
+
+    # Hostname/IP the browser uses to reach this stack (e.g. when containers run on a
+    # different machine to the browser). Added to the CORS allow list alongside localhost.
+    public_host: str | None = None
     
     # this is the default value, overridden by the value in .env
     UPLOAD_DIR: Path = Path("/backend/uploads")

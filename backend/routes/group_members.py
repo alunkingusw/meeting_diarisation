@@ -17,22 +17,55 @@
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, BackgroundTasks, Query
 from sqlalchemy.orm import Session
 from typing import List
+from pathlib import Path
+from string import Template
 from backend.models import GroupMember, Group, GroupMemberOut
 from backend.db_dependency import get_db
 from backend.auth import is_group_owner
 from backend.validation import GroupMembersCreateEdit
 from backend.config import settings
+from backend.email_client import EmailError, send_email
 from backend.processing.generate_embedding import generate_embedding
 from backend.routes.upload import ALLOWED_AUDIO_EXTENSIONS
+import logging
 import shutil
 import os
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/groups/{group_id}/members", tags=["group_members"])
+
+WELCOME_EMAIL_TEMPLATE_PATH = Path(__file__).resolve().parents[1] / "templates" / "group_member_welcome_email.txt"
+
+
+def _render_welcome_email(member: GroupMember, group: Group) -> tuple[str, str]:
+    template_lines = WELCOME_EMAIL_TEMPLATE_PATH.read_text(encoding="utf-8").splitlines()
+    template_text = "\n".join(line for line in template_lines if not line.startswith("#"))
+    body = Template(template_text).substitute(
+        member_name=member.name or "there",
+        group_name=group.name or "Unnamed group",
+    )
+    subject = f"Welcome to {group.name or 'Unnamed group'}"
+    return subject, body.strip()
+
+
+def _send_welcome_email(member: GroupMember, group: Group) -> None:
+    if not member.email:
+        logger.info("Notify requested for member %s but no email address is set", member.id)
+        return
+    try:
+        subject, body = _render_welcome_email(member, group)
+        send_email(to=member.email.strip(), subject=subject, body=body)
+    except EmailError:
+        logger.exception("Could not send welcome email to member %s", member.id)
+
 
 @router.post("/")
 def create_member(
         group_id: int,
-        group_member_data: GroupMembersCreateEdit, 
+        group_member_data: GroupMembersCreateEdit,
+        background_tasks: BackgroundTasks,
+        notify: bool = Query(True, description="Send the member a welcome email once added"),
         db: Session = Depends(get_db), 
         user_id: int = Depends(is_group_owner)
     ):
@@ -41,11 +74,15 @@ def create_member(
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
-    member = GroupMember(name=group_member_data.name)
+    member = GroupMember(name=group_member_data.name, email=group_member_data.email)
     member.groups.append(group)
     db.add(member)
     db.commit()
     db.refresh(member)
+
+    if notify:
+        background_tasks.add_task(_send_welcome_email, member, group)
+
     return member
 
 @router.get("/", response_model=List[GroupMemberOut])
@@ -94,6 +131,7 @@ def update_member(
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
     member.name = group_member_data.name
+    member.email = group_member_data.email
     db.commit()
     db.refresh(member)
     return member

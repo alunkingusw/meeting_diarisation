@@ -98,6 +98,19 @@ class UserOut(BaseModel):
 
 class GroupMembersCreateEdit(BaseModel):
     name: str
+    email: Optional[str] = None
+
+    @field_validator("email")
+    @classmethod
+    def normalise_email(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        value = value.strip().lower()
+        if not value:
+            return None
+        if "@" not in value or value.startswith("@") or value.endswith("@"):
+            raise ValueError("email must be a valid email address")
+        return value
 
 class MeetingAttendee(BaseModel):
     name: Optional[str] = None
