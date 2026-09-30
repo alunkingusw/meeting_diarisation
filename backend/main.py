@@ -14,6 +14,7 @@
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from backend.config import settings
 from backend.routes import router as api_router
 from backend.startup import bootstrap_initial_admin
 
@@ -34,8 +35,8 @@ def provision_initial_admin():
 
 #add middleware for communication between backend and frontend running on the same server
 origins = [
-    "http://localhost:3000",
-    "http://frontend:3000",  # Docker internal hostname
+    f"http://localhost:{settings.frontend_port}",
+    f"http://frontend:{settings.frontend_port}",  # Docker internal hostname
 ]
 
 backend.add_middleware(

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     email_api_token: str = ""
     email_api_url: str = "http://agent:8080/internal/email"
     email_timeout_seconds: float = 10.0
+
+    # Port the frontend dev server runs on - used to build the CORS allow list in main.py.
+    frontend_port: str = "5000"
     
     # this is the default value, overridden by the value in .env
     UPLOAD_DIR: Path = Path("/backend/uploads")
