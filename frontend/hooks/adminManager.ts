@@ -49,7 +49,7 @@ export function useAdminManager() {
 
   const handleCreateUser = async (params: {
     username: string;
-    password: string;
+    password?: string;
     email?: string;
     isAdmin?: boolean;
   }) => {
@@ -61,7 +61,7 @@ export function useAdminManager() {
         headers: authHeaders(),
         body: JSON.stringify({
           username: params.username,
-          password: params.password,
+          password: params.password || null,
           email: params.email || null,
           is_admin: params.isAdmin ?? false,
         }),

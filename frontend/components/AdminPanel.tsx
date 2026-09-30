@@ -45,8 +45,8 @@ export default function AdminPanel() {
 
   const submitCreateUser = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!username.trim() || !password.trim()) return;
-    const created = await handleCreateUser({ username, password, email, isAdmin });
+    if (!username.trim()) return;
+    const created = await handleCreateUser({ username, password: password || undefined, email, isAdmin });
     if (created) {
       setUsername('');
       setPassword('');
@@ -100,10 +100,10 @@ export default function AdminPanel() {
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
-              placeholder="Password (min. 12 characters)"
+              placeholder="Password (optional, min. 12 characters - most users won't need one)"
               className="border border-gray-300 rounded px-3 py-2 w-full"
               disabled={creatingUser}
-              required
+              minLength={12}
             />
             <input
               type="email"

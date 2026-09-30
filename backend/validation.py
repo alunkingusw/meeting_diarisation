@@ -60,7 +60,9 @@ class MeetingCommentCreate(BaseModel):
 
 class UserCreateEdit(BaseModel):
     username: str = Field(min_length=1, max_length=255)
-    password: str = Field(min_length=12, max_length=1024)
+    # Optional - most users only interact with the system via email (e.g. GroupAssessmentAgent
+    # issuing them a JWT through /admin/user-token), so a login password isn't always needed.
+    password: Optional[str] = Field(None, min_length=12, max_length=1024)
     email: Optional[str] = Field(None, max_length=255)
     is_admin: bool = False
 
