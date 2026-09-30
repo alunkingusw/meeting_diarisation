@@ -115,7 +115,7 @@ export default function MembersPage() {
               value={newMemberName}
               onChange={e => setNewMemberName(e.target.value)}
               required
-              className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="border border-gray-300 rounded px-3 py-2 w-full"
               placeholder="New member name"
             />
             <input
@@ -124,7 +124,7 @@ export default function MembersPage() {
               id="email"
               value={newMemberEmail}
               onChange={e => setNewMemberEmail(e.target.value)}
-              className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              className="border border-gray-300 rounded px-3 py-2 w-full"
               placeholder="Email (optional)"
             />
             <button
