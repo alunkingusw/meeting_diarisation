@@ -81,8 +81,10 @@ This will:
 
 Set `INITIAL_ADMIN_USERNAME` and `INITIAL_ADMIN_PASSWORD` in the root `.env` before starting the
 API. The password must be at least 12 characters; `INITIAL_ADMIN_EMAIL` is optional. On startup,
-the API creates that administrator only if the database contains no users. Passwords are stored
-as one-way hashes. The frontend login form then accepts that username and password.
+the API creates that administrator only if the database contains no administrator. This also
+works on an existing database with legacy users; it leaves those accounts and their data intact.
+Passwords are stored as one-way hashes. The frontend login form then accepts that username and
+password.
 
 For an already-running deployment whose database has no users, add these values to its `.env`
 and recreate the API container:
@@ -96,9 +98,9 @@ provisioning. Authenticated administrators can create accounts through `POST /us
 docs, and can reset passwords through `PUT /users/{user_id}`.
 
 The new migration adds password hashes and administrator status. Existing accounts are not
-given passwords automatically and cannot log in until an administrator assigns them one. Since
-an existing database with old accounts has no administrator yet, provision/reset its account
-credentials out of band before enabling normal access; do not restore the previous ID-only login.
+given passwords automatically and cannot log in until an administrator assigns them one. After
+the initial administrator signs in, an admin can assign those users new passwords using the API
+docs; do not restore the previous ID-only login.
 Keep `SECRET_KEY` unique and private, and use HTTPS when exposing the frontend or API beyond a
 trusted local network.
 

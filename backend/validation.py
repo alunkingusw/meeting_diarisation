@@ -14,7 +14,6 @@
 
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from pydantic import field_validator
 import bleach
 from datetime import datetime
 
@@ -33,7 +32,7 @@ class ServiceUserTokenRequest(BaseModel):
         value = value.strip().lower()
         if "@" not in value or value.startswith("@") or value.endswith("@"):
             raise ValueError("email must be a valid email address")
-        return value.lower()
+        return value
 
 class GroupCreateEdit(BaseModel):
     name: str
@@ -85,7 +84,7 @@ class UserUpdate(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("username cannot be blank")
-        return value
+        return value.lower()
 
 
 class UserOut(BaseModel):

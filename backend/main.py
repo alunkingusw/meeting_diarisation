@@ -15,6 +15,7 @@
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from backend.routes import router as api_router
+from backend.startup import bootstrap_initial_admin
 
 import backend.startup
 import logging
@@ -29,7 +30,7 @@ backend = FastAPI()
 
 @backend.on_event("startup")
 def provision_initial_admin():
-    backend.startup.bootstrap_initial_admin()
+    bootstrap_initial_admin()
 
 #add middleware for communication between backend and frontend running on the same server
 origins = [

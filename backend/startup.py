@@ -44,8 +44,8 @@ def bootstrap_initial_admin() -> int | None:
 
 	session = SessionLocal()
 	try:
-		if session.query(models.User.id).first():
-			logging.info("Initial admin bootstrap skipped; users already exist.")
+		if session.query(models.User.id).filter(models.User.is_admin.is_(True)).first():
+			logging.info("Initial admin bootstrap skipped; an administrator already exists.")
 			return None
 
 		user = models.User(

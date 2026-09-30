@@ -123,6 +123,10 @@ def update_user(
     if user_data.password is not None:
         user.password_hash = generate_password_hash(user_data.password)
     if user_data.is_admin is not None:
+        if user.is_admin and not user_data.is_admin:
+            admin_count = db.query(User).filter(User.is_admin.is_(True)).count()
+            if admin_count == 1:
+                raise HTTPException(status_code=409, detail="Cannot demote the last administrator")
         user.is_admin = user_data.is_admin
     db.commit()
     db.refresh(user)

@@ -25,7 +25,8 @@ from backend.config import settings
 from enum import Enum
 
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, Index, func, Enum as SQLEnum
+    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, Index, func, text,
+    Enum as SQLEnum,
 )
 from sqlalchemy.orm import relationship
 from backend.db import Base
@@ -63,9 +64,9 @@ class User(Base):
     __table_args__ = (
         Index(
             "uq_users_username_lower",
-            func.lower(username),
+            text("lower(username)"),
             unique=True,
-            postgresql_where=username.isnot(None),
+            postgresql_where=text("username IS NOT NULL"),
         ),
     )
     id = Column(Integer, primary_key=True)
