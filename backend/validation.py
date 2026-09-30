@@ -39,6 +39,9 @@ class GroupCreateEdit(BaseModel):
     github_repo_url: Optional[str] = None
     trello_board_id: Optional[str] = None
     notify: bool = False
+    # Only honoured for administrators (backend/routes/groups.py) - lets an admin create a
+    # group owned by another user instead of themselves. Ignored/rejected for everyone else.
+    owner_user_id: Optional[int] = None
 
 class MeetingCreateEdit(BaseModel):
     date: datetime

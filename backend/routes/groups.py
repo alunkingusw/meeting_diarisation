@@ -30,13 +30,21 @@ def create_group(group_data: GroupCreateEdit, db: Session = Depends(get_db), use
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    owner = user
+    if group_data.owner_user_id is not None and group_data.owner_user_id != user_id:
+        if not user.is_admin:
+            raise HTTPException(status_code=403, detail="Administrator permission required to assign a different owner")
+        owner = db.query(User).filter(User.id == group_data.owner_user_id).first()
+        if not owner:
+            raise HTTPException(status_code=404, detail="Owner user not found")
+
     new_group = Group(
         name=group_data.name,
         github_repo_url=group_data.github_repo_url,
         trello_board_id=group_data.trello_board_id,
         notify=group_data.notify,
     )
-    new_group.users.append(user)  # Associate this group with the user
+    new_group.users.append(owner)  # Associate this group with the owner
     db.add(new_group)
     db.commit()
     db.refresh(new_group)

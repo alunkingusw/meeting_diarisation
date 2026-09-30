@@ -22,10 +22,13 @@ import { useRouter } from 'next/navigation';
 import { FaCog } from "react-icons/fa";
 import Link from 'next/link';
 import { useGroupsManager } from '@/hooks/groupsManager';
+import { useCurrentUser } from '@/hooks/currentUserManager';
+import AdminPanel from '@/components/AdminPanel';
 import Cookies from 'js-cookie';
 
 export default function HomePage() {
   const {groups, loading, error, fetchAllGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDeleteGroup} = useGroupsManager();
+  const { currentUser, fetchCurrentUser } = useCurrentUser();
   
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const router = useRouter();
@@ -37,6 +40,7 @@ export default function HomePage() {
       return;
     }
     fetchAllGroups();
+    fetchCurrentUser();
     if(error){
       router.replace('/');
     }
@@ -114,6 +118,8 @@ export default function HomePage() {
           </button>
         </div>
       </form>
+
+      {currentUser?.is_admin && <AdminPanel />}
     </main>
   );
 }
