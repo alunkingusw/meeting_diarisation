@@ -1,0 +1,12 @@
+FROM python:3.10-slim
+
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+
+RUN apt-get update && apt-get install -y \
+    ffmpeg git libsndfile1 build-essential \
+    libglib2.0-0 libsm6 libxext6 libxrender-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY torch-requirements.txt .
+# extra-index-url (not index-url) so pure-Python transitive deps still resolve from PyPI
+RUN pip install --no-cache-dir --extra-index-url ${TORCH_INDEX_URL} -r torch-requirements.txt
