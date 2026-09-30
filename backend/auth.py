@@ -87,10 +87,15 @@ def is_group_member(
         raise HTTPException(status_code=404, detail="Group not found")
 
     role = get_group_role(db, user_id, group_id)
-    if role not in {"owner", "member"}:
+    if role not in {"owner", "member"} and not _is_admin(db, user_id):
         raise HTTPException(status_code=403, detail="Not authorised to view this group")
 
     return user_id
+
+
+def _is_admin(db: Session, user_id: int) -> bool:
+    user = db.query(User).filter(User.id == user_id).first()
+    return bool(user and user.is_admin)
 
 
 def get_group_role(db: Session, user_id: int, group_id: int) -> str | None:
@@ -105,7 +110,7 @@ def is_group_owner(
     if not db.query(Group).filter(Group.id == group_id).first():
         raise HTTPException(status_code=404, detail="Group not found")
 
-    if _group_role(db, user_id, group_id) != "owner":
+    if _group_role(db, user_id, group_id) != "owner" and not _is_admin(db, user_id):
         raise HTTPException(status_code=403, detail="Group owner permission required")
 
     return user_id

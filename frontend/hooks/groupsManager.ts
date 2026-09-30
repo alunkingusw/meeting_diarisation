@@ -26,10 +26,11 @@ export function useGroupsManager(){
     const [creatingGroup, setCreatingGroup] = useState(false);
 
 
-    const fetchAllGroups = async() =>{
+    const fetchAllGroups = async(viewAll: boolean = false) =>{
       const token = Cookies.get('token');
+      setLoading(true);
 
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups`, {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/groups${viewAll ? '?all_groups=true' : ''}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

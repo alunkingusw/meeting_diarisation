@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from backend.models import Group, User, GroupOut
 from backend.db_dependency import get_db
@@ -51,10 +51,20 @@ def create_group(group_data: GroupCreateEdit, db: Session = Depends(get_db), use
     return new_group
 
 @router.get("/")
-def list_groups(db: Session = Depends(get_db), user_id:int = Depends(get_current_user_id)):
+def list_groups(
+        db: Session = Depends(get_db),
+        user_id: int = Depends(get_current_user_id),
+        all_groups: bool = Query(False, description="Admins only: list every group, not just ones you belong to"),
+    ):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    if all_groups:
+        if not user.is_admin:
+            raise HTTPException(status_code=403, detail="Administrator permission required")
+        return db.query(Group).order_by(Group.id).all()
+
     return user.groups  # Only the groups associated with this user
 
 @router.get("/{group_id}", response_model=GroupOut)

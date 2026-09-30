@@ -31,7 +31,7 @@ export default function MembersPage() {
   const { id } = useParams();
 
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
-  const { loading, getGroup, group, groupMembers, error, selectedMember, setSelectedMember, newMemberName, setNewMemberName, handleCreateMember, handleRemoveMember, fetchGroupMembers } = useGroupManager();
+  const { loading, getGroup, group, groupMembers, error, selectedMember, setSelectedMember, newMemberName, setNewMemberName, newMemberEmail, setNewMemberEmail, handleCreateMember, handleRemoveMember, fetchGroupMembers } = useGroupManager();
   const { isValidMeetingFile, isValidAudioFile, uploading, uploadProgress, handleEmbeddingAudioDrop } = useMediaManager();
   useEffect(() => {
     if (!id) return;
@@ -117,6 +117,15 @@ export default function MembersPage() {
               required
               className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               placeholder="New member name"
+            />
+            <input
+              type="email"
+              name="email"
+              id="email"
+              value={newMemberEmail}
+              onChange={e => setNewMemberEmail(e.target.value)}
+              className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              placeholder="Email (optional)"
             />
             <button
               type="submit"

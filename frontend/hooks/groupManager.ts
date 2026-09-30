@@ -21,6 +21,7 @@ import Cookies from 'js-cookie';
 export type Person = {
   id: number;
   name: string;
+  email?: string | null;
   created: string;
   embedding_audio_path?: string | null;
 };
@@ -33,6 +34,7 @@ export function useGroupManager(){
     const [selectedMember, setSelectedMember] = useState<Person | null>(null);
     const [loading, setLoading] = useState(true); // Track loading state
     const [newMemberName, setNewMemberName] = useState('');
+    const [newMemberEmail, setNewMemberEmail] = useState('');
 
   /*
    * The functions below relate to actions within a group, hence groupManager, rather than groupsManager.
@@ -104,7 +106,7 @@ export function useGroupManager(){
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ name:newMemberName }),
+          body: JSON.stringify({ name: newMemberName, email: newMemberEmail || null }),
         });
 
         if (!res.ok) {
@@ -119,6 +121,7 @@ export function useGroupManager(){
           }
           
           setNewMemberName('');
+          setNewMemberEmail('');
     } 
       } catch (err) {
         console.error(err);
@@ -165,7 +168,9 @@ export function useGroupManager(){
     selectedMember,
     setSelectedMember,
     newMemberName,
-    setNewMemberName
+    setNewMemberName,
+    newMemberEmail,
+    setNewMemberEmail
   };
 }
 

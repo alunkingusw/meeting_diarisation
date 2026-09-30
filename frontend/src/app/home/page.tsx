@@ -29,6 +29,7 @@ import Cookies from 'js-cookie';
 export default function HomePage() {
   const {groups, loading, error, fetchAllGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDeleteGroup} = useGroupsManager();
   const { currentUser, fetchCurrentUser } = useCurrentUser();
+  const [viewAllGroups, setViewAllGroups] = useState(false);
   
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
   const router = useRouter();
@@ -46,20 +47,40 @@ export default function HomePage() {
     }
   }, []);
 
+  const toggleView = (showAll: boolean) => {
+    setViewAllGroups(showAll);
+    fetchAllGroups(showAll);
+  };
    
   
 
   return (
     <main className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Your Groups</h1>
-        
+        <h1 className="text-2xl font-bold">{viewAllGroups ? 'All Groups' : 'Your Groups'}</h1>
       </div>
+
+      {currentUser?.is_admin && (
+        <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => toggleView(false)}
+            className={`px-3 py-1 rounded text-sm ${!viewAllGroups ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+          >
+            My Groups
+          </button>
+          <button
+            onClick={() => toggleView(true)}
+            className={`px-3 py-1 rounded text-sm ${viewAllGroups ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700'}`}
+          >
+            All Groups
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p>Loading...</p>
       ) : groups.length === 0 ? (
-        <p>You do not currently have any groups.</p>
+        <p>{viewAllGroups ? 'No groups exist yet.' : 'You do not currently have any groups.'}</p>
       ) : (
         <ul className="list-disc pl-5 space-y-2">
       {groups.map(group => (
@@ -67,6 +88,11 @@ export default function HomePage() {
           <Link href={`/home/${group.id}`} className="text-blue-500 hover:underline">
             {group.name}
           </Link>
+          {viewAllGroups && (
+            <span className="text-xs text-gray-500 mr-auto ml-2">
+              {group.users?.map(u => u.username).join(', ')}
+            </span>
+          )}
           <div className="relative">
             <button
               className="ml-2"
