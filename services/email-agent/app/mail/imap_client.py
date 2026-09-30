@@ -53,7 +53,11 @@ class ImapMailClient(MailClient):
 
     def fetch_new_messages(self, limit: int = 25) -> list[EmailMessage]:
         with self._imap_connection() as client:
-            client.select(self._mailbox_name, readonly=True)
+            status, data = client.select(self._mailbox_name, readonly=True)
+            if status != "OK":
+                raise imaplib.IMAP4.error(
+                    f"Could not select mailbox {self._mailbox_name!r}: {data!r}"
+                )
             status, data = client.search(None, "UNSEEN")
             if status != "OK":
                 return []
