@@ -51,7 +51,6 @@ def build_mail_client(settings: Settings) -> MailClient:
         return ImapMailClient(
             settings.mail_username,
             settings.mail_password,
-            mailbox_name=settings.mail.mailbox_upn or settings.mail_username,
         )
     if settings.mail.provider == "fake":
         return FakeMailClient()
@@ -184,13 +183,18 @@ def run(settings: Settings) -> None:
 
     def _mail_loop():
         while not stop_event.is_set():
+            processed = 0
+            sent = 0
             try:
                 processed = pipeline.poll_once()
-                sent = pipeline.flush_outbox()
-                if processed or sent:
-                    logger.info("Poll cycle: processed=%s sent=%s", processed, sent)
             except Exception:
-                logger.exception("Error in mail polling loop")
+                logger.exception("Error polling inbound mail")
+            try:
+                sent = pipeline.flush_outbox()
+            except Exception:
+                logger.exception("Error flushing outbound mail")
+            if processed or sent:
+                logger.info("Poll cycle: processed=%s sent=%s", processed, sent)
             stop_event.wait(settings.mail.poll_interval_seconds)
 
     worker_thread = threading.Thread(

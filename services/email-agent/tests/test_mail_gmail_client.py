@@ -7,7 +7,7 @@ from app.settings import Settings
 
 def test_build_mail_client_supports_mail_provider():
     settings = Settings(
-        mail={"provider": "mail"},
+        mail={"provider": "mail", "mailbox_upn": "project@provider.example"},
         mail_username="project@provider.example",
         mail_password="secret",
     )
@@ -16,6 +16,7 @@ def test_build_mail_client_supports_mail_provider():
 
     assert isinstance(client, ImapMailClient)
     assert client._username == "project@provider.example"
+    assert client._mailbox_name == "INBOX"
 
 
 def test_build_mail_client_requires_mail_credentials():
