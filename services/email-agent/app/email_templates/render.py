@@ -147,6 +147,12 @@ def render_help() -> tuple[str, str]:
     return subject, body
 
 
+def render_group_member_help() -> tuple[str, str]:
+    subject = "Available email actions for group members"
+    body = _render("group_member_help.txt.j2")
+    return subject, body
+
+
 def render_unrecognised_sender(admin_email: Optional[str]) -> tuple[str, str]:
     subject = "You're not currently registered to use this system"
     body = _render("unrecognised_sender.txt.j2", admin_email=admin_email)

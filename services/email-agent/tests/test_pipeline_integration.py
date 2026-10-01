@@ -142,7 +142,55 @@ def test_group_member_cannot_use_help_or_other_commands(db_path: Path, tmp_path:
     pipeline.flush_outbox()
 
     assert job_store.list_queued() == []
-    assert any("submit transcripts or add comments only" in message.body_text for message in mail.sent)
+    member_reply = next(message for message in mail.sent if message.to == "carol@uni.ac.uk")
+    assert "Submit a meeting transcript" in member_reply.body_text
+    assert "Add a comment to a meeting" in member_reply.body_text
+    assert "group_id=<id>" in member_reply.body_text
+
+
+def test_group_member_gets_available_actions_when_intent_is_unclear(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email(
+        "carol@uni.ac.uk", body_text="hello", auth_signals=PASS,
+    )
+    mail.add_message(msg)
+    pipeline, job_store, _, _, _, _ = _build_pipeline(
+        db_path,
+        tmp_path,
+        mail,
+        '{"operation": "help", "attachment": null, "group_hint": null, "job_id": null, '
+        '"mentioned_date": null, "return_statistics": false, "requires_clarification": true, '
+        '"clarification_question": "What would you like to do?"}',
+        group_members={"carol@uni.ac.uk": [21]},
+    )
+
+    pipeline.poll_once()
+    pipeline.flush_outbox()
+
+    assert job_store.list_queued() == []
+    member_reply = next(message for message in mail.sent if message.to == "carol@uni.ac.uk")
+    assert "submit a meeting transcript" in member_reply.body_text.lower()
+    assert "add a comment to a meeting" in member_reply.body_text.lower()
+
+
+def test_group_member_gets_available_actions_when_parser_fails(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email("carol@uni.ac.uk", body_text="hello", auth_signals=PASS)
+    mail.add_message(msg)
+    pipeline, _, _, _, _, _ = _build_pipeline(
+        db_path,
+        tmp_path,
+        mail,
+        "not valid command JSON",
+        group_members={"carol@uni.ac.uk": [21]},
+    )
+
+    pipeline.poll_once()
+    pipeline.flush_outbox()
+
+    member_reply = next(message for message in mail.sent if message.to == "carol@uni.ac.uk")
+    assert "submit a meeting transcript" in member_reply.body_text.lower()
+    assert "add a comment to a meeting" in member_reply.body_text.lower()
 
 
 def _worker(

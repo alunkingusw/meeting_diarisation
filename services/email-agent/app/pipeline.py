@@ -28,6 +28,7 @@ from app.email_templates.render import (
     render_clarification,
     render_clarification_received,
     render_failure,
+    render_group_member_help,
     render_unrecognised_sender,
 )
 from app.handlers import assess_query as assess_query_handler
@@ -178,31 +179,31 @@ class EmailProcessingPipeline:
                 msg.body_text, attachment_filenames, thread_job_id, subject=msg.subject
             )
         except CommandParsingFailed as e:
-            self._reply_and_finalize(
-                msg,
-                *render_clarification(
-                    "I couldn't understand your request. Could you rephrase it, mentioning "
-                    "clearly what you'd like me to do (submit a transcript, check status, see "
-                    "results, or cancel a request)?"
-                ),
-                outcome="llm_parse_failed",
-            )
+            if is_group_member:
+                self._reply_and_finalize(
+                    msg, *render_group_member_help(), outcome="group_member_help_sent"
+                )
+            else:
+                self._reply_and_finalize(
+                    msg,
+                    *render_clarification(
+                        "I couldn't understand your request. Could you rephrase it, mentioning "
+                        "clearly what you'd like me to do (submit a transcript, check status, see "
+                        "results, or cancel a request)?"
+                    ),
+                    outcome="llm_parse_failed",
+                )
             self._admin.alert(
                 AdminCategory.LLM_PARSE_FAILURE, f"Could not parse email from {sender_email}: {e}"
             )
             return
 
-        if is_group_member and parsed_cmd.operation not in {
-            Operation.SUBMIT_TRANSCRIPT,
-            Operation.ADD_COMMENT,
-        }:
+        if is_group_member and (
+            parsed_cmd.requires_clarification
+            or parsed_cmd.operation not in {Operation.SUBMIT_TRANSCRIPT, Operation.ADD_COMMENT}
+        ):
             self._reply_and_finalize(
-                msg,
-                *render_failure(
-                    "Group members can submit transcripts or add comments only.",
-                    thread_job_id,
-                ),
-                outcome="group_member_operation_rejected",
+                msg, *render_group_member_help(), outcome="group_member_help_sent",
                 operation=parsed_cmd.operation.value,
             )
             return
