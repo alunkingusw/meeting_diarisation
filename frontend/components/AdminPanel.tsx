@@ -17,6 +17,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
+import { FaCog } from 'react-icons/fa';
 import { useAdminManager } from '@/hooks/adminManager';
 
 export default function AdminPanel() {
@@ -28,8 +29,11 @@ export default function AdminPanel() {
     adminError,
     fetchAllUsers,
     handleCreateUser,
+    handleDeleteUser,
     handleCreateGroupForUser,
   } = useAdminManager();
+
+  const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -76,10 +80,36 @@ export default function AdminPanel() {
           {loadingUsers ? (
             <p>Loading users...</p>
           ) : (
-            <ul className="list-disc pl-5 space-y-1 mb-4">
+            <ul className="space-y-1 mb-4">
               {users.map(u => (
-                <li key={u.id}>
-                  {u.username} {u.is_admin && <span className="text-xs text-gray-500">(admin)</span>}
+                <li key={u.id} className="flex items-center justify-between">
+                  <span>
+                    {u.username} {u.is_admin && <span className="text-xs text-gray-500">(admin)</span>}
+                  </span>
+                  <div className="relative">
+                    <button
+                      className="ml-2"
+                      onClick={() => setOpenDropdownId(openDropdownId === u.id ? null : u.id)}
+                    >
+                      <span className="text-gray-600 hover:text-gray-800">
+                        <FaCog />
+                      </span>
+                    </button>
+
+                    {openDropdownId === u.id && (
+                      <div className="absolute right-0 mt-2 w-32 bg-white shadow-lg rounded border z-10">
+                        <button
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            handleDeleteUser(u.id);
+                          }}
+                          className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                        >
+                          Delete User
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
