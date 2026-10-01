@@ -128,7 +128,10 @@ class EmailProcessingPipeline:
             self._mail.mark_processed(msg.provider_ref)
             return
 
-        if auth_result.reason != AuthResultReason.AUTHORISED:
+        if auth_result.reason not in {
+            AuthResultReason.AUTHORISED,
+            AuthResultReason.GROUP_MEMBER,
+        }:
             # unauthorised_external / unauthenticated / malformed_sender - silent drop, no
             # reply (spec decision: replying would confirm a monitored mailbox exists).
             self._admin.alert(
@@ -141,7 +144,8 @@ class EmailProcessingPipeline:
 
         sender_email = auth_result.sender_email
         sender_user_id = auth_result.user_id
-        report = self._match_report(msg, sender_email)
+        is_group_member = auth_result.reason == AuthResultReason.GROUP_MEMBER
+        report = None if is_group_member else self._match_report(msg, sender_email)
         if report is not None:
             if not self._ollama.is_available():
                 logger.warning("Ollama unavailable - deferring weekly report reply %s", msg.message_id)
@@ -185,6 +189,21 @@ class EmailProcessingPipeline:
             )
             self._admin.alert(
                 AdminCategory.LLM_PARSE_FAILURE, f"Could not parse email from {sender_email}: {e}"
+            )
+            return
+
+        if is_group_member and parsed_cmd.operation not in {
+            Operation.SUBMIT_TRANSCRIPT,
+            Operation.ADD_COMMENT,
+        }:
+            self._reply_and_finalize(
+                msg,
+                *render_failure(
+                    "Group members can submit transcripts or add comments only.",
+                    thread_job_id,
+                ),
+                outcome="group_member_operation_rejected",
+                operation=parsed_cmd.operation.value,
             )
             return
 
@@ -237,7 +256,7 @@ class EmailProcessingPipeline:
         self._mail.mark_processed(msg.provider_ref)
 
     def _dispatch(
-        self, validated, msg: EmailMessage, sender_email: str, sender_user_id: int,
+        self, validated, msg: EmailMessage, sender_email: str, sender_user_id: int | None,
         in_reply_to: str, references: str,
     ) -> Optional[str]:
         """The explicit, finite dispatch (spec S17) - deliberately not a generic

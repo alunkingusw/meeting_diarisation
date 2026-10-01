@@ -1,5 +1,6 @@
 import pytest
 
+from backend.auth import create_token_for_group_members
 from backend.models import users_groups
 
 
@@ -43,6 +44,39 @@ def test_upload_transcript_file(client, make_user, make_group, make_meeting, aut
     )
     assert response.status_code == 200
     assert response.json()["type"] == "transcript_provided"
+
+
+def test_group_member_email_token_is_transcript_only_and_group_scoped(
+    client, make_group, make_member, make_meeting
+):
+    group = make_group(name="Team A")
+    other_group = make_group(name="Team B")
+    member = make_member(name="Carol", group=group)
+    meeting = make_meeting(group)
+    other_meeting = make_meeting(other_group)
+    headers = {
+        "Authorization": f"Bearer {create_token_for_group_members([member.id])}"
+    }
+
+    transcript_response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/upload/",
+        files={"file": ("transcript.vtt", b"WEBVTT", "text/vtt")},
+        headers=headers,
+    )
+    audio_response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/upload/",
+        files={"file": ("audio.wav", b"fake audio bytes", "audio/wav")},
+        headers=headers,
+    )
+    cross_group_response = client.post(
+        f"/groups/{group.id}/meetings/{other_meeting.id}/upload/",
+        files={"file": ("transcript.vtt", b"WEBVTT", "text/vtt")},
+        headers=headers,
+    )
+
+    assert transcript_response.status_code == 200
+    assert audio_response.status_code == 403
+    assert cross_group_response.status_code == 404
 
 
 def test_group_member_can_upload_transcript_but_not_audio(

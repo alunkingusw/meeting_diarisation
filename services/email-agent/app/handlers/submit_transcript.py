@@ -31,7 +31,7 @@ def accept(
     email_attachments: list[Attachment],
     validated_cmd: ValidatedCommand,
     sender_email: str,
-    backend_user_id: int,
+    backend_user_id: int | None,
     source_message_id: str,
     received_at: datetime,
     job_store: JobStore,

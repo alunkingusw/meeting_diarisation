@@ -45,7 +45,7 @@ def utcnow_iso() -> str:
 class Job:
     job_id: str
     sender_email: str
-    backend_user_id: int
+    backend_user_id: Optional[int]
     source_message_id: str
     status: JobState
     operation: str = "submit_transcript"

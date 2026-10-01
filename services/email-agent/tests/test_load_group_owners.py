@@ -1,7 +1,7 @@
 import httpx
 import respx
 
-from app.main import load_group_owners
+from app.main import load_group_members, load_group_owners
 from app.settings import AuthorisationSettings, BackendSettings, Settings
 
 BASE_URL = "http://backend.test"
@@ -42,3 +42,12 @@ def test_live_fetch_failure_fails_closed_to_empty():
     respx.get(f"{BASE_URL}/admin/group-owners").mock(return_value=httpx.Response(500))
     settings = _settings(service_api_key="key")
     assert load_group_owners(settings) == {}
+
+
+@respx.mock
+def test_live_group_member_fetch_success():
+    respx.get(f"{BASE_URL}/admin/group-members").mock(
+        return_value=httpx.Response(200, json={"carol@example.com": [21, 22]})
+    )
+    settings = _settings(service_api_key="key")
+    assert load_group_members(settings) == {"carol@example.com": [21, 22]}

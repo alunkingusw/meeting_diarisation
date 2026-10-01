@@ -1,3 +1,6 @@
+from backend.auth import create_token_for_group_members
+
+
 def test_create_group_requires_auth(client):
     response = client.post("/groups/", json={"name": "Team A"})
     assert response.status_code == 401
@@ -14,6 +17,21 @@ def test_create_and_list_group(client, make_user, auth_header_for):
     list_response = client.get("/groups/", headers=headers)
     assert list_response.status_code == 200
     assert len(list_response.json()) == 1
+
+
+def test_group_member_email_token_lists_only_associated_groups(client, make_group, make_member):
+    group = make_group(name="Team A")
+    make_group(name="Team B")
+    member = make_member(name="Carol", group=group)
+    headers = {
+        "Authorization": f"Bearer {create_token_for_group_members([member.id])}"
+    }
+
+    response = client.get("/groups/", headers=headers)
+
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == [group.id]
+    assert set(response.json()[0]) == {"id", "name"}
 
 
 def test_get_group_forbidden_for_non_member(client, make_user, make_group, auth_header_for):

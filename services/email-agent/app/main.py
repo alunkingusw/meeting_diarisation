@@ -93,6 +93,25 @@ def load_group_owners(settings: Settings) -> dict[str, int]:
             return {}
 
 
+def load_group_members(settings: Settings) -> dict[str, list[int]]:
+    if not settings.diarisation_service_api_key:
+        return {}
+
+    with AdminDiarisationClient(
+        settings.backend.base_url,
+        settings.diarisation_service_api_key,
+        settings.backend.request_timeout_seconds,
+    ) as admin_client:
+        try:
+            return admin_client.get_group_members()
+        except AdminDiarisationApiError:
+            logger.exception(
+                "Could not fetch group-member emails from meeting_diarisation - "
+                "starting without GroupMember email authorization."
+            )
+            return {}
+
+
 def run(settings: Settings) -> None:
     settings.ensure_storage_dirs()
     configure_logging(settings)
@@ -109,6 +128,7 @@ def run(settings: Settings) -> None:
         load_group_owners(settings),
         settings.authorised_email_domains,
         settings.authorisation.require_auth_pass,
+        group_members=load_group_members(settings),
     )
     ollama_client = OllamaClient(
         settings.llm.host, settings.llm.model, settings.llm.request_timeout_seconds

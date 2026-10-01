@@ -1,11 +1,10 @@
 # GroupAssessmentAgent — Email Interface
 
-An email-based interface for the [group_meeting_transcripts](../group_meeting_transcripts)
-group-meeting transcription platform. Authorised group owners email an already-produced `.vtt`
-transcript; a local worker uses a locally-hosted LLM (via Ollama) to interpret the request into
-a strictly-validated structured command, and deterministic application code — never the LLM —
-creates a Meeting, uploads the transcript, and matches speakers to known group members using the
-backend's existing API.
+An email-based interface for the group meeting transcription platform. Registered users and
+group-member email addresses can send requests; users retain the existing workflow, while
+group-member senders can submit `.vtt` transcripts and add comments only in their associated
+groups. A local worker uses a locally-hosted LLM (via Ollama) to interpret requests into
+strictly-validated commands, and deterministic application code performs the backend actions.
 
 See [Specification.md](Specification.md) for the original design spec. This README documents
 where the actual implementation adapted that spec to the real backend (see "Design decisions"
@@ -23,14 +22,16 @@ adjusted as follows:
   called from this project — the email flow ingests an already-produced transcript, creates a
   `Meeting`, uploads the file, and resolves speaker labels to `GroupMember`s via the backend's
   existing alias-resolution endpoint (`POST /groups/{id}/aliases/resolve`).
-- **No backend code changes were required.** Every operation this project performs — login,
-  list groups, create a meeting, upload a file, resolve aliases, add an attendee — already
-  exists on the backend.
-- **Three-tier sender authorisation** (see `app/auth/authorisation.py`): a registered group
-  owner proceeds normally; an authenticated sender from an `AUTHORISED_EMAIL_DOMAINS` domain who
-  isn't registered gets a friendly "not registered, contact the admin" reply; everyone else
-  (failed SPF/DKIM/DMARC, or outside the authorised domains) is silently dropped, since replying
-  to arbitrary internet senders would confirm a monitored mailbox exists.
+- **Sender authorization is ordered by identity and permission.** After sender authentication,
+  a registered `User` is checked first and receives the existing user workflow. If there is no
+  matching user, associated `GroupMember` records are checked; these senders can submit
+  transcripts and add comments only in their groups. A sender matching both is treated as the
+  `User`. Backend-issued GroupMember tokens are group-scoped and cannot be used on user-only
+  routes; member comments are attributed to the GroupMember record.
+- **Unknown sender handling:** an authenticated sender from an `AUTHORISED_EMAIL_DOMAINS` domain
+  who matches neither identity gets a friendly "not registered, contact the admin" reply;
+  everyone else (failed SPF/DKIM/DMARC, or outside the authorised domains) is silently dropped,
+  since replying to arbitrary internet senders would confirm a monitored mailbox exists.
 - **The admin is alerted** (rate-limited, `ADMIN_EMAIL`) on: unauthorised/unrecognised senders,
   LLM parse failures, backend submission failures, and infrastructure outages (Ollama or the
   backend unreachable) — never on ordinary user mistakes (wrong file type, ambiguous group),
@@ -59,7 +60,7 @@ re-validated deterministically (`app/commands/validator.py`) before anything exe
 ```
 app/
   mail/          MailClient interface, Graph implementation, fake client for tests, thread matching
-  auth/          Deterministic sender authorisation (three-tier, spec S4)
+  auth/          Deterministic sender authorisation and permission precedence
   llm/           Ollama client, system prompt, retry-then-fail command parser
   commands/      The structured command schema and its validator (the trust boundary)
   vtt/           WEBVTT transcript parser (speaker labels + NOTE meeting-date convention)

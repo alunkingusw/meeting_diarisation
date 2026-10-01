@@ -1,7 +1,7 @@
-"""Client for meeting_diarisation's service-key-gated /admin/* endpoints (backend/routes/admin.py
-there) - deliberately separate from client.py's per-user-JWT DiarisationClient, so the two
-credential types stay structurally distinct in this codebase, not just by convention. Never
-used to act on behalf of a user; only to read data no single user's JWT should be used for.
+"""Client for meeting_diarisation's service-key-gated identity lookup endpoints.
+
+Kept separate from client.py's bearer-token DiarisationClient so service credentials and
+sender-scoped credentials remain structurally distinct.
 """
 from __future__ import annotations
 
@@ -38,5 +38,19 @@ class AdminDiarisationClient:
         if resp.status_code != 200:
             raise AdminDiarisationApiError(
                 f"GET /admin/group-owners returned {resp.status_code}: {resp.text[:200]}"
+            )
+        return resp.json()
+
+    def get_group_members(self) -> dict[str, list[int]]:
+        """GET /admin/group-members - email -> associated GroupMember IDs."""
+        try:
+            resp = self._client.get(
+                "/admin/group-members", headers={"X-Service-Key": self._service_api_key}
+            )
+        except httpx.HTTPError as e:
+            raise AdminDiarisationApiError(f"GET /admin/group-members failed: {e}") from e
+        if resp.status_code != 200:
+            raise AdminDiarisationApiError(
+                f"GET /admin/group-members returned {resp.status_code}: {resp.text[:200]}"
             )
         return resp.json()

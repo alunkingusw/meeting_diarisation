@@ -362,15 +362,32 @@
             "title": "Meeting Id",
             "type": "integer"
           },
+          "group_member_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Member Id"
+          },
           "user_id": {
-            "title": "User Id",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
           }
         },
         "required": [
           "id",
           "meeting_id",
-          "user_id",
           "comment",
           "created"
         ],
@@ -648,6 +665,56 @@
         "summary": "Root"
       }
     },
+    "/admin/group-members": {
+      "get": {
+        "description": "email -> member IDs for GroupMember records associated with at least one group.",
+        "operationId": "group_members_admin_group_members_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-service-key",
+            "required": false,
+            "schema": {
+              "title": "X-Service-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "items": {
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "title": "Response Group Members Admin Group Members Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Group Members",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/group-owners": {
       "get": {
         "description": "email -> user_id for every User with an email on file. There is no separate\n\"owner\" role in this schema (users_groups is a plain many-to-many) - any User with an\nemail is authorised to act through GroupAssessmentAgent; per-group scoping happens\nseparately via that user's own group membership.",
@@ -744,7 +811,7 @@
     },
     "/admin/user-token": {
       "post": {
-        "description": "Resolve a verified service-caller email to a short-lived user JWT.\n\nThe service key authenticates the email agent; the returned JWT keeps all existing\ngroup-level authorization checks in one place. The agent must verify the inbound\nmessage's sender authentication before calling this endpoint.",
+        "description": "Resolve a verified service-caller email to a short-lived user JWT, or to a group-scoped GroupMember token when no User has that email. User records take precedence when both identities match. The agent must verify inbound sender authentication before calling this endpoint.",
         "operationId": "user_token_admin_user_token_post",
         "parameters": [
           {

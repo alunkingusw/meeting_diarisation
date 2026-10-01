@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from app.jobs.store import (
     Outbox,
     ProcessedMessageStore,
 )
+from app.storage.db import SCHEMA, init_db
 
 
 def test_create_job_allocates_sequential_ids(db_path: Path):
@@ -64,6 +66,39 @@ def test_update_persists_json_list_fields(db_path: Path):
     updated = store.get(job.job_id)
     assert updated.speakers == ["Alice", "Bob"]
     assert updated.unresolved_speakers == ["Guest 1"]
+
+
+def test_existing_jobs_database_migrates_user_id_to_nullable(tmp_path: Path):
+    db_path = tmp_path / "legacy.db"
+    legacy_schema = SCHEMA.replace(
+        "backend_user_id INTEGER,", "backend_user_id INTEGER NOT NULL,", 1
+    )
+    conn = sqlite3.connect(db_path)
+    conn.executescript(legacy_schema)
+    conn.execute(
+        """INSERT INTO jobs (
+            job_id, sender_email, backend_user_id, source_message_id, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?)""",
+        ("DIAR-2026-1001-0001", "alice@uni.ac.uk", 12, "<old@mail>", "RECEIVED", "2026-10-01"),
+    )
+    conn.commit()
+    conn.close()
+
+    init_db(db_path)
+
+    conn = sqlite3.connect(db_path)
+    backend_user_column = next(
+        row for row in conn.execute("PRAGMA table_info(jobs)") if row[1] == "backend_user_id"
+    )
+    preserved_job = conn.execute(
+        "SELECT backend_user_id FROM jobs WHERE job_id = ?", ("DIAR-2026-1001-0001",)
+    ).fetchone()
+    conn.close()
+
+    assert backend_user_column[3] == 0
+    assert preserved_job == (12,)
+    member_job = JobStore(db_path).create_job("carol@uni.ac.uk", None, "<member@mail>")
+    assert member_job.backend_user_id is None
 
 
 # --- ProcessedMessageStore: dedup + crash recovery ---

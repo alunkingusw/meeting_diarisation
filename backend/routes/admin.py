@@ -12,18 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Endpoints for trusted backend-to-backend callers only (see get_service_caller in
-backend/auth.py) - never the per-user JWT flow. Kept to a finite, explicit set of read
-endpoints, never a generic passthrough, matching the same trust-boundary principle
-GroupAssessmentAgent (the caller these exist for) applies to its own LLM-facing schema."""
+"""Finite identity and read endpoints for trusted backend-to-backend callers (see
+get_service_caller in backend/auth.py). Service callers can resolve verified sender emails to
+short-lived user or group-scoped member tokens, but do not receive a generic backend passthrough."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional
 from backend.db_dependency import get_db
-from backend.auth import create_token_for_user, get_service_caller
-from backend.models import Group, User
+from backend.auth import create_token_for_group_members, create_token_for_user, get_service_caller
+from backend.models import Group, GroupMember, User
 from backend.validation import ServiceUserTokenRequest
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -35,16 +35,36 @@ def user_token(
         db: Session = Depends(get_db),
         _=Depends(get_service_caller),
     ):
-    """Resolve a verified service-caller email to a short-lived user JWT.
+    """Resolve a verified service-caller email to a short-lived User or GroupMember JWT.
 
-    The service key authenticates the email agent; the returned JWT keeps all existing
-    group-level authorization checks in one place. The agent must verify the inbound
-    message's sender authentication before calling this endpoint.
+    User records are preferred when an email exists in both tables. Member tokens are
+    restricted by member-to-group associations in the authorization dependencies. The agent
+    must verify the inbound message's sender authentication before calling this endpoint.
     """
-    user = db.query(User).filter(User.email.ilike(request.email)).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    return {"access_token": create_token_for_user(user.id), "token_type": "bearer"}
+    user = (
+        db.query(User)
+        .filter(func.lower(func.trim(User.email)) == request.email.lower())
+        .order_by(User.id)
+        .first()
+    )
+    if user:
+        return {"access_token": create_token_for_user(user.id), "token_type": "bearer"}
+
+    members = (
+        db.query(GroupMember)
+        .filter(
+            func.lower(func.trim(GroupMember.email)) == request.email.lower(),
+            GroupMember.groups.any(),
+        )
+        .order_by(GroupMember.id)
+        .all()
+    )
+    if not members:
+        raise HTTPException(status_code=404, detail="User or group member not found")
+    return {
+        "access_token": create_token_for_group_members([member.id for member in members]),
+        "token_type": "bearer",
+    }
 
 
 @router.get("/group-owners", response_model=Dict[str, int])
@@ -56,8 +76,38 @@ def group_owners(
     "owner" role in this schema (users_groups is a plain many-to-many) - any User with an
     email is authorised to act through GroupAssessmentAgent; per-group scoping happens
     separately via that user's own group membership."""
-    users = db.query(User).filter(User.email.isnot(None)).all()
-    return {user.email: user.id for user in users}
+    users = (
+        db.query(User)
+        .filter(User.email.isnot(None))
+        .order_by(User.id)
+        .all()
+    )
+    result: dict[str, int] = {}
+    for user in users:
+        email = user.email.strip().lower()
+        if email:
+            result.setdefault(email, user.id)
+    return result
+
+
+@router.get("/group-members", response_model=Dict[str, List[int]])
+def group_members(
+        db: Session = Depends(get_db),
+        _=Depends(get_service_caller),
+    ):
+    """email -> member IDs for GroupMember records associated with at least one group."""
+    members = (
+        db.query(GroupMember)
+        .filter(GroupMember.email.isnot(None), GroupMember.groups.any())
+        .order_by(GroupMember.id)
+        .all()
+    )
+    result: dict[str, list[int]] = {}
+    for member in members:
+        email = member.email.strip().lower()
+        if email:
+            result.setdefault(email, []).append(member.id)
+    return result
 
 
 class GroupProjectInfo(BaseModel):

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 #use this file to check auth tokens when user uploads work.
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from fastapi import HTTPException, Depends, Path, Header
@@ -43,10 +44,47 @@ def create_token_for_user(user_id: int) -> str:
     return token
 
 
+def create_token_for_group_members(member_ids: list[int]) -> str:
+    expire = datetime.now().astimezone() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {
+        "sub": "group_member",
+        "principal_type": "group_member",
+        "group_member_ids": sorted(set(member_ids)),
+        "exp": expire,
+    }
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+@dataclass(frozen=True)
+class EmailPrincipal:
+    user_id: int | None = None
+    group_member_ids: tuple[int, ...] = ()
+    scoped_group_member_id: int | None = None
+
+
+def get_email_principal(token: str = Depends(oauth2_scheme)) -> EmailPrincipal:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("principal_type") == "group_member":
+            member_ids = payload.get("group_member_ids")
+            if not isinstance(member_ids, list) or not member_ids:
+                raise HTTPException(status_code=401, detail="Invalid group-member token")
+            return EmailPrincipal(group_member_ids=tuple(int(member_id) for member_id in member_ids))
+
+        user_id = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return EmailPrincipal(user_id=int(user_id))
+    except (JWTError, TypeError, ValueError):
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
 def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
     
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("principal_type") == "group_member":
+            raise HTTPException(status_code=401, detail="Group-member token is not a user token")
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
@@ -100,6 +138,50 @@ def _is_admin(db: Session, user_id: int) -> bool:
 
 def get_group_role(db: Session, user_id: int, group_id: int) -> str | None:
     return _group_role(db, user_id, group_id)
+
+
+def is_email_workflow_group_member(
+    group_id: int = Path(...),
+    db: Session = Depends(get_db),
+    principal: EmailPrincipal = Depends(get_email_principal),
+) -> EmailPrincipal:
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    if principal.user_id is not None:
+        role = get_group_role(db, principal.user_id, group_id)
+        if role not in {"owner", "member"} and not _is_admin(db, principal.user_id):
+            raise HTTPException(status_code=403, detail="Not authorised to view this group")
+        return principal
+
+    member_id = next(
+        (member.id for member in group.members if member.id in principal.group_member_ids),
+        None,
+    )
+    if member_id is None:
+        raise HTTPException(status_code=403, detail="Not authorised to view this group")
+    return EmailPrincipal(
+        group_member_ids=principal.group_member_ids,
+        scoped_group_member_id=member_id,
+    )
+
+
+def is_group_owner_or_email_member(
+    group_id: int = Path(...),
+    db: Session = Depends(get_db),
+    principal: EmailPrincipal = Depends(get_email_principal),
+) -> EmailPrincipal:
+    if principal.user_id is not None:
+        if not db.query(Group).filter(Group.id == group_id).first():
+            raise HTTPException(status_code=404, detail="Group not found")
+        if get_group_role(db, principal.user_id, group_id) != "owner" and not _is_admin(
+            db, principal.user_id
+        ):
+            raise HTTPException(status_code=403, detail="Group owner permission required")
+        return principal
+
+    return is_email_workflow_group_member(group_id, db, principal)
 
 
 def is_group_owner(

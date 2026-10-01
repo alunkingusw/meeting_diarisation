@@ -1,5 +1,6 @@
 from datetime import date, datetime, timezone
 
+from backend.auth import create_token_for_group_members
 from backend.models import users_groups
 
 
@@ -107,6 +108,8 @@ def test_add_meeting_comment_sanitises_html_and_allows_multiple_comments(
 
     assert first_response.status_code == 201
     assert first_response.json()["comment"] == "Useful feedback"
+    assert first_response.json()["user_id"] == owner.id
+    assert first_response.json()["group_member_id"] is None
     assert second_response.status_code == 201
     assert second_response.json()["comment"] == "A second comment"
 
@@ -129,6 +132,74 @@ def test_group_member_can_add_meeting_comment(
 
     assert response.status_code == 201
     assert response.json()["comment"] == "Member feedback"
+
+
+def test_attendee_email_token_can_comment_with_member_attribution_and_group_scope(
+    client, make_group, make_member, make_meeting
+):
+    group = make_group(name="Team A")
+    other_group = make_group(name="Team B")
+    member = make_member(name="Carol", group=group)
+    meeting = make_meeting(group)
+    other_meeting = make_meeting(other_group)
+    headers = {
+        "Authorization": f"Bearer {create_token_for_group_members([member.id])}"
+    }
+
+    comment_response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/comments",
+        json={"comment": "Feedback from a group attendee"},
+        headers=headers,
+    )
+    denied_response = client.post(
+        f"/groups/{other_group.id}/meetings/{other_meeting.id}/comments",
+        json={"comment": "Cross-group attempt"},
+        headers=headers,
+    )
+
+    assert comment_response.status_code == 201
+    assert comment_response.json()["user_id"] is None
+    assert comment_response.json()["group_member_id"] == member.id
+    assert denied_response.status_code == 403
+
+
+def test_attendee_email_token_can_create_meeting_only_in_associated_group(
+    client, make_group, make_member
+):
+    group = make_group(name="Team A")
+    other_group = make_group(name="Team B")
+    member = make_member(name="Carol", group=group)
+    headers = {
+        "Authorization": f"Bearer {create_token_for_group_members([member.id])}"
+    }
+
+    allowed = client.post(
+        f"/groups/{group.id}/meetings/",
+        json={"date": datetime.now(timezone.utc).isoformat()},
+        headers=headers,
+    )
+    denied = client.post(
+        f"/groups/{other_group.id}/meetings/",
+        json={"date": datetime.now(timezone.utc).isoformat()},
+        headers=headers,
+    )
+
+    assert allowed.status_code == 200
+    assert denied.status_code == 403
+
+
+def test_group_member_token_is_not_accepted_by_user_only_routes(
+    client, make_group, make_member
+):
+    group = make_group(name="Team A")
+    member = make_member(name="Carol", group=group)
+    headers = {
+        "Authorization": f"Bearer {create_token_for_group_members([member.id])}"
+    }
+
+    response = client.delete(f"/groups/{group.id}", headers=headers)
+
+    assert response.status_code == 401
 
 
 def test_group_member_cannot_manage_meeting(

@@ -4,6 +4,7 @@ def test_openapi_exposes_email_agent_contract(client):
 
     assert "/admin/user-token" in paths
     assert "post" in paths["/admin/user-token"]
+    assert "/admin/group-members" in paths
     assert "/groups/{group_id}" in paths
     assert "/groups/{group_id}/meetings/" in paths
     assert "/groups/{group_id}/meetings/{meeting_id}/comments" in paths
@@ -19,3 +20,7 @@ def test_openapi_describes_comment_request_and_response(client):
 
     assert request_schema["$ref"] == "#/components/schemas/MeetingCommentCreate"
     assert response_schema["$ref"] == "#/components/schemas/MeetingCommentOut"
+
+    comment_schema = schema["components"]["schemas"]["MeetingCommentOut"]
+    assert "user_id" not in comment_schema["required"]
+    assert comment_schema["properties"]["group_member_id"]["anyOf"][-1]["type"] == "null"

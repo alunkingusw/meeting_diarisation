@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def accept(
     validated_cmd: ValidatedCommand,
     sender_email: str,
-    backend_user_id: int,
+    backend_user_id: int | None,
     source_message_id: str,
     job_store: JobStore,
     outbox: Outbox,

@@ -23,7 +23,13 @@ from backend.transcript_rag.indexer import index_transcript
 from backend.summarization.summariser import summarise_meeting_task
 from fastapi.responses import FileResponse
 import logging
-from backend.auth import get_current_user_id, get_group_role, is_group_member
+from backend.auth import (
+    EmailPrincipal,
+    get_current_user_id,
+    get_group_role,
+    is_email_workflow_group_member,
+    is_group_member,
+)
 import uuid
 import os
 import re
@@ -55,7 +61,7 @@ async def upload_file(
         background_tasks: BackgroundTasks,
         file: UploadFile = File(...),
         db: Session = Depends(get_db),
-        user_id: int = Depends(is_group_member)
+        principal: EmailPrincipal = Depends(is_email_workflow_group_member)
     ):
     # Extract extension and validate
     ext = os.path.splitext(file.filename)[1].lower()
@@ -64,6 +70,16 @@ async def upload_file(
             status_code=400,
             detail=f"Unsupported file type: '{ext}'. Allowed types: {', '.join(sorted(ALL_ALLOWED_EXTENSIONS))}"
         )
+
+    if principal.scoped_group_member_id is not None and ext in ALLOWED_AUDIO_EXTENSIONS:
+        raise HTTPException(status_code=403, detail="Group members may only upload transcripts")
+
+    meeting = db.query(Meeting).filter(
+        Meeting.id == meeting_id,
+        Meeting.group_id == group_id,
+    ).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
     
     # if it's not an audio file, then it's a provided transcript
     file_type=RawFileType.TRANSCRIPT_PROVIDED

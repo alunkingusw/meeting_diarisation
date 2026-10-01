@@ -16,9 +16,15 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from backend.models import Group, User, GroupOut
+from backend.models import Group, GroupMember, User, GroupOut
 from backend.db_dependency import get_db
-from backend.auth import is_group_member, is_group_owner, get_current_user_id
+from backend.auth import (
+    get_current_user_id,
+    get_email_principal,
+    is_group_member,
+    is_group_owner,
+    EmailPrincipal,
+)
 from backend.validation import GroupCreateEdit
 
 
@@ -53,19 +59,28 @@ def create_group(group_data: GroupCreateEdit, db: Session = Depends(get_db), use
 @router.get("/")
 def list_groups(
         db: Session = Depends(get_db),
-        user_id: int = Depends(get_current_user_id),
+        principal: EmailPrincipal = Depends(get_email_principal),
         all_groups: bool = Query(False, description="Admins only: list every group, not just ones you belong to"),
     ):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
     if all_groups:
-        if not user.is_admin:
+        user = db.query(User).filter(User.id == principal.user_id).first()
+        if not user or not user.is_admin:
             raise HTTPException(status_code=403, detail="Administrator permission required")
         return db.query(Group).order_by(Group.id).all()
 
-    return user.groups  # Only the groups associated with this user
+    if principal.user_id is not None:
+        user = db.query(User).filter(User.id == principal.user_id).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return user.groups
+
+    member_groups = (
+        db.query(Group)
+        .filter(Group.members.any(GroupMember.id.in_(principal.group_member_ids)))
+        .order_by(Group.id)
+        .all()
+    )
+    return [{"id": group.id, "name": group.name} for group in member_groups]
 
 @router.get("/{group_id}", response_model=GroupOut)
 def get_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_member)):

@@ -18,14 +18,16 @@ class MeetingCommentOut:
         created (datetime.datetime):
         id (int):
         meeting_id (int):
-        user_id (int):
+        user_id (int | None):
+        group_member_id (int | None):
     """
 
     comment: str
     created: datetime.datetime
     id: int
     meeting_id: int
-    user_id: int
+    user_id: int | None
+    group_member_id: int | None = None
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -38,6 +40,7 @@ class MeetingCommentOut:
         meeting_id = self.meeting_id
 
         user_id = self.user_id
+        group_member_id = self.group_member_id
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -48,6 +51,7 @@ class MeetingCommentOut:
                 "id": id,
                 "meeting_id": meeting_id,
                 "user_id": user_id,
+                "group_member_id": group_member_id,
             }
         )
 
@@ -64,7 +68,8 @@ class MeetingCommentOut:
 
         meeting_id = d.pop("meeting_id")
 
-        user_id = d.pop("user_id")
+        user_id = d.pop("user_id", None)
+        group_member_id = d.pop("group_member_id", None)
 
         meeting_comment_out = cls(
             comment=comment,
@@ -72,6 +77,7 @@ class MeetingCommentOut:
             id=id,
             meeting_id=meeting_id,
             user_id=user_id,
+            group_member_id=group_member_id,
         )
 
         meeting_comment_out.additional_properties = d

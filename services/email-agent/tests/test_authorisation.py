@@ -19,6 +19,47 @@ def test_authorised_owner_with_passing_signals():
     assert result.reason == AuthResultReason.AUTHORISED
 
 
+def test_registered_group_member_is_authorised_with_member_identity():
+    authoriser = SenderAuthoriser(
+        GROUP_OWNERS,
+        DOMAINS,
+        group_members={"carol@university.ac.uk": [21, 22]},
+    )
+
+    result = authoriser.authorise("carol@university.ac.uk", PASS)
+
+    assert result.ok is True
+    assert result.user_id is None
+    assert result.group_member_ids == (21, 22)
+    assert result.reason == AuthResultReason.GROUP_MEMBER
+
+
+def test_registered_user_takes_precedence_over_group_member():
+    authoriser = SenderAuthoriser(
+        GROUP_OWNERS,
+        DOMAINS,
+        group_members={"alice@university.ac.uk": [21]},
+    )
+
+    result = authoriser.authorise("alice@university.ac.uk", PASS)
+
+    assert result.reason == AuthResultReason.AUTHORISED
+    assert result.user_id == 12
+    assert result.group_member_ids == ()
+
+
+def test_group_member_address_still_requires_passing_authentication():
+    authoriser = SenderAuthoriser(
+        GROUP_OWNERS,
+        DOMAINS,
+        group_members={"carol@university.ac.uk": [21]},
+    )
+
+    result = authoriser.authorise("carol@university.ac.uk", FAIL)
+
+    assert result.reason == AuthResultReason.UNAUTHENTICATED
+
+
 def test_authorisation_is_case_insensitive():
     result = _authoriser().authorise("Alice@University.AC.UK", PASS)
     assert result.ok is True
@@ -47,13 +88,14 @@ def test_in_domain_but_not_a_registered_owner_is_unrecognised():
 
 
 def test_subdomain_of_authorised_domain_is_unrecognised_not_external():
-    result = _authoriser().authorise("carol@students.university.ac.uk", PASS)
+    authoriser = SenderAuthoriser(GROUP_OWNERS, ["southwales.ac.uk"])
+    result = authoriser.authorise("carol@students.southwales.ac.uk", PASS)
     assert result.ok is False
     assert result.reason == AuthResultReason.UNRECOGNISED_IN_DOMAIN
 
 
 def test_domain_suffix_without_label_boundary_is_external():
-    result = _authoriser().authorise("carol@notsouthwales.ac.uk", PASS)
+    result = _authoriser().authorise("carol@notuniversity.ac.uk", PASS)
     assert result.reason == AuthResultReason.UNAUTHORISED_EXTERNAL
 
 

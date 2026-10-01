@@ -85,9 +85,10 @@ class AttendeeSummary:
 class MeetingComment:
     id: int
     meeting_id: int
-    user_id: int
+    user_id: int | None
     comment: str
     created: str
+    group_member_id: int | None = None
 
 
 @dataclass

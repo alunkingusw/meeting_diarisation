@@ -133,6 +133,7 @@ class GeneratedDiarisationAdapter:
             user_id=result.user_id,
             comment=result.comment,
             created=result.created.isoformat(),
+            group_member_id=result.group_member_id,
         )
 
     def list_groups(self, token: str) -> list[dict]:

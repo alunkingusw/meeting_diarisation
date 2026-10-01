@@ -46,7 +46,7 @@ class JobStore:
     def create_job(
         self,
         sender_email: str,
-        backend_user_id: int,
+        backend_user_id: int | None,
         source_message_id: str,
         operation: str = "submit_transcript",
         **initial_fields,

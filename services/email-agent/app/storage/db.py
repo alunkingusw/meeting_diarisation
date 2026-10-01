@@ -13,7 +13,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
     job_id TEXT PRIMARY KEY,
     sender_email TEXT NOT NULL,
-    backend_user_id INTEGER NOT NULL,
+    backend_user_id INTEGER,
     source_message_id TEXT NOT NULL,
     operation TEXT NOT NULL DEFAULT 'submit_transcript',
     status TEXT NOT NULL,
@@ -153,5 +153,56 @@ def init_db(db_path: Path) -> None:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
         if "comment_text" not in columns:
             conn.execute("ALTER TABLE jobs ADD COLUMN comment_text TEXT")
+        backend_user_column = next(
+            row for row in conn.execute("PRAGMA table_info(jobs)")
+            if row["name"] == "backend_user_id"
+        )
+        if backend_user_column["notnull"]:
+            conn.execute("PRAGMA foreign_keys=OFF")
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute(
+                """CREATE TABLE jobs_nullable_user (
+                    job_id TEXT PRIMARY KEY,
+                    sender_email TEXT NOT NULL,
+                    backend_user_id INTEGER,
+                    source_message_id TEXT NOT NULL,
+                    operation TEXT NOT NULL DEFAULT 'submit_transcript',
+                    status TEXT NOT NULL,
+                    group_hint TEXT,
+                    resolved_group_id INTEGER,
+                    resolved_group_name TEXT,
+                    attachment_filename TEXT,
+                    attachment_storage_path TEXT,
+                    meeting_date TEXT,
+                    meeting_date_source TEXT,
+                    speakers_json TEXT,
+                    backend_meeting_id INTEGER,
+                    backend_raw_file_id INTEGER,
+                    resolved_attendees_json TEXT,
+                    unresolved_speakers_json TEXT,
+                    transcript_focus TEXT,
+                    github_focus TEXT,
+                    trello_focus TEXT,
+                    comment_text TEXT,
+                    error TEXT,
+                    retry_count INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    last_response_message_id TEXT,
+                    in_reply_to_message_id TEXT
+                )"""
+            )
+            column_names = [row["name"] for row in conn.execute("PRAGMA table_info(jobs)")]
+            names = ", ".join(column_names)
+            conn.execute(
+                f"INSERT INTO jobs_nullable_user ({names}) SELECT {names} FROM jobs"
+            )
+            conn.execute("DROP TABLE jobs")
+            conn.execute("ALTER TABLE jobs_nullable_user RENAME TO jobs")
+            conn.execute("CREATE INDEX idx_jobs_sender ON jobs (sender_email)")
+            conn.execute("CREATE INDEX idx_jobs_status ON jobs (status)")
+            conn.execute("COMMIT")
+            conn.execute("PRAGMA foreign_keys=ON")
     finally:
         conn.close()

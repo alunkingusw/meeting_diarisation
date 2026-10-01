@@ -8,9 +8,12 @@ You have been added to the group "$group_name" in the Meeting Diarisation system
 This system automatically identifies speakers in recorded meetings and links transcripts,
 summaries, and comments back to attendees. A few things to know:
 
-You can send emails to this address at any time to record any meetings that have taken place
- - agree with your team to only send one email about a meeting otherwise they may be duplicated
- - you can either email explaining the meeting date, and the outline of the meeting
- - or if you have a transcription (created by a system like Teams), just attach that to the email, and the system will figure out the rest.
+You can submit a meeting by emailing one already-produced .vtt transcript attachment. Please
+send one email per meeting and include the meeting date if it is not in the transcript.
+
+You can also reply to a meeting summary email with a comment. Keep the summary email's subject
+so the comment is linked to the correct meeting.
+
+These email actions are limited to groups you belong to.
 
 If you believe you were added to this group in error, contact a group owner: $owner_email.

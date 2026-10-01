@@ -135,12 +135,14 @@ class MeetingComment(Base):
     __tablename__ = "meeting_comments"
     id = Column(Integer, primary_key=True)
     meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    group_member_id = Column(Integer, ForeignKey("group_members.id"), nullable=True)
     comment = Column(Text, nullable=False)
     created = Column(DateTime, nullable=False, default=func.now())
 
     meeting = relationship("Meeting", back_populates="comments")
     user = relationship("User")
+    group_member = relationship("GroupMember")
 
 
 
@@ -223,7 +225,8 @@ class MeetingOut(BaseModel):
 class MeetingCommentOut(BaseModel):
     id: int
     meeting_id: int
-    user_id: int
+    user_id: Optional[int] = None
+    group_member_id: Optional[int] = None
     comment: str
     created: datetime
 

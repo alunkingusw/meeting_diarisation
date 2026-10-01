@@ -1,7 +1,11 @@
 Your comment was added to meeting {{ result.meeting_id }}.
 
 Comment ID: {{ result.id }}
+{% if result.user_id is not none %}
 User ID: {{ result.user_id }}
+{% else %}
+Group member ID: {{ result.group_member_id }}
+{% endif %}
 Created: {{ result.created }}
 Comment: {{ result.comment }}
 

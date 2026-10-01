@@ -26,14 +26,20 @@ from backend.llm.ollama_client import OllamaError
 from backend.summarization.summariser import generate_meeting_summary
 
 router = APIRouter(prefix="/groups/{group_id}/meetings", tags=["meetings"])
-from backend.auth import is_group_member, is_group_owner
+from backend.auth import (
+    EmailPrincipal,
+    is_email_workflow_group_member,
+    is_group_member,
+    is_group_owner,
+    is_group_owner_or_email_member,
+)
 
 @router.post("/")
 def create_meeting(
         group_id: int,
         meeting_data:MeetingCreateEdit,
         db: Session = Depends(get_db), 
-        user_id: int = Depends(is_group_member),
+        _principal: EmailPrincipal = Depends(is_email_workflow_group_member),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ):
     if idempotency_key:
@@ -90,7 +96,7 @@ def add_meeting_comment(
         meeting_id: int,
         comment_data: MeetingCommentCreate,
         db: Session = Depends(get_db),
-        user_id: int = Depends(is_group_member)
+        principal: EmailPrincipal = Depends(is_email_workflow_group_member)
     ):
     meeting = db.query(Meeting).filter(
         and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
@@ -100,7 +106,8 @@ def add_meeting_comment(
 
     comment = MeetingComment(
         meeting_id=meeting_id,
-        user_id=user_id,
+        user_id=principal.user_id,
+        group_member_id=principal.scoped_group_member_id,
         comment=comment_data.comment,
     )
     db.add(comment)
@@ -128,9 +135,11 @@ def add_attendee(
         meeting_id:int,
         attendee_data:MeetingAttendee,
         db:Session = Depends(get_db),
-        user_id: int = Depends(is_group_owner)
+        principal: EmailPrincipal = Depends(is_group_owner_or_email_member)
     ):
     print("Recieved attendee data:", attendee_data)
+    if principal.scoped_group_member_id is not None and not attendee_data.member_id:
+        raise HTTPException(status_code=403, detail="Group members can only attach known attendees")
     meeting = db.query(Meeting).filter(
         and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
     ).first()
@@ -141,7 +150,7 @@ def add_attendee(
     if attendee_data.member_id:
         # Add existing member to the meeting
         member = db.query(GroupMember).filter(GroupMember.id == attendee_data.member_id).first()
-        if not member:
+        if not member or group_id not in [group.id for group in member.groups]:
             raise HTTPException(status_code=404, detail="Member not found")
 
     elif attendee_data.guest and attendee_data.name:

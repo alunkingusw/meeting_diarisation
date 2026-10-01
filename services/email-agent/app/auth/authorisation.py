@@ -1,19 +1,24 @@
 """Deterministic sender authorisation - runs *before* the LLM is ever invoked (spec S4).
 
-Implements the three-tier reply model for this university deployment:
+Implements identity-first authorization for this university deployment:
 
-1. authorised          - auth signals pass AND the address is a registered group owner
+1. authorised          - auth signals pass AND the address belongs to a registered User
+                          (checked before group-member addresses, so the more privileged
+                          identity wins if an address exists in both tables)
                           -> proceed normally.
-2. unrecognised_in_domain - auth signals pass, the address's domain is one of
-                          AUTHORISED_EMAIL_DOMAINS, but it isn't a registered owner
+2. group_member        - auth signals pass AND the address belongs to one or more
+                          registered GroupMember records
+                          -> proceed with the restricted group-member workflow.
+3. unrecognised_in_domain - auth signals pass, the address's domain is one of
+                          AUTHORISED_EMAIL_DOMAINS, but it isn't registered
                           -> a friendly "you're not registered" reply is sent (this is an
                           expected onboarding case for a university mailbox).
-3. unauthorised_external / unauthenticated / malformed_sender
+4. unauthorised_external / unauthenticated / malformed_sender
                           -> silent drop, no reply (replying would confirm a monitored mailbox
                           exists to arbitrary internet senders; a domain claim without a
                           passing SPF/DKIM/DMARC check can't be trusted anyway).
 
-All five reasons are logged and (for anything but "authorised") admin-alertable by the caller.
+All six outcomes are logged and (for anything but "authorised" or "group_member") admin-alertable by the caller.
 """
 from __future__ import annotations
 
@@ -27,6 +32,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 class AuthResultReason(str, Enum):
     AUTHORISED = "authorised"
+    GROUP_MEMBER = "group_member"
     UNRECOGNISED_IN_DOMAIN = "unrecognised_in_domain"
     UNAUTHORISED_EXTERNAL = "unauthorised_external"
     UNAUTHENTICATED = "unauthenticated"
@@ -51,6 +57,7 @@ class SenderAuthResult:
     user_id: Optional[int]
     sender_email: Optional[str]
     reason: AuthResultReason
+    group_member_ids: tuple[int, ...] = ()
 
 
 class SenderAuthoriser:
@@ -59,8 +66,13 @@ class SenderAuthoriser:
         group_owners: dict[str, int],
         authorised_domains: list[str],
         require_auth_pass: bool = True,
+        group_members: dict[str, list[int]] | None = None,
     ):
         self._group_owners = {k.strip().lower(): v for k, v in group_owners.items()}
+        self._group_members = {
+            email.strip().lower(): tuple(member_ids)
+            for email, member_ids in (group_members or {}).items()
+        }
         self._authorised_domains = {d.strip().lower() for d in authorised_domains}
         self._require_auth_pass = require_auth_pass
 
@@ -91,6 +103,15 @@ class SenderAuthoriser:
                 user_id=self._group_owners[normalised],
                 sender_email=normalised,
                 reason=AuthResultReason.AUTHORISED,
+            )
+
+        if member_ids := self._group_members.get(normalised):
+            return SenderAuthResult(
+                ok=True,
+                user_id=None,
+                sender_email=normalised,
+                reason=AuthResultReason.GROUP_MEMBER,
+                group_member_ids=member_ids,
             )
 
         domain = normalised.rsplit("@", 1)[-1]

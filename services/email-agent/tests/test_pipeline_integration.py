@@ -29,6 +29,12 @@ HELP_JSON = (
     '"mentioned_date": null, "return_statistics": false, "requires_clarification": false, '
     '"clarification_question": null}'
 )
+ADD_COMMENT_JSON = (
+    '{"operation": "add_comment", "attachment": null, "group_hint": null, '
+    '"job_id": null, "mentioned_date": null, "return_statistics": false, '
+    '"comment": "A useful comment", "requires_clarification": false, '
+    '"clarification_question": null}'
+)
 ASSESS_QUERY_JSON = (
     '{"operation": "assess_query", "attachment": null, "group_hint": null, "job_id": null, '
     '"mentioned_date": null, "return_statistics": false, '
@@ -48,7 +54,7 @@ def _vtt_attachment(fixture="valid_with_date.vtt", filename="meeting.vtt"):
 
 
 def _build_pipeline(db_path: Path, tmp_path: Path, mail_client, llm_response, admin_email="admin@uni.ac.uk",
-                     group_owners=None, authorised_domains=None, available=True):
+                     group_owners=None, authorised_domains=None, available=True, group_members=None):
     job_store = JobStore(db_path)
     processed_store = ProcessedMessageStore(db_path)
     outbox = Outbox(db_path)
@@ -56,6 +62,7 @@ def _build_pipeline(db_path: Path, tmp_path: Path, mail_client, llm_response, ad
     authoriser = SenderAuthoriser(
         group_owners or {"alice@uni.ac.uk": 12},
         authorised_domains or ["uni.ac.uk"],
+        group_members=group_members,
     )
     stub_llm = StubLLM(llm_response, available=available)
     parser = EmailCommandParser(stub_llm, max_retries=1)
@@ -71,6 +78,71 @@ def _build_pipeline(db_path: Path, tmp_path: Path, mail_client, llm_response, ad
         thread_matcher, storage, limits, admin_email,
     )
     return pipeline, job_store, outbox, admin, storage, stub_llm
+
+
+def test_group_member_can_submit_transcript_without_user_id(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email(
+        "carol@uni.ac.uk", attachments=[_vtt_attachment()], auth_signals=PASS,
+    )
+    mail.add_message(msg)
+    pipeline, job_store, _, _, _, _ = _build_pipeline(
+        db_path,
+        tmp_path,
+        mail,
+        SUBMIT_TRANSCRIPT_JSON,
+        group_members={"carol@uni.ac.uk": [21]},
+    )
+
+    pipeline.poll_once()
+
+    jobs = job_store.list_queued()
+    assert len(jobs) == 1
+    assert jobs[0].backend_user_id is None
+
+
+def test_group_member_can_add_comment(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email(
+        "carol@uni.ac.uk",
+        subject="Re: meeting [group_id=3, meeting_id=42]",
+        body_text="Please add this comment.",
+        auth_signals=PASS,
+    )
+    mail.add_message(msg)
+    pipeline, job_store, _, _, _, _ = _build_pipeline(
+        db_path,
+        tmp_path,
+        mail,
+        ADD_COMMENT_JSON,
+        group_members={"carol@uni.ac.uk": [21]},
+    )
+
+    pipeline.poll_once()
+
+    jobs = job_store.list_queued()
+    assert len(jobs) == 1
+    assert jobs[0].operation == "add_comment"
+    assert jobs[0].backend_user_id is None
+
+
+def test_group_member_cannot_use_help_or_other_commands(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email("carol@uni.ac.uk", auth_signals=PASS)
+    mail.add_message(msg)
+    pipeline, job_store, outbox, _, _, _ = _build_pipeline(
+        db_path,
+        tmp_path,
+        mail,
+        HELP_JSON,
+        group_members={"carol@uni.ac.uk": [21]},
+    )
+
+    pipeline.poll_once()
+    pipeline.flush_outbox()
+
+    assert job_store.list_queued() == []
+    assert any("submit transcripts or add comments only" in message.body_text for message in mail.sent)
 
 
 def _worker(
