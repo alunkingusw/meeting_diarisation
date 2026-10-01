@@ -82,6 +82,27 @@ export function useAdminManager() {
     }
   };
 
+  const handleDeleteUser = async (userId: number) => {
+    const confirmed = confirm('Are you sure you want to delete this user? This will delete all associated data!!');
+    if (!confirmed) return;
+    setAdminError('');
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/${userId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        setUsers(prev => prev.filter(user => user.id !== userId));
+      } else {
+        const body = await res.json().catch(() => null);
+        setAdminError(body?.detail || 'Failed to delete user');
+      }
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setAdminError('Failed to delete user');
+    }
+  };
+
   const handleCreateGroupForUser = async (params: { name: string; ownerUserId: number }) => {
     setCreatingGroupForUser(true);
     setAdminError('');
@@ -113,6 +134,7 @@ export function useAdminManager() {
     adminError,
     fetchAllUsers,
     handleCreateUser,
+    handleDeleteUser,
     handleCreateGroupForUser,
   };
 }
