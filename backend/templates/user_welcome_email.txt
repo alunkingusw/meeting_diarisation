@@ -18,4 +18,4 @@ By emailing this address, you can;
  If at any point you are unsuse what you can do - email 'help' to this address and you will get a reminder!
 
 $admin_note
-If you have any questions, please contact alun.king1@southwales.ac.uk
+If you have any questions, please contact the administrator who created your account.

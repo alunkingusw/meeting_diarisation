@@ -46,6 +46,17 @@ def test_in_domain_but_not_a_registered_owner_is_unrecognised():
     assert result.reason == AuthResultReason.UNRECOGNISED_IN_DOMAIN
 
 
+def test_subdomain_of_authorised_domain_is_unrecognised_not_external():
+    result = _authoriser().authorise("carol@students.university.ac.uk", PASS)
+    assert result.ok is False
+    assert result.reason == AuthResultReason.UNRECOGNISED_IN_DOMAIN
+
+
+def test_domain_suffix_without_label_boundary_is_external():
+    result = _authoriser().authorise("carol@notsouthwales.ac.uk", PASS)
+    assert result.reason == AuthResultReason.UNAUTHORISED_EXTERNAL
+
+
 def test_outside_domain_and_not_a_registered_owner_is_external():
     result = _authoriser().authorise("mallory@evil.example", PASS)
     assert result.ok is False

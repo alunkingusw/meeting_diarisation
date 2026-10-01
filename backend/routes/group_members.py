@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from pathlib import Path
 from string import Template
-from backend.models import GroupMember, Group, GroupMemberOut
+from backend.models import GroupMember, Group, GroupMemberOut, User, users_groups
 from backend.db_dependency import get_db
 from backend.auth import is_group_owner
 from backend.validation import GroupMembersCreateEdit
@@ -38,23 +38,26 @@ router = APIRouter(prefix="/groups/{group_id}/members", tags=["group_members"])
 WELCOME_EMAIL_TEMPLATE_PATH = Path(__file__).resolve().parents[1] / "templates" / "group_member_welcome_email.txt"
 
 
-def _render_welcome_email(member: GroupMember, group: Group) -> tuple[str, str]:
+def _render_welcome_email(
+    member: GroupMember, group: Group, owner_email: str
+) -> tuple[str, str]:
     template_lines = WELCOME_EMAIL_TEMPLATE_PATH.read_text(encoding="utf-8").splitlines()
     template_text = "\n".join(line for line in template_lines if not line.startswith("#"))
     body = Template(template_text).substitute(
         member_name=member.name or "there",
         group_name=group.name or "Unnamed group",
+        owner_email=owner_email or "not available",
     )
     subject = f"Welcome to {group.name or 'Unnamed group'}"
     return subject, body.strip()
 
 
-def _send_welcome_email(member: GroupMember, group: Group) -> None:
+def _send_welcome_email(member: GroupMember, group: Group, owner_email: str) -> None:
     if not member.email:
         logger.info("Notify requested for member %s but no email address is set", member.id)
         return
     try:
-        subject, body = _render_welcome_email(member, group)
+        subject, body = _render_welcome_email(member, group, owner_email)
         send_email(to=member.email.strip(), subject=subject, body=body)
     except EmailError:
         logger.exception("Could not send welcome email to member %s", member.id)
@@ -74,6 +77,15 @@ def create_member(
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
 
+    owner_emails = db.query(User.email).join(
+        users_groups, users_groups.c.user_id == User.id
+    ).filter(
+        users_groups.c.group_id == group.id,
+        users_groups.c.role == "owner",
+        User.email.isnot(None),
+    ).order_by(User.id).all()
+    owner_email = ", ".join(email for (email,) in owner_emails if email)
+
     member = GroupMember(name=group_member_data.name, email=group_member_data.email)
     member.groups.append(group)
     db.add(member)
@@ -81,7 +93,7 @@ def create_member(
     db.refresh(member)
 
     if notify:
-        background_tasks.add_task(_send_welcome_email, member, group)
+        background_tasks.add_task(_send_welcome_email, member, group, owner_email)
 
     return member
 

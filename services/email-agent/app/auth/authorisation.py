@@ -94,7 +94,10 @@ class SenderAuthoriser:
             )
 
         domain = normalised.rsplit("@", 1)[-1]
-        if domain in self._authorised_domains:
+        if any(
+            domain == authorised_domain or domain.endswith(f".{authorised_domain}")
+            for authorised_domain in self._authorised_domains
+        ):
             return SenderAuthResult(
                 ok=False,
                 user_id=None,

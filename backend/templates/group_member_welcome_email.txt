@@ -1,4 +1,4 @@
-# Available placeholders: $member_name, $group_name
+# Available placeholders: $member_name, $group_name, $owner_email
 # Lines beginning with # are template comments and are removed before sending.
 
 Hello $member_name,
@@ -13,4 +13,4 @@ You can send emails to this address at any time to record any meetings that have
  - you can either email explaining the meeting date, and the outline of the meeting
  - or if you have a transcription (created by a system like Teams), just attach that to the email, and the system will figure out the rest.
 
-If you believe you were added to this group in error, please contact alun.king1@southwales.ac.uk.
+If you believe you were added to this group in error, contact a group owner: $owner_email.
