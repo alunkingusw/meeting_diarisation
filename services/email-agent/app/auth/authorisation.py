@@ -115,10 +115,7 @@ class SenderAuthoriser:
             )
 
         domain = normalised.rsplit("@", 1)[-1]
-        if any(
-            domain == authorised_domain or domain.endswith(f".{authorised_domain}")
-            for authorised_domain in self._authorised_domains
-        ):
+        if domain_matches(domain, self._authorised_domains):
             return SenderAuthResult(
                 ok=False,
                 user_id=None,
@@ -152,3 +149,12 @@ def _normalise_email(address: str) -> Optional[str]:
     if not _EMAIL_RE.match(candidate):
         return None
     return candidate
+
+
+def domain_matches(domain: str, configured_domains: set[str] | list[str]) -> bool:
+    normalised_domain = domain.strip().lower()
+    return any(
+        normalised_domain == configured_domain.strip().lower()
+        or normalised_domain.endswith(f".{configured_domain.strip().lower()}")
+        for configured_domain in configured_domains
+    )

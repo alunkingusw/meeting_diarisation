@@ -32,10 +32,11 @@ adjusted as follows:
   who matches neither identity gets a friendly "not registered, contact the admin" reply;
   everyone else (failed SPF/DKIM/DMARC, or outside the authorised domains) is silently dropped,
   since replying to arbitrary internet senders would confirm a monitored mailbox exists.
-- **The admin is alerted** (rate-limited, `ADMIN_EMAIL`) on: unauthorised/unrecognised senders,
-  LLM parse failures, backend submission failures, and infrastructure outages (Ollama or the
-  backend unreachable) — never on ordinary user mistakes (wrong file type, ambiguous group),
-  which just get a normal reply to the sender.
+- **The admin is alerted** (rate-limited, `ADMIN_EMAIL`) on unauthorised/unrecognised senders,
+  except domains listed in `UNAUTHORISED_SENDER_ALERT_EXEMPT_DOMAINS`, plus LLM parse failures,
+  backend submission failures, and infrastructure outages (Ollama or the backend unreachable).
+  The default exemption is `students.southwales.ac.uk`; it suppresses sender alerts only and
+  does not grant access. Failed SPF/DKIM/DMARC checks still alert the admin.
 - **Mail access is provider-agnostic** via a `MailClient` interface (`app/mail/base.py`). The app
   supports Microsoft Graph and a generic IMAP/SMTP provider implementation (`app/mail/imap_client.py`)
   for dedicated project mailboxes such as `mailbox.org`.
@@ -118,6 +119,8 @@ Edit `.env`:
   and infrastructure outages.
 - `AUTHORISED_EMAIL_DOMAINS`: comma-separated domain(s) whose senders get a "not registered"
   reply instead of a silent drop when they aren't a registered owner.
+- `UNAUTHORISED_SENDER_ALERT_EXEMPT_DOMAINS`: comma-separated domain(s) whose unregistered
+  senders do not generate admin sender alerts. This does not authorize those senders.
 - `GRAPH_TENANT_ID` / `GRAPH_CLIENT_ID` / `GRAPH_CLIENT_SECRET`: see "Mailbox setup" below.
 
 ### 5. Mailbox setup

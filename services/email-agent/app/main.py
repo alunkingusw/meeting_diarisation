@@ -164,6 +164,7 @@ def run(settings: Settings) -> None:
         settings.storage,
         settings.limits,
         settings.admin_email,
+        settings.authorisation.unauthorised_sender_alert_exempt_domains,
     )
     worker = JobWorker(
         job_store,

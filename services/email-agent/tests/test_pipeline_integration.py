@@ -61,7 +61,8 @@ def _vtt_attachment(fixture="valid_with_date.vtt", filename="meeting.vtt"):
 
 
 def _build_pipeline(db_path: Path, tmp_path: Path, mail_client, llm_response, admin_email="admin@uni.ac.uk",
-                     group_owners=None, authorised_domains=None, available=True, group_members=None):
+                     group_owners=None, authorised_domains=None, available=True, group_members=None,
+                     unauthorised_sender_alert_exempt_domains=None):
     job_store = JobStore(db_path)
     processed_store = ProcessedMessageStore(db_path)
     outbox = Outbox(db_path)
@@ -83,6 +84,7 @@ def _build_pipeline(db_path: Path, tmp_path: Path, mail_client, llm_response, ad
     pipeline = EmailProcessingPipeline(
         mail_client, authoriser, stub_llm, parser, job_store, processed_store, outbox, admin,
         thread_matcher, storage, limits, admin_email,
+        unauthorised_sender_alert_exempt_domains=unauthorised_sender_alert_exempt_domains,
     )
     return pipeline, job_store, outbox, admin, storage, stub_llm
 
@@ -367,6 +369,50 @@ def test_unrecognised_in_domain_sender_gets_friendly_reply(db_path: Path, tmp_pa
     assert "isn't currently registered" in carol_msg.body_text.lower()
     assert any(m.to == "admin@uni.ac.uk" for m in mail.sent)
     assert job_store.list_queued() == []
+
+
+def test_students_southwales_domain_does_not_alert_admin(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email("carol@students.southwales.ac.uk", auth_signals=PASS)
+    mail.add_message(msg)
+
+    pipeline, job_store, _, _, _, _ = _build_pipeline(
+        db_path,
+        tmp_path,
+        mail,
+        HELP_JSON,
+        authorised_domains=["southwales.ac.uk"],
+        unauthorised_sender_alert_exempt_domains=["students.southwales.ac.uk"],
+    )
+    pipeline.poll_once()
+    pipeline.flush_outbox()
+
+    assert any(m.to == "carol@students.southwales.ac.uk" for m in mail.sent)
+    assert all(m.to != "admin@uni.ac.uk" for m in mail.sent)
+    assert job_store.list_queued() == []
+
+
+def test_students_domain_exemption_does_not_hide_authentication_failures(
+    db_path: Path, tmp_path: Path
+):
+    mail = FakeMailClient()
+    msg = make_test_email(
+        "carol@students.southwales.ac.uk",
+        auth_signals=AuthSignals(spf="fail", dkim="fail", dmarc="fail"),
+    )
+    mail.add_message(msg)
+
+    pipeline, _, _, _, _, _ = _build_pipeline(
+        db_path,
+        tmp_path,
+        mail,
+        HELP_JSON,
+        unauthorised_sender_alert_exempt_domains=["students.southwales.ac.uk"],
+    )
+    pipeline.poll_once()
+    pipeline.flush_outbox()
+
+    assert any(m.to == "admin@uni.ac.uk" for m in mail.sent)
 
 
 def test_ambiguous_group_produces_clarification_after_worker_run(db_path: Path, tmp_path: Path):

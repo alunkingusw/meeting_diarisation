@@ -23,6 +23,9 @@ class MailSettings(BaseModel):
 class AuthorisationSettings(BaseModel):
     require_auth_pass: bool = True
     group_owners: dict[str, int] = Field(default_factory=dict)
+    unauthorised_sender_alert_exempt_domains: list[str] = Field(
+        default_factory=lambda: ["students.southwales.ac.uk"]
+    )
 
     @field_validator("group_owners", mode="before")
     @classmethod
@@ -154,6 +157,11 @@ def load_settings(
     if domains:
         settings.authorised_email_domains = [
             d.strip().lower() for d in domains.split(",") if d.strip()
+        ]
+    alert_exempt_domains = os.getenv("UNAUTHORISED_SENDER_ALERT_EXEMPT_DOMAINS")
+    if alert_exempt_domains:
+        settings.authorisation.unauthorised_sender_alert_exempt_domains = [
+            d.strip().lower() for d in alert_exempt_domains.split(",") if d.strip()
         ]
     settings.mail_username = os.getenv("MAIL_USERNAME") or settings.mail_username
     settings.mail_password = os.getenv("MAIL_PASSWORD") or settings.mail_password

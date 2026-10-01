@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional, Protocol
 
 from app.admin.notifier import AdminCategory, AdminNotifier
-from app.auth.authorisation import AuthResultReason, SenderAuthoriser
+from app.auth.authorisation import AuthResultReason, SenderAuthoriser, domain_matches
 from app.commands.schema import CommandParsingFailed, Operation
 from app.commands.validator import (
     AttachmentMeta,
@@ -71,6 +71,7 @@ class EmailProcessingPipeline:
         storage: StorageSettings,
         limits: LimitsSettings,
         admin_email: Optional[str],
+        unauthorised_sender_alert_exempt_domains: Optional[list[str]] = None,
     ):
         self._mail = mail_client
         self._authoriser = authoriser
@@ -84,6 +85,10 @@ class EmailProcessingPipeline:
         self._storage = storage
         self._limits = limits
         self._admin_email = admin_email
+        self._unauthorised_sender_alert_exempt_domains = {
+            domain.strip().lower()
+            for domain in (unauthorised_sender_alert_exempt_domains or [])
+        }
         self._pending_clarifications = PendingClarificationStore(job_store._db_path)
         self._report_store = ReportStore(job_store._db_path)
         self._report_replies = WeeklyReportReplyService(self._report_store, outbox, ollama_client)
@@ -100,6 +105,12 @@ class EmailProcessingPipeline:
                 # every other message in the batch.
                 logger.exception("Unhandled error processing message %s", msg.message_id)
         return len(messages)
+
+    def _is_sender_alert_exempt(self, sender_email: Optional[str]) -> bool:
+        if not sender_email or "@" not in sender_email:
+            return False
+        domain = sender_email.rsplit("@", 1)[-1]
+        return domain_matches(domain, self._unauthorised_sender_alert_exempt_domains)
 
     def _process_message(self, msg: EmailMessage) -> None:
         auth_result = self._authoriser.authorise(msg.from_address, msg.auth_signals)
@@ -122,10 +133,11 @@ class EmailProcessingPipeline:
                 in_reply_to=msg.message_id,
                 references=_reply_references(msg),
             )
-            self._admin.alert(
-                AdminCategory.UNAUTHORISED_SENDER,
-                f"Unrecognised in-domain sender attempted to use the system: {auth_result.sender_email}",
-            )
+            if not self._is_sender_alert_exempt(auth_result.sender_email):
+                self._admin.alert(
+                    AdminCategory.UNAUTHORISED_SENDER,
+                    f"Unrecognised in-domain sender attempted to use the system: {auth_result.sender_email}",
+                )
             self._processed.finalize(msg.message_id, outcome="unrecognised_sender_replied")
             self._mail.mark_processed(msg.provider_ref)
             return
@@ -136,10 +148,14 @@ class EmailProcessingPipeline:
         }:
             # unauthorised_external / unauthenticated / malformed_sender - silent drop, no
             # reply (spec decision: replying would confirm a monitored mailbox exists).
-            self._admin.alert(
-                AdminCategory.UNAUTHORISED_SENDER,
-                f"Rejected sender ({auth_result.reason.value}): {msg.from_address}",
-            )
+            if (
+                auth_result.reason != AuthResultReason.UNAUTHORISED_EXTERNAL
+                or not self._is_sender_alert_exempt(auth_result.sender_email)
+            ):
+                self._admin.alert(
+                    AdminCategory.UNAUTHORISED_SENDER,
+                    f"Rejected sender ({auth_result.reason.value}): {msg.from_address}",
+                )
             self._processed.finalize(msg.message_id, outcome="rejected_silently")
             self._mail.mark_processed(msg.provider_ref)
             return
