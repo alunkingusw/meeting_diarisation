@@ -11,7 +11,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Optional
+
+from dateutil import parser as dateutil_parser
 
 from app.commands.schema import Operation, ParsedCommand
 
@@ -56,6 +59,7 @@ class ValidationContext:
     job_store: "JobStore"
     limits: "LimitsSettings"
     subject: str = ""
+    received_at: Optional[datetime] = None
 
 
 @dataclass
@@ -72,6 +76,7 @@ class ValidatedCommand:
     comment: Optional[str] = None
     group_id: Optional[int] = None
     meeting_id: Optional[int] = None
+    meeting_date: Optional[datetime] = None
 
 
 def validate_command(cmd: ParsedCommand, ctx: ValidationContext) -> ValidatedCommand:
@@ -93,6 +98,8 @@ def validate_command(cmd: ParsedCommand, ctx: ValidationContext) -> ValidatedCom
         return _validate_assess_query(cmd, ctx)
     if cmd.operation == Operation.ADD_COMMENT:
         return _validate_add_comment(cmd, ctx)
+    if cmd.operation == Operation.LOG_MEETING:
+        return _validate_log_meeting(cmd, ctx)
     if cmd.operation == Operation.HELP:
         return ValidatedCommand(operation=Operation.HELP)
 
@@ -218,6 +225,34 @@ def _validate_add_comment(cmd: ParsedCommand, ctx: ValidationContext) -> Validat
         operation=Operation.ADD_COMMENT,
         group_id=int(group_match.group(1)),
         meeting_id=int(meeting_match.group(1)),
+        comment=cmd.comment,
+    )
+
+
+def _validate_log_meeting(cmd: ParsedCommand, ctx: ValidationContext) -> ValidatedCommand:
+    if not cmd.mentioned_date:
+        raise ClarificationRequired(
+            "What was the meeting date? Please reply with the date so I can create the meeting."
+        )
+    if not cmd.comment:
+        raise ClarificationRequired("What notes should I save for this meeting?")
+
+    try:
+        meeting_date = dateutil_parser.parse(
+            cmd.mentioned_date,
+            fuzzy=True,
+            default=ctx.received_at or datetime.now(timezone.utc),
+        )
+    except (ValueError, OverflowError, dateutil_parser.ParserError):
+        raise ClarificationRequired(
+            "I couldn't identify a specific meeting date. Please reply with the date, for example 2026-10-01."
+        ) from None
+
+    return ValidatedCommand(
+        operation=Operation.LOG_MEETING,
+        group_hint=cmd.group_hint,
+        mentioned_date=cmd.mentioned_date,
+        meeting_date=meeting_date,
         comment=cmd.comment,
     )
 

@@ -14,7 +14,7 @@ import threading
 from app.admin.notifier import AdminNotifier
 from app.diarisation.client import DiarisationClient
 from app.github_raginator.client import GithubRaginatorClient
-from app.handlers import add_comment, assess_query, submit_transcript
+from app.handlers import add_comment, assess_query, log_meeting, submit_transcript
 from app.jobs.models import Job
 from app.jobs.store import JobStore, Outbox
 from app.llm.ollama_client import OllamaClient
@@ -71,6 +71,14 @@ class JobWorker:
                 )
             elif job.operation == "add_comment":
                 add_comment.execute(
+                    job,
+                    self._diarisation_client,
+                    self._job_store,
+                    self._outbox,
+                    self._admin_notifier,
+                )
+            elif job.operation == "log_meeting":
+                log_meeting.execute(
                     job,
                     self._diarisation_client,
                     self._job_store,

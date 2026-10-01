@@ -120,6 +120,21 @@ def render_comment_confirmation(job_id: str, result) -> tuple[str, str]:
     return subject, body
 
 
+def render_meeting_log_confirmation(
+    job_id: str, group_name: str, meeting_date: str, meeting_id: int, comment: str
+) -> tuple[str, str]:
+    subject = f"Meeting notes saved - {job_id}"
+    body = _render(
+        "meeting_log_confirmation.txt.j2",
+        job_id=job_id,
+        group_name=group_name,
+        meeting_date=meeting_date,
+        meeting_id=meeting_id,
+        comment=comment,
+    )
+    return subject, body
+
+
 def render_assess_result(
     job_id: str,
     group_name: Optional[str],

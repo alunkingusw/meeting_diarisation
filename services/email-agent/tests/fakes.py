@@ -74,7 +74,9 @@ class FakeDiarisationClient:
         self._maybe_fail("list_groups")
         return self.groups
 
-    def create_meeting(self, token: str, group_id: int, date: datetime) -> MeetingSummary:
+    def create_meeting(
+        self, token: str, group_id: int, date: datetime, idempotency_key: Optional[str] = None
+    ) -> MeetingSummary:
         self._maybe_fail("create_meeting")
         meeting = MeetingSummary(id=len(self.meetings) + 1, group_id=group_id, date=date.isoformat())
         self.meetings.append(meeting)

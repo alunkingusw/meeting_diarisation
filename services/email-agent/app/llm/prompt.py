@@ -32,11 +32,16 @@ Only the following operations exist:
   requires_clarification instead of guessing.
 - add_comment: the sender is replying to a meeting summary and wants text added as a comment to
   that meeting. The subject must contain group_id=<integer> and meeting_id=<integer>.
+- log_meeting: the sender is reporting a meeting that was not recorded and wants a new meeting
+  entry created with their notes saved as a comment. Only use this when the email explicitly
+  identifies a specific meeting date. Set mentioned_date to the date wording from the email,
+  group_hint only when the sender explicitly identifies the group, and comment to the substantive
+  meeting notes. If no specific date is stated, use requires_clarification and ask for it.
 - help: the sender is asking what this system can do.
 
 Return ONLY a single JSON object with exactly these fields, no other text:
 {
-  "operation": "submit_transcript" | "status" | "results" | "cancel" | "assess_query" | "add_comment" | "help",
+  "operation": "submit_transcript" | "status" | "results" | "cancel" | "assess_query" | "add_comment" | "log_meeting" | "help",
   "attachment": string or null,
   "group_hint": string or null,
   "job_id": string or null,
@@ -70,9 +75,9 @@ Field rules:
   (e.g. "check whether the API redesign was discussed"), never a fabricated finding. At least
   one of the three must be set for an assess_query response; if you cannot tell which source(s)
   are relevant, set requires_clarification instead.
-- comment: ONLY set for operation "add_comment". Extract the actual text the sender wants added
-  to the meeting, excluding greetings, sign-offs, and instructions about the email itself. Do
-  not invent or substantially rewrite the comment.
+- comment: ONLY set for operation "add_comment" or "log_meeting". Extract the actual text the
+  sender wants added to the meeting, excluding greetings, sign-offs, and instructions about the
+  email itself. Do not invent or substantially rewrite the comment.
 - requires_clarification / clarification_question: set requires_clarification to true and
   provide a short, plain-language clarification_question whenever the request is ambiguous or
   you are not confident what the sender wants. Never guess when guessing could mean acting on

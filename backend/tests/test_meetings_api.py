@@ -114,6 +114,37 @@ def test_add_meeting_comment_sanitises_html_and_allows_multiple_comments(
     assert second_response.json()["comment"] == "A second comment"
 
 
+def test_transcript_free_meeting_supports_comments_and_returns_them(
+    client, make_user, make_group, auth_header_for
+):
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    headers = auth_header_for(owner.id)
+
+    created_meeting = client.post(
+        f"/groups/{group.id}/meetings/",
+        json={"date": datetime.now(timezone.utc).isoformat()},
+        headers=headers,
+    )
+    meeting_id = created_meeting.json()["id"]
+    comment_response = client.post(
+        f"/groups/{group.id}/meetings/{meeting_id}/comments",
+        json={"comment": "Decided to move the launch review to Friday."},
+        headers=headers,
+    )
+    meeting_response = client.get(
+        f"/groups/{group.id}/meetings/{meeting_id}", headers=headers
+    )
+
+    assert created_meeting.status_code == 200
+    assert comment_response.status_code == 201
+    assert meeting_response.status_code == 200
+    assert meeting_response.json()["media_files"] == []
+    assert [comment["comment"] for comment in meeting_response.json()["comments"]] == [
+        "Decided to move the launch review to Friday."
+    ]
+
+
 def test_group_member_can_add_meeting_comment(
     client, db_session, make_user, make_group, make_meeting, auth_header_for
 ):

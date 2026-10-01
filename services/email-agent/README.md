@@ -214,6 +214,11 @@ the subject using the exact forms `group_id=7` and `meeting_id=42`. Put the comm
 body. The request is queued as a background job, posted to the meeting manager, and followed by a
 confirmation email containing the returned comment details.
 
+To record an unrecorded meeting, email the meeting date and notes. The agent creates a meeting
+without a transcript and saves the notes as a comment. Include the group name if your email is
+associated with more than one group. If no usable meeting date is included, the agent asks you
+for one before creating anything.
+
 ## Testing
 
 ```bash

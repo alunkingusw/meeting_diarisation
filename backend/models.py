@@ -210,18 +210,6 @@ class MeetingAttendeeOut(BaseModel):
     class Config:
         from_attributes  = True
 
-class MeetingOut(BaseModel):
-    id:int
-    group_id:int
-    date:datetime
-    created:datetime
-    attendees: List[MeetingAttendeeOut]  # Include all attendees
-    media_files: List[RawFileOut]
-    summary: Optional[str] = None
-    summary_generated_at: Optional[datetime] = None
-    class Config:
-        from_attributes  = True
-
 class MeetingCommentOut(BaseModel):
     id: int
     meeting_id: int
@@ -232,3 +220,16 @@ class MeetingCommentOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class MeetingOut(BaseModel):
+    id:int
+    group_id:int
+    date:datetime
+    created:datetime
+    attendees: List[MeetingAttendeeOut]  # Include all attendees
+    media_files: List[RawFileOut]
+    comments: List[MeetingCommentOut]
+    summary: Optional[str] = None
+    summary_generated_at: Optional[datetime] = None
+    class Config:
+        from_attributes  = True

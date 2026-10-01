@@ -27,6 +27,7 @@ class Operation(str, Enum):
     CANCEL = "cancel"
     ASSESS_QUERY = "assess_query"
     ADD_COMMENT = "add_comment"
+    LOG_MEETING = "log_meeting"
     HELP = "help"
 
 

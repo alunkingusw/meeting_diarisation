@@ -35,6 +35,7 @@ from app.handlers import assess_query as assess_query_handler
 from app.handlers import add_comment as add_comment_handler
 from app.handlers import cancel as cancel_handler
 from app.handlers import help as help_handler
+from app.handlers import log_meeting as log_meeting_handler
 from app.handlers import results as results_handler
 from app.handlers import status as status_handler
 from app.handlers import submit_transcript
@@ -199,8 +200,12 @@ class EmailProcessingPipeline:
             return
 
         if is_group_member and (
-            parsed_cmd.requires_clarification
-            or parsed_cmd.operation not in {Operation.SUBMIT_TRANSCRIPT, Operation.ADD_COMMENT}
+            (parsed_cmd.requires_clarification and parsed_cmd.operation != Operation.LOG_MEETING)
+            or parsed_cmd.operation not in {
+                Operation.SUBMIT_TRANSCRIPT,
+                Operation.ADD_COMMENT,
+                Operation.LOG_MEETING,
+            }
         ):
             self._reply_and_finalize(
                 msg, *render_group_member_help(), outcome="group_member_help_sent",
@@ -218,6 +223,7 @@ class EmailProcessingPipeline:
             job_store=self._job_store,
             limits=self._limits,
             subject=msg.subject,
+            received_at=msg.received_at,
         )
 
         try:
@@ -295,6 +301,11 @@ class EmailProcessingPipeline:
             )
         elif validated.operation == Operation.ADD_COMMENT:
             outcome = add_comment_handler.accept(
+                validated, sender_email, sender_user_id, msg.message_id, self._job_store,
+                self._outbox, in_reply_to, references,
+            )
+        elif validated.operation == Operation.LOG_MEETING:
+            outcome = log_meeting_handler.accept(
                 validated, sender_email, sender_user_id, msg.message_id, self._job_store,
                 self._outbox, in_reply_to, references,
             )

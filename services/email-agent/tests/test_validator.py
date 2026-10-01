@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime, timezone
 
 import pytest
 
@@ -221,6 +222,34 @@ def test_add_comment_without_subject_ids_asks_for_clarification(db_path: Path):
     cmd = ParsedCommand(operation=Operation.ADD_COMMENT, comment="A note")
     with pytest.raises(ClarificationRequired):
         validate_command(cmd, _ctx(db_path))
+
+
+def test_log_meeting_requires_date(db_path: Path):
+    cmd = ParsedCommand(
+        operation=Operation.LOG_MEETING,
+        comment="We agreed to move the launch review.",
+    )
+
+    with pytest.raises(ClarificationRequired, match="meeting date"):
+        validate_command(cmd, _ctx(db_path))
+
+
+def test_log_meeting_validates_date_and_keeps_group_and_comment(db_path: Path):
+    cmd = ParsedCommand(
+        operation=Operation.LOG_MEETING,
+        group_hint="Team A",
+        mentioned_date="2026-09-30",
+        comment="We agreed to move the launch review.",
+    )
+    ctx = _ctx(db_path)
+    ctx.received_at = datetime(2026, 10, 1, tzinfo=timezone.utc)
+
+    result = validate_command(cmd, ctx)
+
+    assert result.operation == Operation.LOG_MEETING
+    assert result.group_hint == "Team A"
+    assert result.meeting_date.date().isoformat() == "2026-09-30"
+    assert result.comment == "We agreed to move the launch review."
 
 
 # --- help ---

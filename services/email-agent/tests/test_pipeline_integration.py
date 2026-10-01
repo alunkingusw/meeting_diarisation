@@ -35,6 +35,13 @@ ADD_COMMENT_JSON = (
     '"comment": "A useful comment", "requires_clarification": false, '
     '"clarification_question": null}'
 )
+LOG_MEETING_JSON = (
+    '{"operation": "log_meeting", "attachment": null, "group_hint": "Team A", '
+    '"job_id": null, "mentioned_date": "2026-09-30", "return_statistics": false, '
+    '"transcript_focus": null, "github_focus": null, "trello_focus": null, '
+    '"comment": "We agreed to move the launch review to Friday.", '
+    '"requires_clarification": false, "clarification_question": null}'
+)
 ASSESS_QUERY_JSON = (
     '{"operation": "assess_query", "attachment": null, "group_hint": null, "job_id": null, '
     '"mentioned_date": null, "return_statistics": false, '
@@ -124,6 +131,71 @@ def test_group_member_can_add_comment(db_path: Path, tmp_path: Path):
     assert len(jobs) == 1
     assert jobs[0].operation == "add_comment"
     assert jobs[0].backend_user_id is None
+
+
+def test_group_member_can_log_transcript_free_meeting(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email(
+        "carol@uni.ac.uk",
+        body_text="Team A met on 2026-09-30. We agreed to move the launch review to Friday.",
+        auth_signals=PASS,
+    )
+    mail.add_message(msg)
+    pipeline, job_store, outbox, admin, storage, _ = _build_pipeline(
+        db_path,
+        tmp_path,
+        mail,
+        LOG_MEETING_JSON,
+        group_members={"carol@uni.ac.uk": [21]},
+    )
+
+    pipeline.poll_once()
+    jobs = job_store.list_queued()
+    assert len(jobs) == 1
+    assert jobs[0].operation == "log_meeting"
+    assert jobs[0].backend_user_id is None
+    assert jobs[0].meeting_date.startswith("2026-09-30")
+
+    worker, fake_client = _worker(
+        job_store, storage, outbox, admin, groups=[GroupSummary(id=1, name="Team A")]
+    )
+    worker.run_once()
+
+    completed = job_store.get(jobs[0].job_id)
+    assert completed.status == JobState.COMPLETED
+    assert completed.backend_meeting_id == 1
+    assert fake_client.meetings[0].group_id == 1
+    assert fake_client.comments == [
+        (1, 1, "We agreed to move the launch review to Friday.")
+    ]
+
+
+def test_group_member_missing_meeting_date_gets_clarification(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email(
+        "carol@uni.ac.uk",
+        body_text="We agreed to move the launch review to Friday.",
+        auth_signals=PASS,
+    )
+    mail.add_message(msg)
+    command = (
+        '{"operation": "log_meeting", "attachment": null, "group_hint": "Team A", '
+        '"job_id": null, "mentioned_date": null, "return_statistics": false, '
+        '"transcript_focus": null, "github_focus": null, "trello_focus": null, '
+        '"comment": "We agreed to move the launch review to Friday.", '
+        '"requires_clarification": true, '
+        '"clarification_question": "What date was the meeting?"}'
+    )
+    pipeline, job_store, _, _, _, _ = _build_pipeline(
+        db_path, tmp_path, mail, command, group_members={"carol@uni.ac.uk": [21]}
+    )
+
+    pipeline.poll_once()
+    pipeline.flush_outbox()
+
+    assert job_store.list_queued() == []
+    reply = next(message for message in mail.sent if message.to == "carol@uni.ac.uk")
+    assert "What date was the meeting?" in reply.body_text
 
 
 def test_group_member_cannot_use_help_or_other_commands(db_path: Path, tmp_path: Path):
