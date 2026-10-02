@@ -45,10 +45,15 @@ class EmailCommandParser:
         attachment_filenames: list[str],
         thread_job_id_hint: Optional[str] = None,
         subject: str = "",
+        inferred_group_name: Optional[str] = None,
     ) -> ParsedCommand:
         truncated_body = (body_text or "")[: self._max_body_chars]
         user_prompt = build_user_prompt(
-            truncated_body, attachment_filenames, thread_job_id_hint, subject=subject
+            truncated_body,
+            attachment_filenames,
+            thread_job_id_hint,
+            subject=subject,
+            inferred_group_name=inferred_group_name,
         )
 
         system_prompt = SYSTEM_PROMPT

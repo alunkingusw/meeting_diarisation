@@ -165,6 +165,7 @@ def run(settings: Settings) -> None:
         settings.limits,
         settings.admin_email,
         settings.authorisation.unauthorised_sender_alert_exempt_domains,
+        diarisation_client=diarisation_client,
     )
     worker = JobWorker(
         job_store,

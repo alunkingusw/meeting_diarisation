@@ -62,7 +62,7 @@ def _vtt_attachment(fixture="valid_with_date.vtt", filename="meeting.vtt"):
 
 def _build_pipeline(db_path: Path, tmp_path: Path, mail_client, llm_response, admin_email="admin@uni.ac.uk",
                      group_owners=None, authorised_domains=None, available=True, group_members=None,
-                     unauthorised_sender_alert_exempt_domains=None):
+                     unauthorised_sender_alert_exempt_domains=None, diarisation_client=None):
     job_store = JobStore(db_path)
     processed_store = ProcessedMessageStore(db_path)
     outbox = Outbox(db_path)
@@ -85,6 +85,7 @@ def _build_pipeline(db_path: Path, tmp_path: Path, mail_client, llm_response, ad
         mail_client, authoriser, stub_llm, parser, job_store, processed_store, outbox, admin,
         thread_matcher, storage, limits, admin_email,
         unauthorised_sender_alert_exempt_domains=unauthorised_sender_alert_exempt_domains,
+        diarisation_client=diarisation_client,
     )
     return pipeline, job_store, outbox, admin, storage, stub_llm
 
@@ -170,6 +171,53 @@ def test_group_member_can_log_transcript_free_meeting(db_path: Path, tmp_path: P
     assert fake_client.comments == [
         (1, 1, "We agreed to move the launch review to Friday.")
     ]
+
+
+def test_group_member_in_single_group_gets_inferred_group_hint_in_prompt(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email("carol@uni.ac.uk", body_text="Here are my notes.", auth_signals=PASS)
+    mail.add_message(msg)
+    fake_diarisation = FakeDiarisationClient(groups=[GroupSummary(id=5, name="Team A")])
+    pipeline, _, _, _, _, stub_llm = _build_pipeline(
+        db_path, tmp_path, mail, HELP_JSON,
+        group_members={"carol@uni.ac.uk": [21]}, diarisation_client=fake_diarisation,
+    )
+
+    pipeline.poll_once()
+
+    assert 'only associated with one group, "Team A"' in stub_llm.last_user_prompt
+
+
+def test_group_member_in_multiple_groups_gets_no_inferred_group_hint(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email("carol@uni.ac.uk", body_text="Here are my notes.", auth_signals=PASS)
+    mail.add_message(msg)
+    fake_diarisation = FakeDiarisationClient(
+        groups=[GroupSummary(id=5, name="Team A"), GroupSummary(id=6, name="Team B")]
+    )
+    pipeline, _, _, _, _, stub_llm = _build_pipeline(
+        db_path, tmp_path, mail, HELP_JSON,
+        group_members={"carol@uni.ac.uk": [21]}, diarisation_client=fake_diarisation,
+    )
+
+    pipeline.poll_once()
+
+    assert "only associated with one group" not in stub_llm.last_user_prompt
+
+
+def test_group_member_inference_degrades_silently_on_backend_failure(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    msg = make_test_email("carol@uni.ac.uk", body_text="Here are my notes.", auth_signals=PASS)
+    mail.add_message(msg)
+    fake_diarisation = FakeDiarisationClient(groups=[], fail_on="login_for_email")
+    pipeline, _, _, _, _, stub_llm = _build_pipeline(
+        db_path, tmp_path, mail, HELP_JSON,
+        group_members={"carol@uni.ac.uk": [21]}, diarisation_client=fake_diarisation,
+    )
+
+    pipeline.poll_once()  # must not raise despite the simulated backend failure
+
+    assert "only associated with one group" not in stub_llm.last_user_prompt
 
 
 def test_group_member_missing_meeting_date_gets_clarification(db_path: Path, tmp_path: Path):
@@ -489,6 +537,43 @@ def test_clarification_reply_requeues_and_completes_same_job(db_path: Path, tmp_
     assert len(job_store.list_queued()) == 0
     pipeline.flush_outbox()
     assert any(job.job_id in message.subject and "processed" in message.subject.lower() for message in mail.sent)
+
+
+def test_missing_meeting_date_clarification_reply_resumes_same_job(db_path: Path, tmp_path: Path):
+    mail = FakeMailClient()
+    original = make_test_email(
+        "alice@uni.ac.uk", message_id="<original-transcript@mail>",
+        attachments=[_vtt_attachment(fixture="valid_no_date.vtt")], auth_signals=PASS,
+    )
+    mail.add_message(original)
+
+    command = (
+        '{"operation": "submit_transcript", "attachment": "meeting.vtt", "group_hint": null, '
+        '"job_id": null, "mentioned_date": null, "return_statistics": false, '
+        '"requires_clarification": false, "clarification_question": null}'
+    )
+    pipeline, job_store, outbox, admin, storage, stub_llm = _build_pipeline(db_path, tmp_path, mail, command)
+    pipeline.poll_once()
+    pipeline.flush_outbox()
+
+    clarification = mail.sent[-1]
+    assert "date" in clarification.body_text.lower()
+    job_id = clarification.subject.rsplit("—", 1)[-1].strip()
+    assert job_store.get(job_id).status == JobState.NEEDS_CLARIFICATION
+    assert job_store.get(job_id).meeting_date is None
+
+    reply = make_test_email(
+        "alice@uni.ac.uk", message_id="<date-answer@mail>", body_text="11 August 2026",
+        in_reply_to=clarification.id, references=clarification.id, auth_signals=PASS,
+    )
+    mail.add_message(reply)
+    pipeline.poll_once()
+
+    updated = job_store.get(job_id)
+    assert updated.status == JobState.QUEUED
+    assert updated.meeting_date.startswith("2026-08-11")
+    assert updated.meeting_date_source == "clarification_reply"
+    assert stub_llm.calls == 1  # the reply is handled deterministically, never re-parsed by the LLM
 
 
 def test_ollama_unavailable_defers_message_without_marking_it_processed(db_path: Path, tmp_path: Path):

@@ -85,7 +85,16 @@ def validate_command(cmd: ParsedCommand, ctx: ValidationContext) -> ValidatedCom
         # enum member) - kept as an explicit belt-and-braces check on the finite command set.
         raise Rejected(f"Unsupported operation: {cmd.operation!r}")
 
-    if cmd.requires_clarification:
+    # submit_transcript is the one operation where a present attachment already makes the
+    # request actionable - the LLM sometimes asks for clarification (typically the meeting
+    # date) that the deterministic pipeline resolves on its own (VTT NOTE, then mentioned
+    # date, then received timestamp), so an attachment being present overrides that request
+    # and lets _validate_submit_transcript below raise its own, more specific clarification
+    # if the attachment itself is genuinely ambiguous.
+    llm_clarification_overridden = (
+        cmd.operation == Operation.SUBMIT_TRANSCRIPT and bool(ctx.attachments)
+    )
+    if cmd.requires_clarification and not llm_clarification_overridden:
         raise ClarificationRequired(
             cmd.clarification_question or "Could you clarify what you'd like me to do?"
         )

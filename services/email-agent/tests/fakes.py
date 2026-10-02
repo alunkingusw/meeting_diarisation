@@ -14,6 +14,7 @@ class StubLLM:
         self._responses = response if isinstance(response, list) else [response]
         self.available = available
         self.calls = 0
+        self.last_user_prompt: Optional[str] = None
 
     def is_available(self) -> bool:
         return self.available
@@ -21,6 +22,7 @@ class StubLLM:
     def generate(
         self, system_prompt: str, user_prompt: str, temperature: float = 0.0, json_mode: bool = True
     ) -> str:
+        self.last_user_prompt = user_prompt
         response = self._responses[min(self.calls, len(self._responses) - 1)]
         self.calls += 1
         return response

@@ -34,7 +34,7 @@ def render_ack(job_id: str, filename: str, meeting_date: str, group_name: Option
 
 def render_clarification(question: str, job_id: Optional[str] = None) -> tuple[str, str]:
     subject = f"Clarification needed — {job_id}" if job_id else "Clarification needed"
-    body = _render("clarification.txt.j2", question=question)
+    body = _render("clarification.txt.j2", question=question, job_id=job_id)
     return subject, body
 
 

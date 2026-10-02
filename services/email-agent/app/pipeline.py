@@ -14,6 +14,8 @@ import re
 from pathlib import Path
 from typing import Optional, Protocol
 
+from dateutil import parser as dateutil_parser
+
 from app.admin.notifier import AdminCategory, AdminNotifier
 from app.auth.authorisation import AuthResultReason, SenderAuthoriser, domain_matches
 from app.commands.schema import CommandParsingFailed, Operation
@@ -72,6 +74,7 @@ class EmailProcessingPipeline:
         limits: LimitsSettings,
         admin_email: Optional[str],
         unauthorised_sender_alert_exempt_domains: Optional[list[str]] = None,
+        diarisation_client=None,
     ):
         self._mail = mail_client
         self._authoriser = authoriser
@@ -85,6 +88,7 @@ class EmailProcessingPipeline:
         self._storage = storage
         self._limits = limits
         self._admin_email = admin_email
+        self._diarisation_client = diarisation_client
         self._unauthorised_sender_alert_exempt_domains = {
             domain.strip().lower()
             for domain in (unauthorised_sender_alert_exempt_domains or [])
@@ -190,10 +194,17 @@ class EmailProcessingPipeline:
             return
 
         attachment_filenames = [a.filename for a in msg.attachments]
+        inferred_group_name = (
+            self._infer_single_group_name(sender_email) if is_group_member else None
+        )
 
         try:
             parsed_cmd = self._parser.parse_email(
-                msg.body_text, attachment_filenames, thread_job_id, subject=msg.subject
+                msg.body_text,
+                attachment_filenames,
+                thread_job_id,
+                subject=msg.subject,
+                inferred_group_name=inferred_group_name,
             )
         except CommandParsingFailed as e:
             if is_group_member:
@@ -297,6 +308,7 @@ class EmailProcessingPipeline:
                 self._storage,
                 in_reply_to,
                 references,
+                pending_clarifications=self._pending_clarifications,
             )
         elif validated.operation == Operation.STATUS:
             outcome = status_handler.handle(
@@ -331,14 +343,50 @@ class EmailProcessingPipeline:
             raise Rejected(f"Unsupported operation: {validated.operation!r}")  # unreachable
         return outcome.job_id
 
+    def _infer_single_group_name(self, sender_email: str) -> Optional[str]:
+        """Best-effort prompt hint only (never a security/validation decision - match_group
+        still re-resolves the group deterministically later). Silently returns None on any
+        backend trouble so a slow/unreachable backend never blocks mail polling."""
+        if self._diarisation_client is None:
+            return None
+        try:
+            token = self._diarisation_client.login_for_email(sender_email)
+            groups = self._diarisation_client.list_groups(token)
+        except Exception:
+            logger.warning("Could not infer sender's group for %s", sender_email, exc_info=True)
+            return None
+        return groups[0].name if len(groups) == 1 else None
+
     def _continue_clarification(self, msg: EmailMessage, sender_email: str, job_id: str) -> bool:
         pending = self._pending_clarifications.get(job_id)
         if pending is None:
             return False
 
         answer = _first_unquoted_line(msg.body_text)
-        matches = [option for option in pending.options if _normalise(option) == _normalise(answer)]
-        if len(matches) != 1:
+
+        if pending.expected_field == "meeting_date":
+            resolved_date = _parse_clarification_date(answer)
+            if resolved_date is None:
+                field_updates: dict = {}
+                recorded_value = None
+            else:
+                field_updates = {
+                    "meeting_date": resolved_date.isoformat(),
+                    "meeting_date_source": "clarification_reply",
+                }
+                recorded_value = resolved_date.date().isoformat()
+        else:
+            matches = [
+                option for option in pending.options if _normalise(option) == _normalise(answer)
+            ]
+            if len(matches) != 1:
+                field_updates = {}
+                recorded_value = None
+            else:
+                field_updates = {"group_hint": matches[0]}
+                recorded_value = matches[0]
+
+        if recorded_value is None:
             subject, body = render_clarification(pending.question, job_id)
             self._outbox.enqueue(
                 to_email=sender_email,
@@ -356,11 +404,10 @@ class EmailProcessingPipeline:
         if job is None or job.status.value != "NEEDS_CLARIFICATION":
             return False
 
-        selected = matches[0]
-        self._job_store.update(job_id, group_hint=selected, in_reply_to_message_id=msg.message_id)
+        self._job_store.update(job_id, in_reply_to_message_id=msg.message_id, **field_updates)
         self._job_store.set_status(job_id, JobState.QUEUED)
         self._pending_clarifications.delete(job_id)
-        subject, body = render_clarification_received(job_id, selected)
+        subject, body = render_clarification_received(job_id, recorded_value)
         self._outbox.enqueue(
             to_email=sender_email,
             subject=subject,
@@ -443,3 +490,12 @@ def _first_unquoted_line(body: str) -> str:
         if stripped and not stripped.startswith(">"):
             return stripped
     return ""
+
+
+def _parse_clarification_date(answer: str):
+    if not answer:
+        return None
+    try:
+        return dateutil_parser.parse(answer, fuzzy=True)
+    except (ValueError, OverflowError, dateutil_parser.ParserError):
+        return None

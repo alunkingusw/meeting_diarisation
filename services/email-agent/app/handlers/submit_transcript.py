@@ -39,7 +39,9 @@ def accept(
     storage: StorageSettings,
     in_reply_to: Optional[str] = None,
     references: Optional[str] = None,
+    pending_clarifications: Optional[PendingClarificationStore] = None,
 ) -> HandlerOutcome:
+    pending_clarifications = pending_clarifications or PendingClarificationStore(job_store._db_path)
     assert validated_cmd.attachment is not None  # guaranteed by the validator
 
     real_attachment = next(
@@ -70,9 +72,24 @@ def accept(
         )
         return HandlerOutcome("rejected", job.job_id)
 
-    meeting_date, meeting_date_source = _resolve_meeting_date(
-        parsed_vtt, validated_cmd.mentioned_date, received_at
-    )
+    meeting_date, meeting_date_source = _resolve_meeting_date(parsed_vtt, validated_cmd.mentioned_date)
+
+    if meeting_date is None:
+        # Teams transcripts usually only record relative timestamps, not a calendar date -
+        # guessing from the received time would often be wrong, so ask instead of guessing.
+        job_store.update(job.job_id, speakers=parsed_vtt.speakers)
+        job_store.set_status(job.job_id, JobState.NEEDS_CLARIFICATION)
+        question = (
+            "I couldn't find a meeting date in the transcript or your email. What date was "
+            "this meeting (e.g. '11 August 2026')?"
+        )
+        pending_clarifications.put(job.job_id, question, "meeting_date", [])
+        subject, body = render_clarification(question, job.job_id)
+        outbox.enqueue(
+            to_email=sender_email, subject=subject, body_text=body, job_id=job.job_id,
+            in_reply_to=in_reply_to, references=references,
+        )
+        return HandlerOutcome("needs_clarification", job.job_id)
 
     job_store.update(
         job.job_id,
@@ -234,8 +251,8 @@ def _fail_and_move(
 
 
 def _resolve_meeting_date(
-    parsed_vtt: ParsedVtt, mentioned_date: Optional[str], received_at: datetime
-) -> tuple[datetime, str]:
+    parsed_vtt: ParsedVtt, mentioned_date: Optional[str]
+) -> tuple[Optional[datetime], Optional[str]]:
     if parsed_vtt.meeting_date is not None:
         return parsed_vtt.meeting_date, "vtt_note"
     if mentioned_date:
@@ -243,4 +260,4 @@ def _resolve_meeting_date(
             return dateutil_parser.parse(mentioned_date, fuzzy=True), "email_text"
         except (ValueError, OverflowError, dateutil_parser.ParserError):
             pass
-    return received_at, "received_timestamp"
+    return None, None

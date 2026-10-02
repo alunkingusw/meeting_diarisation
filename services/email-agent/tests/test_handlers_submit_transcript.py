@@ -75,7 +75,7 @@ def test_accept_valid_vtt_creates_queued_job_and_sends_ack(db_path: Path, tmp_pa
     assert outcome.job_id in pending[0].subject
 
 
-def test_accept_falls_back_to_received_time_when_no_date_anywhere(db_path: Path, tmp_path: Path):
+def test_accept_asks_for_clarification_when_no_date_anywhere(db_path: Path, tmp_path: Path):
     job_store = JobStore(db_path)
     outbox = Outbox(db_path)
     storage = _storage(tmp_path)
@@ -86,9 +86,16 @@ def test_accept_falls_back_to_received_time_when_no_date_anywhere(db_path: Path,
         [attachment], _validated_cmd(), "alice@uni.ac.uk", 12, "<msg-1@mail>", received,
         job_store, outbox, storage,
     )
+
+    assert outcome.outcome_type == "needs_clarification"
     job = job_store.get(outcome.job_id)
-    assert job.meeting_date_source == "received_timestamp"
-    assert job.meeting_date.startswith("2025-03-04")
+    assert job.status == JobState.NEEDS_CLARIFICATION
+    assert job.meeting_date is None
+
+    pending = outbox.pending()
+    assert len(pending) == 1
+    assert "date" in pending[0].body_text.lower()
+    assert outcome.job_id in pending[0].subject
 
 
 def test_accept_uses_mentioned_date_when_no_vtt_note(db_path: Path, tmp_path: Path):
