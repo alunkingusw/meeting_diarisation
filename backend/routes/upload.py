@@ -18,6 +18,7 @@ from sqlalchemy import and_, exists
 from backend.config import settings
 from backend.models import RawFile, RawFileType, GroupMember, User, Group, Meeting
 from werkzeug.utils import secure_filename
+from backend.db import SessionLocal
 from backend.db_dependency import get_db
 from backend.transcript_rag.indexer import index_transcript
 from backend.summarization.summariser import summarise_meeting_task
@@ -53,6 +54,36 @@ def validate_filename(filename: str) -> str:
     if not FILENAME_RE.fullmatch(filename):
         raise HTTPException(status_code=400, detail="Invalid filename")
     return filename
+
+
+def _process_uploaded_transcript(
+    group_id: int,
+    meeting_id: int,
+    transcript_path: str,
+    group_name: str,
+    meeting_date: str,
+) -> None:
+    db = SessionLocal()
+    try:
+        try:
+            index_transcript(
+                group_id=group_id,
+                group_name=group_name,
+                meeting_id=meeting_id,
+                vtt_path=Path(transcript_path),
+                meeting_title=group_name,
+                meeting_date=meeting_date,
+            )
+        except Exception:
+            logger.exception("Transcript indexing failed for meeting %s", meeting_id)
+        else:
+            try:
+                summarise_meeting_task(group_id, meeting_id, db)
+            except Exception:
+                logger.exception("Automatic summarisation failed for meeting %s", meeting_id)
+    finally:
+        db.close()
+
 
 @router.post("/groups/{group_id}/meetings/{meeting_id}/upload/", tags=["meetings"])
 async def upload_file(
@@ -129,24 +160,15 @@ async def upload_file(
     if file_path.suffix.lower() == ".vtt" and file_type == RawFileType.TRANSCRIPT_PROVIDED:
         group = db.query(Group).get(group_id)
         meeting = db.query(Meeting).get(meeting_id)
-        try:
-            index_transcript(
-                group_id=group_id,
-                group_name=group.name,
-                meeting_id=meeting_id,
-                vtt_path=file_path,
-                meeting_title=group.name,
-                meeting_date=meeting.date.date().isoformat(),
+        if group is not None and meeting is not None:
+            background_tasks.add_task(
+                _process_uploaded_transcript,
+                group_id,
+                meeting_id,
+                str(file_path),
+                group.name,
+                meeting.date.date().isoformat(),
             )
-        except Exception:
-            # Chunking/indexing is not part of this endpoint's contract - the upload itself
-            # already succeeded and is recorded, so a failure here is logged, not raised.
-            logger.exception("Transcript indexing failed for meeting %s", meeting_id)
-        else:
-            # Queued rather than called inline so the LLM call doesn't add to this
-            # request's latency - same non-fatal handling as indexing (see
-            # summarise_meeting_task), just deferred to the background thread.
-            background_tasks.add_task(summarise_meeting_task, group_id, meeting_id, db)
 
     return raw_file
 

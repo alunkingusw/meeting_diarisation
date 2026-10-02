@@ -46,6 +46,32 @@ def test_upload_transcript_file(client, make_user, make_group, make_meeting, aut
     assert response.json()["type"] == "transcript_provided"
 
 
+def test_upload_transcript_runs_processing_in_background(monkeypatch, tmp_path):
+    from backend.routes import upload as upload_module
+
+    calls = []
+
+    class FakeSession:
+        def close(self):
+            pass
+
+    monkeypatch.setattr(upload_module, "SessionLocal", lambda: FakeSession())
+    monkeypatch.setattr(
+        upload_module,
+        "index_transcript",
+        lambda **kwargs: calls.append("indexed") or {"chunks_path": str(tmp_path / "chunks.jsonl")},
+    )
+    monkeypatch.setattr(
+        upload_module,
+        "summarise_meeting_task",
+        lambda *args, **kwargs: calls.append("summarised"),
+    )
+
+    upload_module._process_uploaded_transcript(1, 2, str(tmp_path / "meeting.vtt"), "Team A", "2026-01-01")
+
+    assert calls == ["indexed", "summarised"]
+
+
 def test_group_member_email_token_is_transcript_only_and_group_scoped(
     client, make_group, make_member, make_meeting
 ):
