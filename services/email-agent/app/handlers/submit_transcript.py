@@ -148,6 +148,10 @@ def execute(
                 "speakers": job.speakers,
             }
         )
+        logger.info(
+            "Job %s submit graph steps: %s", job.job_id,
+            [e["event"] for e in result.get("audit_events", [])],
+        )
 
         if result.get("clarification_question"):
             question = result["clarification_question"]
@@ -195,6 +199,7 @@ def execute(
         )
 
     except DiarisationApiError as e:
+        logger.exception("Backend API error executing job %s", job.job_id)
         _handle_execute_failure(job, str(e), job_store, outbox, admin_notifier, storage)
     except Exception as e:  # unexpected - still must not crash the worker loop
         logger.exception("Unexpected error executing job %s", job.job_id)

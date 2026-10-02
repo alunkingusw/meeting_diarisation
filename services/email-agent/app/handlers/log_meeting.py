@@ -71,6 +71,10 @@ def execute(
                 "comment_text": job.comment_text,
             }
         )
+        logger.info(
+            "Job %s log-meeting graph steps: %s", job.job_id,
+            [e["event"] for e in result.get("audit_events", [])],
+        )
 
         if result.get("clarification_question"):
             question = result["clarification_question"]
@@ -120,6 +124,7 @@ def execute(
             references=parent_message_id,
         )
     except DiarisationApiError as exc:
+        logger.exception("Backend API error logging meeting for job %s", job.job_id)
         _fail(job, str(exc), job_store, outbox, admin_notifier, parent_message_id)
     except Exception as exc:
         logger.exception("Unexpected error logging meeting for job %s", job.job_id)

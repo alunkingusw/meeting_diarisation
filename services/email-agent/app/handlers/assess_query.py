@@ -151,6 +151,7 @@ def execute(
         )
 
     except DiarisationApiError as e:
+        logger.exception("Backend API error executing job %s", job.job_id)
         _handle_failure(job, f"Could not reach the backend to resolve your group: {e}", job_store, outbox, admin_notifier)
     except Exception as e:  # unexpected - still must not crash the worker loop or leave the job stuck
         logger.exception("Unexpected error executing job %s", job.job_id)
