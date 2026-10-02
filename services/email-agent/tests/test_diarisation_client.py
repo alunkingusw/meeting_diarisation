@@ -180,6 +180,28 @@ def test_upload_file(client):
 
 
 @respx.mock
+def test_upload_file_sends_real_multipart_file(client):
+    route = respx.post(f"{BASE_URL}/groups/1/meetings/42/upload/").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "id": 99,
+                "file_name": "uuid_meeting.vtt",
+                "human_name": "meeting.vtt",
+                "type": "transcript_provided",
+            },
+        )
+    )
+
+    client.upload_file("tok", 1, 42, "meeting.vtt", b"WEBVTT\n\n1\n...")
+
+    request = route.calls.last.request
+    body = request.content
+    assert b'filename="meeting.vtt"' in body
+    assert b"WEBVTT" in body
+
+
+@respx.mock
 def test_add_attendee(client):
     respx.post(f"{BASE_URL}/groups/1/meetings/42/attendees").mock(
         return_value=httpx.Response(

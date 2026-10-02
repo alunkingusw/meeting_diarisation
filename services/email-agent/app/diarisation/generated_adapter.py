@@ -42,16 +42,10 @@ from app.diarisation.generated_client.fast_api_client.api.meetings.list_meetings
 from app.diarisation.generated_client.fast_api_client.api.meetings.add_meeting_comment_groups_group_id_meetings_meeting_id_comments_post import (
     sync_detailed as add_comment_detailed,
 )
-from app.diarisation.generated_client.fast_api_client.api.meetings.upload_file_groups_group_id_meetings_meeting_id_upload_post import (
-    sync_detailed as upload_file_detailed,
-)
 from app.diarisation.generated_client.fast_api_client.api.transcripts.search_groups_group_id_transcripts_search_post import (
     sync_detailed as search_transcripts_detailed,
 )
 from app.diarisation.generated_client.fast_api_client.models.alias_resolve_request import AliasResolveRequest
-from app.diarisation.generated_client.fast_api_client.models.body_upload_file_groups_group_id_meetings_meeting_id_upload_post import (
-    BodyUploadFileGroupsGroupIdMeetingsMeetingIdUploadPost,
-)
 from app.diarisation.generated_client.fast_api_client.models.meeting_attendee import MeetingAttendee
 from app.diarisation.generated_client.fast_api_client.models.meeting_comment_create import (
     MeetingCommentCreate,
@@ -222,17 +216,24 @@ class GeneratedDiarisationAdapter:
     ) -> dict:
         client = self._authenticated(token)
         try:
-            response = upload_file_detailed(
-                group_id=group_id,
-                meeting_id=meeting_id,
-                client=client,
-                body=BodyUploadFileGroupsGroupIdMeetingsMeetingIdUploadPost(file=content.decode('utf-8')),
+            lower_name = filename.lower()
+            if lower_name.endswith(".vtt"):
+                content_type = "text/vtt"
+            elif lower_name.endswith(".srt"):
+                content_type = "text/plain"
+            else:
+                content_type = "application/octet-stream"
+
+            response = client.get_httpx_client().request(
+                "POST",
+                f"/groups/{group_id}/meetings/{meeting_id}/upload/",
+                files={"file": (filename, content, content_type)},
             )
             self._raise_for_response(
                 response.status_code,
                 f"POST /groups/{group_id}/meetings/{meeting_id}/upload/",
             )
-            return response.parsed
+            return response.json()
         finally:
             client.get_httpx_client().close()
 
