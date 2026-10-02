@@ -32,9 +32,35 @@ def render_ack(job_id: str, filename: str, meeting_date: str, group_name: Option
     return subject, body
 
 
-def render_clarification(question: str, job_id: Optional[str] = None) -> tuple[str, str]:
-    subject = f"Clarification needed — {job_id}" if job_id else "Clarification needed"
-    body = _render("clarification.txt.j2", question=question, job_id=job_id)
+def render_clarification(
+    question: str,
+    job_id: Optional[str] = None,
+    original_subject: Optional[str] = None,
+    original_body_text: Optional[str] = None,
+) -> tuple[str, str]:
+    if original_subject and original_subject.strip():
+        clean_subject = " ".join(original_subject.splitlines()).strip()[:160]
+        reply_prefix = "" if clean_subject.lower().startswith("re:") else "Re: "
+        clarification_tag = f" [Clarification needed | {job_id}]" if job_id else " [Clarification needed]"
+        subject = f"{reply_prefix}{clean_subject}{clarification_tag}"
+        original_subject = clean_subject
+    else:
+        subject = f"Clarification needed — {job_id}" if job_id else "Clarification needed"
+
+    quoted_original = ""
+    if original_body_text:
+        quoted_body = original_body_text[:8000]
+        if len(original_body_text) > len(quoted_body):
+            quoted_body += "\n[Original email truncated]"
+        quoted_lines = "\n".join(f"> {line}" for line in quoted_body.splitlines())
+        quoted_original = f"Original email:\nSubject: {original_subject or '(no subject)'}\n\n{quoted_lines}"
+
+    body = _render(
+        "clarification.txt.j2",
+        question=question,
+        job_id=job_id,
+        quoted_original=quoted_original,
+    )
     return subject, body
 
 

@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     sender_email TEXT NOT NULL,
     backend_user_id INTEGER,
     source_message_id TEXT NOT NULL,
+    original_subject TEXT,
+    original_body_text TEXT,
     operation TEXT NOT NULL DEFAULT 'submit_transcript',
     status TEXT NOT NULL,
     group_hint TEXT,
@@ -153,6 +155,11 @@ def init_db(db_path: Path) -> None:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
         if "comment_text" not in columns:
             conn.execute("ALTER TABLE jobs ADD COLUMN comment_text TEXT")
+            columns.add("comment_text")
+        for column in ("original_subject", "original_body_text"):
+            if column not in columns:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
+                columns.add(column)
         backend_user_column = next(
             row for row in conn.execute("PRAGMA table_info(jobs)")
             if row["name"] == "backend_user_id"
@@ -166,6 +173,8 @@ def init_db(db_path: Path) -> None:
                     sender_email TEXT NOT NULL,
                     backend_user_id INTEGER,
                     source_message_id TEXT NOT NULL,
+                    original_subject TEXT,
+                    original_body_text TEXT,
                     operation TEXT NOT NULL DEFAULT 'submit_transcript',
                     status TEXT NOT NULL,
                     group_hint TEXT,

@@ -40,6 +40,8 @@ def accept(
     in_reply_to: Optional[str] = None,
     references: Optional[str] = None,
     pending_clarifications: Optional[PendingClarificationStore] = None,
+    original_subject: Optional[str] = None,
+    original_body_text: Optional[str] = None,
 ) -> HandlerOutcome:
     pending_clarifications = pending_clarifications or PendingClarificationStore(job_store._db_path)
     assert validated_cmd.attachment is not None  # guaranteed by the validator
@@ -56,6 +58,8 @@ def accept(
         operation="submit_transcript",
         group_hint=validated_cmd.group_hint,
         attachment_filename=validated_cmd.attachment.filename,
+        original_subject=original_subject,
+        original_body_text=original_body_text,
     )
     job_store.set_status(job.job_id, JobState.VALIDATING)
 
@@ -84,7 +88,9 @@ def accept(
             "this meeting (e.g. '11 August 2026')?"
         )
         pending_clarifications.put(job.job_id, question, "meeting_date", [])
-        subject, body = render_clarification(question, job.job_id)
+        subject, body = render_clarification(
+            question, job.job_id, job.original_subject, job.original_body_text
+        )
         outbox.enqueue(
             to_email=sender_email, subject=subject, body_text=body, job_id=job.job_id,
             in_reply_to=in_reply_to, references=references,
@@ -152,7 +158,9 @@ def execute(
                 result.get("clarification_expected_field", "group_hint"),
                 result.get("clarification_options", []),
             )
-            subject, body = render_clarification(question, job.job_id)
+            subject, body = render_clarification(
+                question, job.job_id, job.original_subject, job.original_body_text
+            )
             outbox.enqueue(
                 to_email=job.sender_email, subject=subject, body_text=body, job_id=job.job_id,
                 in_reply_to=parent_message_id, references=parent_references,

@@ -23,6 +23,21 @@ def test_clarification_includes_the_question():
     assert _INTERNAL_OPERATION_NAME not in body
 
 
+def test_clarification_preserves_original_subject_and_quotes_original_email():
+    subject, body = render.render_clarification(
+        "What date was the meeting?",
+        job_id="DIAR-2026-1002-0001",
+        original_subject="Project sync notes",
+        original_body_text="We agreed to begin the pilot.\nPlease log this meeting.",
+    )
+
+    assert subject == "Re: Project sync notes [Clarification needed | DIAR-2026-1002-0001]"
+    assert "What date was the meeting?" in body
+    assert "Subject: Project sync notes" in body
+    assert "> We agreed to begin the pilot." in body
+    assert "> Please log this meeting." in body
+
+
 def test_failure_with_job_id():
     subject, body = render.render_failure("The file was empty.", job_id="DIAR-2026-0811-0002")
     assert "DIAR-2026-0811-0002" in subject

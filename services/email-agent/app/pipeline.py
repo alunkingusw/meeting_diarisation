@@ -179,10 +179,13 @@ class EmailProcessingPipeline:
             else:
                 self._reply_and_finalize(
                     msg,
-                    *render_clarification(
+                    *self._render_clarification_for_message(
+                        msg,
+                        sender_email,
                         "I couldn't understand your request. Could you rephrase it, mentioning "
                         "clearly what you'd like me to do (submit a transcript, check status, see "
-                        "results, or cancel a request)?"
+                        "results, or cancel a request)?",
+                        thread_job_id,
                     ),
                     outcome="llm_parse_failed",
                 )
@@ -222,7 +225,9 @@ class EmailProcessingPipeline:
             validated = validate_command(parsed_cmd, ctx)
         except ClarificationRequired as e:
             self._reply_and_finalize(
-                msg, *render_clarification(e.question, thread_job_id), outcome="clarification_sent",
+                msg,
+                *self._render_clarification_for_message(msg, sender_email, e.question, thread_job_id),
+                outcome="clarification_sent",
                 operation=parsed_cmd.operation.value,
             )
             return
@@ -239,7 +244,9 @@ class EmailProcessingPipeline:
             )
         except ClarificationRequired as e:
             self._reply_and_finalize(
-                msg, *render_clarification(e.question, thread_job_id), outcome="clarification_sent",
+                msg,
+                *self._render_clarification_for_message(msg, sender_email, e.question, thread_job_id),
+                outcome="clarification_sent",
                 operation=validated.operation.value,
             )
             return
@@ -274,6 +281,8 @@ class EmailProcessingPipeline:
                 in_reply_to,
                 references,
                 pending_clarifications=self._pending_clarifications,
+                original_subject=msg.subject,
+                original_body_text=msg.body_text,
             )
         elif validated.operation == Operation.STATUS:
             outcome = status_handler.handle(
@@ -291,6 +300,7 @@ class EmailProcessingPipeline:
             outcome = assess_query_handler.accept(
                 validated, sender_email, sender_user_id, msg.message_id, self._job_store,
                 self._outbox, in_reply_to, references,
+                original_subject=msg.subject, original_body_text=msg.body_text,
             )
         elif validated.operation == Operation.ADD_COMMENT:
             outcome = add_comment_handler.accept(
@@ -301,6 +311,7 @@ class EmailProcessingPipeline:
             outcome = log_meeting_handler.accept(
                 validated, sender_email, sender_user_id, msg.message_id, self._job_store,
                 self._outbox, in_reply_to, references,
+                original_subject=msg.subject, original_body_text=msg.body_text,
             )
         elif validated.operation == Operation.HELP:
             outcome = help_handler.handle(sender_email, self._outbox, in_reply_to, references)
@@ -321,6 +332,27 @@ class EmailProcessingPipeline:
             logger.warning("Could not infer sender's group for %s", sender_email, exc_info=True)
             return None
         return groups[0].name if len(groups) == 1 else None
+
+    def _render_clarification_for_message(
+        self,
+        msg: EmailMessage,
+        sender_email: str,
+        question: str,
+        job_id: Optional[str] = None,
+    ) -> tuple[str, str]:
+        original_subject = msg.subject
+        original_body_text = msg.body_text
+        if job_id:
+            job = self._job_store.get_owned(job_id, sender_email)
+            if job is not None:
+                original_subject = job.original_subject or original_subject
+                original_body_text = job.original_body_text or original_body_text
+        return render_clarification(
+            question,
+            job_id,
+            original_subject=original_subject,
+            original_body_text=original_body_text,
+        )
 
     def _continue_clarification(self, msg: EmailMessage, sender_email: str, job_id: str) -> bool:
         pending = self._pending_clarifications.get(job_id)
@@ -352,7 +384,9 @@ class EmailProcessingPipeline:
                 recorded_value = matches[0]
 
         if recorded_value is None:
-            subject, body = render_clarification(pending.question, job_id)
+            subject, body = self._render_clarification_for_message(
+                msg, sender_email, pending.question, job_id
+            )
             self._outbox.enqueue(
                 to_email=sender_email,
                 subject=subject,

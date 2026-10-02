@@ -48,6 +48,8 @@ class Job:
     backend_user_id: Optional[int]
     source_message_id: str
     status: JobState
+    original_subject: Optional[str] = None
+    original_body_text: Optional[str] = None
     operation: str = "submit_transcript"
     group_hint: Optional[str] = None
     resolved_group_id: Optional[int] = None
@@ -82,6 +84,8 @@ class Job:
             source_message_id=row["source_message_id"],
             operation=row["operation"],
             status=JobState(row["status"]),
+            original_subject=row["original_subject"],
+            original_body_text=row["original_body_text"],
             group_hint=row["group_hint"],
             resolved_group_id=row["resolved_group_id"],
             resolved_group_name=row["resolved_group_name"],

@@ -513,6 +513,8 @@ def test_missing_meeting_date_clarification_reply_resumes_same_job(db_path: Path
     mail = FakeMailClient()
     original = make_test_email(
         "alice@uni.ac.uk", message_id="<original-transcript@mail>",
+        subject="Project sync transcript",
+        body_text="Please submit the transcript from our project sync.",
         attachments=[_vtt_attachment(fixture="valid_no_date.vtt")], auth_signals=PASS,
     )
     mail.add_message(original)
@@ -528,9 +530,18 @@ def test_missing_meeting_date_clarification_reply_resumes_same_job(db_path: Path
 
     clarification = mail.sent[-1]
     assert "date" in clarification.body_text.lower()
-    job_id = clarification.subject.rsplit("—", 1)[-1].strip()
-    assert job_store.get(job_id).status == JobState.NEEDS_CLARIFICATION
-    assert job_store.get(job_id).meeting_date is None
+    assert clarification.subject.startswith(
+        "Re: Project sync transcript [Clarification needed | DIAR-"
+    )
+    assert clarification.subject.endswith("]")
+    assert "Subject: Project sync transcript" in clarification.body_text
+    assert "> Please submit the transcript from our project sync." in clarification.body_text
+    job_id = clarification.subject.split("[Clarification needed | ", 1)[1].split("]", 1)[0]
+    job = job_store.get(job_id)
+    assert job.status == JobState.NEEDS_CLARIFICATION
+    assert job.meeting_date is None
+    assert job.original_subject == "Project sync transcript"
+    assert job.original_body_text == "Please submit the transcript from our project sync."
 
     reply = make_test_email(
         "alice@uni.ac.uk", message_id="<date-answer@mail>", body_text="11 August 2026",

@@ -25,6 +25,8 @@ def accept(
     outbox: Outbox,
     in_reply_to: Optional[str] = None,
     references: Optional[str] = None,
+    original_subject: Optional[str] = None,
+    original_body_text: Optional[str] = None,
 ) -> HandlerOutcome:
     assert validated_cmd.meeting_date is not None
     assert validated_cmd.comment is not None
@@ -39,6 +41,8 @@ def accept(
         meeting_date_source="email_text",
         comment_text=validated_cmd.comment,
         in_reply_to_message_id=in_reply_to,
+        original_subject=original_subject,
+        original_body_text=original_body_text,
     )
     job_store.set_status(job.job_id, JobState.VALIDATING)
     job_store.set_status(job.job_id, JobState.QUEUED)
@@ -77,7 +81,9 @@ def execute(
                 result.get("clarification_expected_field", "group_hint"),
                 result.get("clarification_options", []),
             )
-            subject, body = render_clarification(question, job.job_id)
+            subject, body = render_clarification(
+                question, job.job_id, job.original_subject, job.original_body_text
+            )
             outbox.enqueue(
                 to_email=job.sender_email,
                 subject=subject,

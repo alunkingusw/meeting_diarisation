@@ -73,6 +73,8 @@ def test_log_meeting_handler_persists_group_clarification(db_path, tmp_path):
         operation="log_meeting",
         meeting_date=datetime(2026, 10, 1, tzinfo=timezone.utc).isoformat(),
         comment_text="Decisions: proceed with the pilot.",
+        original_subject="Project planning notes",
+        original_body_text="We discussed the launch timeline and owners.",
     )
     job_store.set_status(job.job_id, JobState.VALIDATING)
     job_store.set_status(job.job_id, JobState.QUEUED)
@@ -95,6 +97,10 @@ def test_log_meeting_handler_persists_group_clarification(db_path, tmp_path):
     assert updated.status == JobState.NEEDS_CLARIFICATION
     assert clarification.expected_field == "group_hint"
     assert clarification.options == ["Team A", "Team B"]
+    assert outbox.pending()[0].subject.startswith(
+        "Re: Project planning notes [Clarification needed | DIAR-"
+    )
+    assert "> We discussed the launch timeline and owners." in outbox.pending()[0].body_text
     assert client.meetings == []
     assert client.comments == []
 
