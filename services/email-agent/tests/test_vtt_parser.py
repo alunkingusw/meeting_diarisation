@@ -24,6 +24,13 @@ def test_valid_vtt_without_date_has_no_meeting_date():
     assert result.meeting_date_source is None
 
 
+def test_teams_vtt_with_cue_ids_and_voice_tags():
+    result = parse_vtt(FIXTURES / "teams_voice_tags.vtt")
+    assert result.speakers == ["Booth J (FCES)", "Alun King"]
+    assert result.cue_count == 3
+    assert result.warnings == []
+
+
 def test_malformed_cue_is_a_warning_not_a_failure():
     result = parse_vtt(FIXTURES / "malformed_cue.vtt")
     # 3 cues total, 2 with recognisable speakers, 1 flagged as a warning but still counted.

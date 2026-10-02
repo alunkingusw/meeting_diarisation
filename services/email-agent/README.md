@@ -62,7 +62,7 @@ app/
   auth/          Deterministic sender authorisation and permission precedence
   llm/           Ollama client, system prompt, retry-then-fail command parser
   commands/      The structured command schema and its validator (the trust boundary)
-  vtt/           WEBVTT transcript parser (speaker labels + NOTE meeting-date convention)
+  vtt/           WEBVTT parser (Teams voice tags, speaker labels + NOTE meeting-date convention)
   diarisation/   HTTP client for the real backend (one method per endpoint used)
   jobs/          SQLite job store, inbound-message dedup, outbound mail queue, background worker
   reports/       LangGraph weekly reports, persisted source evidence, and report replies

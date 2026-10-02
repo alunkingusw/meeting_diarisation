@@ -1,11 +1,8 @@
 """Parser for the WEBVTT transcripts accepted via email.
 
-The speaker-labelled cue format mirrors exactly what the backend's own
-backend/processing/transcribe.py generates: `{index}\\n{start} --> {end}\\n{speaker}: {text}\\n`.
-This parser is deliberately tolerant of malformed *individual* cues (logged as warnings, still
-counted) but requires a WEBVTT header and at least one recognisable cue overall - a file with
-zero cues is invalid input, not merely ambiguous, so it's a hard VttParseError rather than
-something the caller should ask the sender to clarify.
+Cue structure is parsed by webvtt-py. Speaker extraction accepts both Teams
+voice spans (`<v Speaker>text</v>`) and the backend's `Speaker: text` format.
+Malformed individual cues remain warnings, but a file with zero cues is invalid.
 
 Meeting-date convention: a WEBVTT NOTE cue whose body starts with "meeting-date:" (case
 insensitive), e.g. `NOTE meeting-date: 2026-08-11`. The first such NOTE found wins if more than
@@ -20,9 +17,10 @@ from pathlib import Path
 from typing import Optional, Union
 
 from dateutil import parser as dateutil_parser
+from webvtt import WebVTT
+from webvtt.errors import MalformedCaptionError, MalformedFileError
 
 WEBVTT_HEADER_RE = re.compile(r"^WEBVTT\b")
-TIMESTAMP_LINE_RE = re.compile(r"-->")
 NOTE_DATE_RE = re.compile(r"^meeting-date:\s*(?P<value>.+)$", re.IGNORECASE)
 CUE_SPEAKER_RE = re.compile(r"^(?P<speaker>[^:\n]{1,100}):\s?(?P<text>.*)$")
 
@@ -48,6 +46,11 @@ def parse_vtt(path: Union[str, Path]) -> ParsedVtt:
     if not WEBVTT_HEADER_RE.match(stripped):
         raise VttParseError("File does not start with a WEBVTT header")
 
+    try:
+        webvtt = WebVTT.from_string(stripped)
+    except (MalformedCaptionError, MalformedFileError) as exc:
+        raise VttParseError(f"Could not parse WEBVTT content: {exc}") from exc
+
     blocks = _BLOCK_SPLIT_RE.split(stripped)
     blocks = blocks[1:] if blocks else []  # drop the WEBVTT header block itself
 
@@ -61,9 +64,25 @@ def parse_vtt(path: Union[str, Path]) -> ParsedVtt:
 
         if lines[0].strip().upper().startswith("NOTE"):
             _handle_note_block(lines, result)
+
+    for caption in webvtt.captions:
+        result.cue_count += 1
+        speaker = caption.voice
+        cue_text = " ".join(caption.text.split())
+
+        if not speaker:
+            match = CUE_SPEAKER_RE.match(cue_text)
+            if match:
+                speaker = match.group("speaker").strip()
+
+        if not speaker:
+            result.warnings.append(
+                f"Cue without a recognisable speaker label: {cue_text[:80]!r}"
+            )
             continue
 
-        _handle_cue_block(lines, block, result, seen_speakers)
+        if speaker not in seen_speakers:
+            seen_speakers[speaker] = None
 
     result.speakers = list(seen_speakers.keys())
 
@@ -71,34 +90,6 @@ def parse_vtt(path: Union[str, Path]) -> ParsedVtt:
         raise VttParseError("No cues found in VTT file")
 
     return result
-
-
-def _handle_cue_block(
-    lines: list[str], raw_block: str, result: ParsedVtt, seen_speakers: dict[str, None]
-) -> None:
-    cue_lines = lines
-    if cue_lines and cue_lines[0].strip().isdigit():
-        cue_lines = cue_lines[1:]  # optional numeric cue identifier
-
-    if not cue_lines or not TIMESTAMP_LINE_RE.search(cue_lines[0]):
-        result.warnings.append(f"Skipped block without a timestamp line: {raw_block[:80]!r}")
-        return
-
-    text_lines = cue_lines[1:]
-    if not text_lines:
-        result.warnings.append("Cue has a timestamp but no text")
-        return
-
-    result.cue_count += 1
-    cue_text = " ".join(text_lines).strip()
-    match = CUE_SPEAKER_RE.match(cue_text)
-    if not match:
-        result.warnings.append(f"Cue without a recognisable speaker label: {cue_text[:80]!r}")
-        return
-
-    speaker = match.group("speaker").strip()
-    if speaker and speaker not in seen_speakers:
-        seen_speakers[speaker] = None
 
 
 def _handle_note_block(lines: list[str], result: ParsedVtt) -> None:

@@ -17,6 +17,7 @@ dependencies = [
     "attrs>=22.2",
     "langchain-core==1.6.3",
     "langgraph>=0.2",
+    "webvtt-py>=0.5.1",
 ]
 
 [project.optional-dependencies]
