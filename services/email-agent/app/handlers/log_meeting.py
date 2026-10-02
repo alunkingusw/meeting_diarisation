@@ -2,17 +2,16 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Optional
 
 from app.admin.notifier import AdminCategory, AdminNotifier
 from app.commands.validator import ValidatedCommand
 from app.diarisation.client import DiarisationApiError, DiarisationClient
-from app.diarisation.group_matching import Matched, group_clarification_question, match_group
 from app.email_templates.render import render_clarification, render_failure, render_meeting_log_confirmation
 from app.handlers.base import HandlerOutcome
 from app.jobs.models import Job, JobState
 from app.jobs.store import JobStore, Outbox, PendingClarificationStore
+from app.llm.log_meeting_graph import build_log_meeting_graph
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +57,26 @@ def execute(
     parent_message_id = job.in_reply_to_message_id or job.source_message_id
     try:
         job_store.set_status(job.job_id, JobState.PROCESSING)
-        token = diarisation_client.login_for_email(job.sender_email)
-        groups = diarisation_client.list_groups(token)
-        match = match_group(job.group_hint, groups)
-        if not isinstance(match, Matched):
-            question = group_clarification_question(match, groups, "this meeting")
+        graph = build_log_meeting_graph(diarisation_client)
+        result = graph.invoke(
+            {
+                "job_id": job.job_id,
+                "sender_email": job.sender_email,
+                "group_hint": job.group_hint,
+                "meeting_date": job.meeting_date,
+                "comment_text": job.comment_text,
+            }
+        )
+
+        if result.get("clarification_question"):
+            question = result["clarification_question"]
             job_store.set_status(job.job_id, JobState.NEEDS_CLARIFICATION)
-            pending_clarifications.put(job.job_id, question, "group_hint", [g.name for g in groups])
+            pending_clarifications.put(
+                job.job_id,
+                question,
+                result.get("clarification_expected_field", "group_hint"),
+                result.get("clarification_options", []),
+            )
             subject, body = render_clarification(question, job.job_id)
             outbox.enqueue(
                 to_email=job.sender_email,
@@ -76,24 +88,21 @@ def execute(
             )
             return
 
-        meeting_date = datetime.fromisoformat(job.meeting_date)
-        meeting = diarisation_client.create_meeting(
-            token, match.group.id, meeting_date, idempotency_key=job.job_id
-        )
         job_store.update(
             job.job_id,
-            resolved_group_id=match.group.id,
-            resolved_group_name=match.group.name,
-            backend_meeting_id=meeting.id,
+            resolved_group_id=result["group_id"],
+            resolved_group_name=result["group_name"],
+            backend_meeting_id=result["meeting_id"],
         )
-        diarisation_client.add_comment(token, match.group.id, meeting.id, job.comment_text)
+        if result.get("execution_error"):
+            raise RuntimeError(result["execution_error"])
         job_store.set_status(job.job_id, JobState.COMPLETED)
 
         subject, body = render_meeting_log_confirmation(
             job.job_id,
-            match.group.name,
-            meeting_date.isoformat(),
-            meeting.id,
+            result["group_name"],
+            job.meeting_date,
+            result["meeting_id"],
             job.comment_text,
         )
         outbox.enqueue(
