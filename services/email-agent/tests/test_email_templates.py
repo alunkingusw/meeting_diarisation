@@ -83,16 +83,6 @@ def test_help_mentions_vtt_and_rejects_audio_expectation():
     assert _INTERNAL_OPERATION_NAME not in body
 
 
-def test_unrecognised_sender_includes_admin_contact():
-    _, body = render.render_unrecognised_sender("admin@uni.ac.uk")
-    assert "admin@uni.ac.uk" in body
-
-
-def test_unrecognised_sender_without_admin_email_configured_still_renders():
-    _, body = render.render_unrecognised_sender(None)
-    assert "administrator" in body.lower()
-
-
 def test_assess_ack_includes_job_id():
     _, body = render.render_assess_ack("DIAR-2026-0811-0017")
     assert "DIAR-2026-0811-0017" in body

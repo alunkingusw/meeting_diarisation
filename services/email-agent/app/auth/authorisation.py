@@ -1,24 +1,17 @@
 """Deterministic sender authorisation - runs *before* the LLM is ever invoked (spec S4).
 
-Implements identity-first authorization for this university deployment:
+Identity comes only from the backend database; there is no separate domain allow-list.
 
-1. authorised          - auth signals pass AND the address belongs to a registered User
-                          (checked before group-member addresses, so the more privileged
-                          identity wins if an address exists in both tables)
-                          -> proceed normally.
-2. group_member        - auth signals pass AND the address belongs to one or more
-                          registered GroupMember records
-                          -> proceed with the restricted group-member workflow.
-3. unrecognised_in_domain - auth signals pass, the address's domain is one of
-                          AUTHORISED_EMAIL_DOMAINS, but it isn't registered
-                          -> a friendly "you're not registered" reply is sent (this is an
-                          expected onboarding case for a university mailbox).
-4. unauthorised_external / unauthenticated / malformed_sender
-                          -> silent drop, no reply (replying would confirm a monitored mailbox
-                          exists to arbitrary internet senders; a domain claim without a
-                          passing SPF/DKIM/DMARC check can't be trusted anyway).
+1. authorised    - auth signals pass AND the address belongs to a registered User
+                    (checked before group members, so the more privileged identity wins)
+                    -> proceed normally.
+2. group_member  - auth signals pass AND the address belongs to a registered GroupMember
+                    -> proceed with the restricted group-member workflow.
+3. unregistered / unauthenticated / malformed_sender
+                  -> silent drop, no reply (replying would confirm a monitored mailbox
+                    exists to arbitrary internet senders).
 
-All six outcomes are logged and (for anything but "authorised" or "group_member") admin-alertable by the caller.
+Every outcome is logged and (for anything but 1 and 2) admin-alertable by the caller.
 """
 from __future__ import annotations
 
@@ -33,8 +26,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 class AuthResultReason(str, Enum):
     AUTHORISED = "authorised"
     GROUP_MEMBER = "group_member"
-    UNRECOGNISED_IN_DOMAIN = "unrecognised_in_domain"
-    UNAUTHORISED_EXTERNAL = "unauthorised_external"
+    UNREGISTERED = "unregistered"
     UNAUTHENTICATED = "unauthenticated"
     MALFORMED_SENDER = "malformed_sender"
 
@@ -64,7 +56,6 @@ class SenderAuthoriser:
     def __init__(
         self,
         group_owners: dict[str, int],
-        authorised_domains: list[str],
         require_auth_pass: bool = True,
         group_members: dict[str, list[int]] | None = None,
     ):
@@ -73,7 +64,6 @@ class SenderAuthoriser:
             email.strip().lower(): tuple(member_ids)
             for email, member_ids in (group_members or {}).items()
         }
-        self._authorised_domains = {d.strip().lower() for d in authorised_domains}
         self._require_auth_pass = require_auth_pass
 
     def authorise(self, from_address: str, auth_signals: AuthSignals) -> SenderAuthResult:
@@ -114,20 +104,11 @@ class SenderAuthoriser:
                 group_member_ids=member_ids,
             )
 
-        domain = normalised.rsplit("@", 1)[-1]
-        if domain_matches(domain, self._authorised_domains):
-            return SenderAuthResult(
-                ok=False,
-                user_id=None,
-                sender_email=normalised,
-                reason=AuthResultReason.UNRECOGNISED_IN_DOMAIN,
-            )
-
         return SenderAuthResult(
             ok=False,
             user_id=None,
             sender_email=normalised,
-            reason=AuthResultReason.UNAUTHORISED_EXTERNAL,
+            reason=AuthResultReason.UNREGISTERED,
         )
 
     @staticmethod
@@ -149,12 +130,3 @@ def _normalise_email(address: str) -> Optional[str]:
     if not _EMAIL_RE.match(candidate):
         return None
     return candidate
-
-
-def domain_matches(domain: str, configured_domains: set[str] | list[str]) -> bool:
-    normalised_domain = domain.strip().lower()
-    return any(
-        normalised_domain == configured_domain.strip().lower()
-        or normalised_domain.endswith(f".{configured_domain.strip().lower()}")
-        for configured_domain in configured_domains
-    )

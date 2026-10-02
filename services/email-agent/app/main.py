@@ -126,7 +126,6 @@ def run(settings: Settings) -> None:
     )
     authoriser = SenderAuthoriser(
         load_group_owners(settings),
-        settings.authorised_email_domains,
         settings.authorisation.require_auth_pass,
         group_members=load_group_members(settings),
     )
@@ -164,7 +163,6 @@ def run(settings: Settings) -> None:
         settings.storage,
         settings.limits,
         settings.admin_email,
-        settings.authorisation.unauthorised_sender_alert_exempt_domains,
         diarisation_client=diarisation_client,
     )
     worker = JobWorker(

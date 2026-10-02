@@ -1,5 +1,5 @@
 # Copy this file to config/config.yaml and adjust for your deployment.
-# Secrets (mailbox credentials, admin email, authorised domains) go in .env, not here.
+# Secrets (mailbox credentials, admin email) go in .env, not here.
 
 mail:
   provider: mail                # graph | mail | fake
@@ -10,9 +10,6 @@ mail:
 
 authorisation:
   require_auth_pass: true       # fail closed if SPF/DKIM/DMARC don't pass
-  # These domains are excluded from admin sender alerts only; they do not grant access.
-  unauthorised_sender_alert_exempt_domains:
-    - students.southwales.ac.uk
   # group_owners is normally left unset - authorised senders are fetched live at startup from
   # meeting_diarisation's /admin/group-owners endpoint (needs DIARISATION_SERVICE_API_KEY in
   # .env to match meeting_diarisation's own SERVICE_API_KEY). Set group_owners here only as an

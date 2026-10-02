@@ -1,7 +1,6 @@
 from app.auth.authorisation import AuthResultReason, AuthSignals, SenderAuthoriser
 
 GROUP_OWNERS = {"alice@university.ac.uk": 12, "bob@university.ac.uk": 7}
-DOMAINS = ["university.ac.uk"]
 
 PASS = AuthSignals(spf="pass", dkim="pass", dmarc="pass")
 FAIL = AuthSignals(spf="fail", dkim="fail", dmarc="fail")
@@ -9,7 +8,7 @@ MISSING = AuthSignals()
 
 
 def _authoriser(require_auth_pass=True):
-    return SenderAuthoriser(GROUP_OWNERS, DOMAINS, require_auth_pass=require_auth_pass)
+    return SenderAuthoriser(GROUP_OWNERS, require_auth_pass=require_auth_pass)
 
 
 def test_authorised_owner_with_passing_signals():
@@ -22,7 +21,6 @@ def test_authorised_owner_with_passing_signals():
 def test_registered_group_member_is_authorised_with_member_identity():
     authoriser = SenderAuthoriser(
         GROUP_OWNERS,
-        DOMAINS,
         group_members={"carol@university.ac.uk": [21, 22]},
     )
 
@@ -37,7 +35,6 @@ def test_registered_group_member_is_authorised_with_member_identity():
 def test_registered_user_takes_precedence_over_group_member():
     authoriser = SenderAuthoriser(
         GROUP_OWNERS,
-        DOMAINS,
         group_members={"alice@university.ac.uk": [21]},
     )
 
@@ -51,7 +48,6 @@ def test_registered_user_takes_precedence_over_group_member():
 def test_group_member_address_still_requires_passing_authentication():
     authoriser = SenderAuthoriser(
         GROUP_OWNERS,
-        DOMAINS,
         group_members={"carol@university.ac.uk": [21]},
     )
 
@@ -80,29 +76,17 @@ def test_spf_and_dkim_pass_without_dmarc_is_sufficient():
     assert result.ok is True
 
 
-def test_in_domain_but_not_a_registered_owner_is_unrecognised():
+def test_unregistered_sender_is_not_authorised_even_on_a_familiar_domain():
     result = _authoriser().authorise("carol@university.ac.uk", PASS)
     assert result.ok is False
     assert result.user_id is None
-    assert result.reason == AuthResultReason.UNRECOGNISED_IN_DOMAIN
+    assert result.reason == AuthResultReason.UNREGISTERED
 
 
-def test_subdomain_of_authorised_domain_is_unrecognised_not_external():
-    authoriser = SenderAuthoriser(GROUP_OWNERS, ["southwales.ac.uk"])
-    result = authoriser.authorise("carol@students.southwales.ac.uk", PASS)
-    assert result.ok is False
-    assert result.reason == AuthResultReason.UNRECOGNISED_IN_DOMAIN
-
-
-def test_domain_suffix_without_label_boundary_is_external():
-    result = _authoriser().authorise("carol@notuniversity.ac.uk", PASS)
-    assert result.reason == AuthResultReason.UNAUTHORISED_EXTERNAL
-
-
-def test_outside_domain_and_not_a_registered_owner_is_external():
+def test_unregistered_sender_on_an_unrelated_domain_is_also_unregistered():
     result = _authoriser().authorise("mallory@evil.example", PASS)
     assert result.ok is False
-    assert result.reason == AuthResultReason.UNAUTHORISED_EXTERNAL
+    assert result.reason == AuthResultReason.UNREGISTERED
 
 
 def test_failing_auth_signals_are_unauthenticated_even_for_a_registered_owner():
@@ -125,12 +109,9 @@ def test_require_auth_pass_false_allows_bypass():
     assert result.reason == AuthResultReason.AUTHORISED
 
 
-def test_require_auth_pass_false_still_distinguishes_domain_tiers():
-    authoriser = _authoriser(require_auth_pass=False)
-    in_domain = authoriser.authorise("carol@university.ac.uk", MISSING)
-    external = authoriser.authorise("mallory@evil.example", MISSING)
-    assert in_domain.reason == AuthResultReason.UNRECOGNISED_IN_DOMAIN
-    assert external.reason == AuthResultReason.UNAUTHORISED_EXTERNAL
+def test_require_auth_pass_false_does_not_make_unregistered_senders_authorised():
+    result = _authoriser(require_auth_pass=False).authorise("carol@university.ac.uk", MISSING)
+    assert result.reason == AuthResultReason.UNREGISTERED
 
 
 def test_malformed_sender_address():

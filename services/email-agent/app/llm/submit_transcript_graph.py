@@ -1,7 +1,8 @@
-"""Incremental LangGraph workflow for submit_transcript.
+"""Deterministic LangGraph workflow for submit_transcript.
 
-The graph now safely creates an idempotent meeting after deterministic group resolution. Upload
-and later processing remain in the legacy handler until their side-effect recovery is proven.
+This mirrors the live submission contract: validate the attachment, resolve a meeting date from
+the transcript (or ask for clarification before contacting the backend), resolve the group
+deterministically, and only then create the meeting.
 """
 from __future__ import annotations
 
@@ -26,7 +27,7 @@ class SubmitTranscriptGraphState(TypedDict, total=False):
     groups: list[Any]
     group_id: int | None
     group_name: str | None
-    meeting_date: str
+    meeting_date: str | None
     meeting_id: int | None
     clarification_question: str | None
     audit_events: list[dict[str, Any]]
@@ -52,6 +53,47 @@ def _validate_trusted_state(state: SubmitTranscriptGraphState) -> SubmitTranscri
         raise ValueError("transcript attachment changed after validation")
     _audit(state, "validate_trusted_state", filename=state["attachment_filename"], size_bytes=size)
     return {**state, "attachment_size_bytes": size, "audit_events": state["audit_events"]}
+
+
+def _resolve_meeting_date(state: SubmitTranscriptGraphState) -> SubmitTranscriptGraphState:
+    from app.vtt.parser import VttParseError, parse_vtt
+
+    try:
+        parsed_vtt = parse_vtt(state["attachment_path"])
+    except VttParseError as exc:
+        raise ValueError(str(exc)) from exc
+
+    if parsed_vtt.meeting_date is not None:
+        _audit(
+            state,
+            "meeting_date_resolved",
+            source=parsed_vtt.meeting_date_source,
+            meeting_date=parsed_vtt.meeting_date.isoformat(),
+        )
+        return {**state, "meeting_date": parsed_vtt.meeting_date.isoformat(), "audit_events": state["audit_events"]}
+
+    if state.get("meeting_date"):
+        _audit(state, "meeting_date_present", meeting_date=state["meeting_date"])
+        return {**state, "audit_events": state["audit_events"]}
+
+    question = (
+        "I couldn't find a meeting date in the transcript or your email. What date was "
+        "this meeting (e.g. '11 August 2026')?"
+    )
+    _audit(state, "clarification_required", question=question)
+    return {
+        **state,
+        "meeting_date": None,
+        "group_id": None,
+        "group_name": None,
+        "meeting_id": None,
+        "clarification_question": question,
+        "audit_events": state["audit_events"],
+    }
+
+
+def _route_after_meeting_date(state: SubmitTranscriptGraphState) -> str:
+    return END if state.get("clarification_question") else "login_for_email"
 
 
 def _login_for_email(state: SubmitTranscriptGraphState, client: DiarisationClient) -> SubmitTranscriptGraphState:
@@ -90,6 +132,10 @@ def _resolve_group(state: SubmitTranscriptGraphState) -> SubmitTranscriptGraphSt
     }
 
 
+def _route_after_group_resolution(state: SubmitTranscriptGraphState) -> str:
+    return END if state.get("clarification_question") else "create_meeting"
+
+
 def _create_meeting(state: SubmitTranscriptGraphState, client: DiarisationClient) -> SubmitTranscriptGraphState:
     if state.get("group_id") is None:
         return state
@@ -114,14 +160,24 @@ def _create_meeting(state: SubmitTranscriptGraphState, client: DiarisationClient
 def build_submit_transcript_graph(client: DiarisationClient):
     builder = StateGraph(SubmitTranscriptGraphState)
     builder.add_node("validate_trusted_state", _validate_trusted_state)
+    builder.add_node("resolve_meeting_date", _resolve_meeting_date)
     builder.add_node("login_for_email", lambda state: _login_for_email(state, client))
     builder.add_node("list_groups", lambda state: _list_groups(state, client))
     builder.add_node("resolve_group", _resolve_group)
     builder.add_node("create_meeting", lambda state: _create_meeting(state, client))
     builder.add_edge(START, "validate_trusted_state")
-    builder.add_edge("validate_trusted_state", "login_for_email")
+    builder.add_edge("validate_trusted_state", "resolve_meeting_date")
+    builder.add_conditional_edges(
+        "resolve_meeting_date",
+        _route_after_meeting_date,
+        {"login_for_email": "login_for_email", END: END},
+    )
     builder.add_edge("login_for_email", "list_groups")
     builder.add_edge("list_groups", "resolve_group")
-    builder.add_edge("resolve_group", "create_meeting")
+    builder.add_conditional_edges(
+        "resolve_group",
+        _route_after_group_resolution,
+        {"create_meeting": "create_meeting", END: END},
+    )
     builder.add_edge("create_meeting", END)
     return builder.compile()

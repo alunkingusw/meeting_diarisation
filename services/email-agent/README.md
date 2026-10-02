@@ -28,15 +28,13 @@ adjusted as follows:
   transcripts and add comments only in their groups. A sender matching both is treated as the
   `User`. Backend-issued GroupMember tokens are group-scoped and cannot be used on user-only
   routes; member comments are attributed to the GroupMember record.
-- **Unknown sender handling:** an authenticated sender from an `AUTHORISED_EMAIL_DOMAINS` domain
-  who matches neither identity gets a friendly "not registered, contact the admin" reply;
-  everyone else (failed SPF/DKIM/DMARC, or outside the authorised domains) is silently dropped,
-  since replying to arbitrary internet senders would confirm a monitored mailbox exists.
-- **The admin is alerted** (rate-limited, `ADMIN_EMAIL`) on unauthorised/unrecognised senders,
-  except domains listed in `UNAUTHORISED_SENDER_ALERT_EXEMPT_DOMAINS`, plus LLM parse failures,
+- **Unknown sender handling:** sender identity comes only from the backend database; there is no
+  domain allow-list. An authenticated sender who matches neither a `User` nor a `GroupMember` is
+  silently dropped, since replying to arbitrary internet senders would confirm a monitored
+  mailbox exists. Failed SPF/DKIM/DMARC checks are dropped the same way and are never trusted,
+  even for a registered address.
+- **The admin is alerted** (rate-limited, `ADMIN_EMAIL`) on rejected senders, LLM parse failures,
   backend submission failures, and infrastructure outages (Ollama or the backend unreachable).
-  The default exemption is `students.southwales.ac.uk`; it suppresses sender alerts only and
-  does not grant access. Failed SPF/DKIM/DMARC checks still alert the admin.
 - **Mail access is provider-agnostic** via a `MailClient` interface (`app/mail/base.py`). The app
   supports Microsoft Graph and a generic IMAP/SMTP provider implementation (`app/mail/imap_client.py`)
   for dedicated project mailboxes such as `mailbox.org`.
@@ -115,12 +113,8 @@ Edit `config/config.yaml`:
 - `llm.model`: defaults to `qwen2.5:14b`.
 
 Edit `.env`:
-- `ADMIN_EMAIL`: who gets alerted on unauthorised senders, parse failures, backend failures,
+- `ADMIN_EMAIL`: who gets alerted on rejected senders, parse failures, backend failures,
   and infrastructure outages.
-- `AUTHORISED_EMAIL_DOMAINS`: comma-separated domain(s) whose senders get a "not registered"
-  reply instead of a silent drop when they aren't a registered owner.
-- `UNAUTHORISED_SENDER_ALERT_EXEMPT_DOMAINS`: comma-separated domain(s) whose unregistered
-  senders do not generate admin sender alerts. This does not authorize those senders.
 - `GRAPH_TENANT_ID` / `GRAPH_CLIENT_ID` / `GRAPH_CLIENT_SECRET`: see "Mailbox setup" below.
 
 ### 5. Mailbox setup

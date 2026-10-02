@@ -39,7 +39,12 @@ def _state(path: Path, group_hint=None):
 
 def test_submit_graph_validates_logs_in_and_resolves_group(tmp_path: Path):
     path = tmp_path / "meeting.vtt"
-    path.write_text("WEBVTT\n", encoding="utf-8")
+    path.write_text(
+        "WEBVTT\n\n"
+        "00:00:00.000 --> 00:00:02.000\n"
+        "Alice: hello there\n",
+        encoding="utf-8",
+    )
     graph = build_submit_transcript_graph(FakeClient([GroupSummary(id=7, name="Team A")]))
 
     result = graph.invoke(_state(path))
@@ -50,6 +55,7 @@ def test_submit_graph_validates_logs_in_and_resolves_group(tmp_path: Path):
     assert result["meeting_id"] == 42
     assert [event["event"] for event in result["audit_events"]] == [
         "validate_trusted_state",
+        "meeting_date_present",
         "login_start",
         "login_result",
         "groups_listed",
@@ -61,7 +67,12 @@ def test_submit_graph_validates_logs_in_and_resolves_group(tmp_path: Path):
 
 def test_submit_graph_stops_with_clarification_for_ambiguous_group(tmp_path: Path):
     path = tmp_path / "meeting.vtt"
-    path.write_text("WEBVTT\n", encoding="utf-8")
+    path.write_text(
+        "WEBVTT\n\n"
+        "00:00:00.000 --> 00:00:02.000\n"
+        "Alice: hello there\n",
+        encoding="utf-8",
+    )
     graph = build_submit_transcript_graph(
         FakeClient([GroupSummary(id=7, name="Team A"), GroupSummary(id=8, name="Team B")])
     )
@@ -71,6 +82,29 @@ def test_submit_graph_stops_with_clarification_for_ambiguous_group(tmp_path: Pat
     assert result["group_id"] is None
     assert result["meeting_id"] is None
     assert "Which group" in result["clarification_question"]
+    assert result["audit_events"][-1]["event"] == "clarification_required"
+
+
+def test_submit_graph_asks_for_date_clarification_before_backend_login(tmp_path: Path):
+    path = tmp_path / "meeting.vtt"
+    path.write_text(
+        "WEBVTT\n\n"
+        "00:00:00.000 --> 00:00:02.000\n"
+        "Alice: hello there\n",
+        encoding="utf-8",
+    )
+
+    class NoLoginClient(FakeClient):
+        def login_for_email(self, email: str):
+            raise AssertionError("login should not be attempted before the date is resolved")
+
+    graph = build_submit_transcript_graph(NoLoginClient([GroupSummary(id=7, name="Team A")]))
+
+    result = graph.invoke(_state(path) | {"meeting_date": None})
+
+    assert result["meeting_id"] is None
+    assert result["group_id"] is None
+    assert "meeting date" in result["clarification_question"].lower()
     assert result["audit_events"][-1]["event"] == "clarification_required"
 
 

@@ -61,15 +61,14 @@ def _vtt_attachment(fixture="valid_with_date.vtt", filename="meeting.vtt"):
 
 
 def _build_pipeline(db_path: Path, tmp_path: Path, mail_client, llm_response, admin_email="admin@uni.ac.uk",
-                     group_owners=None, authorised_domains=None, available=True, group_members=None,
-                     unauthorised_sender_alert_exempt_domains=None, diarisation_client=None):
+                     group_owners=None, available=True, group_members=None,
+                     diarisation_client=None):
     job_store = JobStore(db_path)
     processed_store = ProcessedMessageStore(db_path)
     outbox = Outbox(db_path)
     admin = AdminNotifier(db_path, outbox, admin_email=admin_email)
     authoriser = SenderAuthoriser(
         group_owners or {"alice@uni.ac.uk": 12},
-        authorised_domains or ["uni.ac.uk"],
         group_members=group_members,
     )
     stub_llm = StubLLM(llm_response, available=available)
@@ -84,7 +83,6 @@ def _build_pipeline(db_path: Path, tmp_path: Path, mail_client, llm_response, ad
     pipeline = EmailProcessingPipeline(
         mail_client, authoriser, stub_llm, parser, job_store, processed_store, outbox, admin,
         thread_matcher, storage, limits, admin_email,
-        unauthorised_sender_alert_exempt_domains=unauthorised_sender_alert_exempt_domains,
         diarisation_client=diarisation_client,
     )
     return pipeline, job_store, outbox, admin, storage, stub_llm
@@ -395,14 +393,13 @@ def test_unauthorised_external_sender_is_silently_dropped(db_path: Path, tmp_pat
     pipeline.poll_once()
     pipeline.flush_outbox()
 
-    # No reply to the external sender - but the admin still hears about the attempt (both are
-    # delivered through the same MailClient, so mail.sent legitimately contains the alert).
+    # No reply to the sender; the admin alert is delivered through the same MailClient.
     assert all(m.to != "mallory@evil.example" for m in mail.sent)
     assert job_store.list_queued() == []
     assert any(m.to == "admin@uni.ac.uk" for m in mail.sent)
 
 
-def test_unrecognised_in_domain_sender_gets_friendly_reply(db_path: Path, tmp_path: Path):
+def test_unregistered_sender_is_silently_dropped_and_admin_alerted(db_path: Path, tmp_path: Path):
     mail = FakeMailClient()
     msg = make_test_email("carol@uni.ac.uk", auth_signals=PASS)
     mail.add_message(msg)
@@ -411,55 +408,28 @@ def test_unrecognised_in_domain_sender_gets_friendly_reply(db_path: Path, tmp_pa
     pipeline.poll_once()
     pipeline.flush_outbox()
 
-    # Both the friendly reply to carol and the admin heads-up are delivered.
-    assert len(mail.sent) == 2
-    carol_msg = next(m for m in mail.sent if m.to == "carol@uni.ac.uk")
-    assert "isn't currently registered" in carol_msg.body_text.lower()
+    # Same-domain or not, an address matching no User or GroupMember gets no reply.
+    assert all(m.to != "carol@uni.ac.uk" for m in mail.sent)
+    assert job_store.list_queued() == []
     assert any(m.to == "admin@uni.ac.uk" for m in mail.sent)
-    assert job_store.list_queued() == []
 
 
-def test_students_southwales_domain_does_not_alert_admin(db_path: Path, tmp_path: Path):
-    mail = FakeMailClient()
-    msg = make_test_email("carol@students.southwales.ac.uk", auth_signals=PASS)
-    mail.add_message(msg)
-
-    pipeline, job_store, _, _, _, _ = _build_pipeline(
-        db_path,
-        tmp_path,
-        mail,
-        HELP_JSON,
-        authorised_domains=["southwales.ac.uk"],
-        unauthorised_sender_alert_exempt_domains=["students.southwales.ac.uk"],
-    )
-    pipeline.poll_once()
-    pipeline.flush_outbox()
-
-    assert any(m.to == "carol@students.southwales.ac.uk" for m in mail.sent)
-    assert all(m.to != "admin@uni.ac.uk" for m in mail.sent)
-    assert job_store.list_queued() == []
-
-
-def test_students_domain_exemption_does_not_hide_authentication_failures(
+def test_registered_sender_failing_authentication_is_dropped_and_admin_alerted(
     db_path: Path, tmp_path: Path
 ):
     mail = FakeMailClient()
     msg = make_test_email(
-        "carol@students.southwales.ac.uk",
+        "alice@uni.ac.uk",
         auth_signals=AuthSignals(spf="fail", dkim="fail", dmarc="fail"),
     )
     mail.add_message(msg)
 
-    pipeline, _, _, _, _, _ = _build_pipeline(
-        db_path,
-        tmp_path,
-        mail,
-        HELP_JSON,
-        unauthorised_sender_alert_exempt_domains=["students.southwales.ac.uk"],
-    )
+    pipeline, job_store, _, _, _, _ = _build_pipeline(db_path, tmp_path, mail, HELP_JSON)
     pipeline.poll_once()
     pipeline.flush_outbox()
 
+    assert all(m.to != "alice@uni.ac.uk" for m in mail.sent)
+    assert job_store.list_queued() == []
     assert any(m.to == "admin@uni.ac.uk" for m in mail.sent)
 
 
