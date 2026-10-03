@@ -10,7 +10,7 @@ endpoints don't exist.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 import httpx
@@ -270,6 +270,16 @@ class DiarisationClient:
             )
             for r in hits
         ]
+
+    def generate_report(self, token: str, start_date: date, end_date: date) -> list[dict]:
+        """POST /reports/generate_report - backend emails one report per supervised group."""
+        resp = self._request(
+            "POST",
+            "/reports/generate_report",
+            headers=_auth(token),
+            json={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+        )
+        return resp.json()
 
     # --- request plumbing --------------------------------------------------
 

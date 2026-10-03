@@ -69,10 +69,18 @@ internal_api:
 weekly_update:
   enabled: false
   weekday: 0              # Monday=0, Sunday=6
-  hour: 8
+  hour: 2
   minute: 0
   lookback_days: 7
   recipient_mode: group_owners
+
+# Emails each supervisor a per-group summary of meetings from the last weekly_update.lookback_days
+# days, via the backend's POST /reports/generate_report. Runs inside the long-running agent.
+meeting_report:
+  enabled: false
+  weekday: 0              # Monday=0, Sunday=6
+  hour: 01
+  minute: 0
 
 logging:
   level: INFO

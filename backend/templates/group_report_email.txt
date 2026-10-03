@@ -1,0 +1,11 @@
+# Available placeholders: $group_name, $start_date, $end_date, $meeting_count, $meetings
+# Lines beginning with # are template comments and are removed before sending.
+
+Hello,
+
+Here is the report for $group_name covering $start_date to $end_date (inclusive).
+Meetings in this period: $meeting_count
+
+$meetings
+
+If you have questions about any of these meetings, please reply to this email and keep the subject unchanged so the reply can be routed to the right place.

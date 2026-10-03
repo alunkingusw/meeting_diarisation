@@ -90,6 +90,13 @@ class WeeklyUpdateSettings(BaseModel):
     recipient_mode: str = "group_owners"
 
 
+class MeetingReportSettings(BaseModel):
+    enabled: bool = False
+    weekday: int = 6  # Monday=0, Sunday=6
+    hour: int = 22
+    minute: int = 0
+
+
 class LoggingSettings(BaseModel):
     level: str = "INFO"
     log_email_bodies: bool = False
@@ -107,6 +114,7 @@ class Settings(BaseModel):
     admin: AdminSettings = Field(default_factory=AdminSettings)
     internal_api: InternalApiSettings = Field(default_factory=InternalApiSettings)
     weekly_update: WeeklyUpdateSettings = Field(default_factory=WeeklyUpdateSettings)
+    meeting_report: MeetingReportSettings = Field(default_factory=MeetingReportSettings)
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
 
     # secrets, from environment / .env only - never from the yaml file

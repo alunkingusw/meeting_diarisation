@@ -23,6 +23,7 @@ from app.mail.fake_client import FakeMailClient
 from app.mail.imap_client import ImapMailClient
 from app.mail.graph_client import GraphMailClient
 from app.mail.thread_matcher import ThreadMatcher
+from app.meeting_reports import run_scheduler
 from app.pipeline import EmailProcessingPipeline
 from app.settings import Settings, load_settings
 from app.storage.db import init_db
@@ -224,10 +225,20 @@ def run(settings: Settings) -> None:
         daemon=True,
     )
     mail_thread = threading.Thread(target=_mail_loop, name="mail-pipeline", daemon=True)
+    report_thread = None
+    if settings.meeting_report.enabled:
+        report_thread = threading.Thread(
+            target=run_scheduler,
+            args=(settings, diarisation_client, load_group_owners, stop_event),
+            name="meeting-report",
+            daemon=True,
+        )
 
     logger.info("GroupAssessmentAgent starting (mail.provider=%s, llm.model=%s)", settings.mail.provider, settings.llm.model)
     worker_thread.start()
     mail_thread.start()
+    if report_thread is not None:
+        report_thread.start()
     if api_thread is not None:
         logger.info(
             "Internal email API listening on %s:%s",
@@ -249,6 +260,8 @@ def run(settings: Settings) -> None:
             api_thread.join(timeout=5.0)
         worker_thread.join(timeout=5.0)
         mail_thread.join(timeout=5.0)
+        if report_thread is not None:
+            report_thread.join(timeout=5.0)
         ollama_client.close()
         diarisation_client.close()
         github_raginator_client.close()
