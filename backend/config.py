@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     email_api_token: str = ""
     email_api_url: str = "http://agent:8080/internal/email"
     email_timeout_seconds: float = 10.0
+    github_raginator_base_url: str = "http://repo_analysis_app:8000"
+    github_raginator_timeout_seconds: float = 5.0
 
     # Port the frontend dev server runs on - used to build the CORS allow list in main.py.
     frontend_port: str = "5000"

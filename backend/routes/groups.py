@@ -25,6 +25,7 @@ from backend.auth import (
     is_group_owner,
     EmailPrincipal,
 )
+from backend.integrations import check_group_connections
 from backend.validation import GroupCreateEdit
 
 
@@ -85,7 +86,15 @@ def list_groups(
 @router.get("/{group_id}", response_model=GroupOut)
 def get_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_member)):
     group = db.query(Group).get(group_id)
-    return group
+    group_out = GroupOut.model_validate(group)
+    github_connected, trello_connected = check_group_connections(
+        group.github_repo_url,
+        group.trello_board_id,
+    )
+    return group_out.model_copy(update={
+        "github_connected": github_connected,
+        "trello_connected": trello_connected,
+    })
 
 @router.put("/{group_id}")
 def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depends(get_db), user_id:int = Depends(is_group_owner)):

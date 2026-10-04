@@ -11,6 +11,22 @@ def test_openapi_exposes_email_agent_contract(client):
     assert "/groups/{group_id}/transcripts/search" in paths
 
 
+def test_group_response_documents_provider_connectivity(client):
+    schema = client.get("/openapi.json").json()
+    group_schema = schema["components"]["schemas"]["GroupOut"]["properties"]
+
+    assert group_schema["github_connected"] == {
+        "default": False,
+        "title": "Github Connected",
+        "type": "boolean",
+    }
+    assert group_schema["trello_connected"] == {
+        "default": False,
+        "title": "Trello Connected",
+        "type": "boolean",
+    }
+
+
 def test_openapi_describes_comment_request_and_response(client):
     schema = client.get("/openapi.json").json()
     operation = schema["paths"]["/groups/{group_id}/meetings/{meeting_id}/comments"]["post"]

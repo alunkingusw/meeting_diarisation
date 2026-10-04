@@ -50,6 +50,64 @@ def test_get_group_allowed_for_member(client, make_user, make_group, auth_header
     response = client.get(f"/groups/{group.id}", headers=auth_header_for(owner.id))
     assert response.status_code == 200
     assert response.json()["name"] == "Team A"
+    assert response.json()["github_connected"] is False
+    assert response.json()["trello_connected"] is False
+
+
+def test_get_group_reports_provider_access(client, db_session, make_user, make_group, auth_header_for, monkeypatch):
+    from types import SimpleNamespace
+
+    import backend.integrations as integrations
+
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    group.github_repo_url = "https://github.com/example/project"
+    group.trello_board_id = "board-id"
+    db_session.commit()
+
+    monkeypatch.setattr(integrations.settings, "github_raginator_base_url", "http://raginator.test")
+    monkeypatch.setattr(
+        integrations.httpx,
+        "post",
+        lambda *args, **kwargs: SimpleNamespace(
+            status_code=200,
+            json=lambda: {"github_connected": True, "trello_connected": True},
+        ),
+    )
+
+    response = client.get(f"/groups/{group.id}", headers=auth_header_for(owner.id))
+
+    assert response.status_code == 200
+    assert response.json()["github_connected"] is True
+    assert response.json()["trello_connected"] is True
+
+
+def test_get_group_reports_denied_provider_access(client, db_session, make_user, make_group, auth_header_for, monkeypatch):
+    from types import SimpleNamespace
+
+    import backend.integrations as integrations
+
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    group.github_repo_url = "https://github.com/example/project"
+    group.trello_board_id = "board-id"
+    db_session.commit()
+
+    monkeypatch.setattr(integrations.settings, "github_raginator_base_url", "http://raginator.test")
+    monkeypatch.setattr(
+        integrations.httpx,
+        "post",
+        lambda *args, **kwargs: SimpleNamespace(
+            status_code=200,
+            json=lambda: {"github_connected": False, "trello_connected": False},
+        ),
+    )
+
+    response = client.get(f"/groups/{group.id}", headers=auth_header_for(owner.id))
+
+    assert response.status_code == 200
+    assert response.json()["github_connected"] is False
+    assert response.json()["trello_connected"] is False
 
 
 def test_get_group_not_found(client, make_user, auth_header_for):

@@ -180,6 +180,8 @@ class GroupOut(BaseModel):
     created: datetime
     github_repo_url: Optional[str] = None
     trello_board_id: Optional[str] = None
+    github_connected: bool = False
+    trello_connected: bool = False
     notify: bool = False
     members: List[GroupMemberOut]  # Include related members
     class Config:

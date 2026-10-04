@@ -165,6 +165,11 @@
             "title": "Created",
             "type": "string"
           },
+          "github_connected": {
+            "default": false,
+            "title": "Github Connected",
+            "type": "boolean"
+          },
           "github_repo_url": {
             "anyOf": [
               {
@@ -206,6 +211,11 @@
               }
             ],
             "title": "Trello Board Id"
+          },
+          "trello_connected": {
+            "default": false,
+            "title": "Trello Connected",
+            "type": "boolean"
           }
         },
         "required": [
