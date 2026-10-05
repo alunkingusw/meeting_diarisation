@@ -107,6 +107,23 @@ class ImapMailClient(MailClient):
 
         with self._smtp_connection() as smtp_client:
             smtp_client.send_message(message)
+        
+        # 2. Append the email to the IMAP 'Sent' folder
+        try:
+            # Mailbox.org IMAP host is usually 'imap.mailbox.org'
+            # Ensure you have self._imap_host, self._username, and self._password available
+            with imaplib.IMAP4_SSL(self._imap_host) as imap_client:
+                imap_client.login(self._username, self._password)
+                
+                # Convert the message object to bytes
+                msg_bytes = message.as_bytes()
+                
+                # Append to the 'Sent' folder (or 'SENT' / 'Sent Objects' depending on your language settings)
+                # imaplib.Time2Internaldate provides the server timestamp
+                imap_client.append('Sent', '\\Seen', imaplib.Time2Internaldate(time.time()), msg_bytes)
+        except Exception as e:
+            # Log the exception or handle it so an IMAP failure doesn't crash a successful SMTP send
+            print(f"Failed to save copy to IMAP Sent folder: {e}")
 
         return message["Message-ID"]
 
