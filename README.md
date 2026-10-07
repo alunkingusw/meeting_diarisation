@@ -86,6 +86,12 @@ works on an existing database with legacy users; it leaves those accounts and th
 Passwords are stored as one-way hashes. The frontend login form then accepts that username and
 password.
 
+Opening a protected frontend link (for example `/home/1/members`) while signed out
+redirects to the sign-in form and returns to that page after login. Invalid or expired
+sessions are cleared when the API responds with HTTP 401; the return link preserves
+the path, query string, and fragment. HTTP 403 (permission denied), HTTP 404 (group
+not found), and network/server errors are displayed without signing the user out.
+
 For an already-running deployment whose database has no users, add these values to its `.env`
 and recreate the API container:
 

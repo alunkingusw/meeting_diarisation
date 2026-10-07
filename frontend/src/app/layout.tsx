@@ -15,6 +15,7 @@
  */
 
 import type { Metadata } from "next";
+import { Suspense } from 'react';
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Header from '@/components/Header'; // client component
@@ -46,7 +47,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased h-full bg-gray-50 min-h-screen`}
       >
-      <Header />
+      <Suspense fallback={<header className="bg-blue-600 text-white p-4">Group Diarisation</header>}>
+        <Header />
+      </Suspense>
 
         {/* Page content */}
         <main className="p-6">{children}</main>

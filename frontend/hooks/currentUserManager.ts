@@ -14,30 +14,31 @@
  * limitations under the License.
  */
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { User } from '@/types/user';
-import Cookies from 'js-cookie';
+import { authenticatedFetch, SessionExpiredError } from '@/lib/auth';
 
 export function useCurrentUser() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const fetchCurrentUser = async () => {
-    const token = Cookies.get('token');
+  const fetchCurrentUser = useCallback(async (signal?: AbortSignal) => {
+    setLoading(true);
+    setError(null);
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error('Unauthorized');
-      const data = await res.json();
-      setCurrentUser(data);
+      const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/users/me`, { signal });
+      if (!res.ok) throw new Error(`Unable to load your account (HTTP ${res.status}).`);
+      setCurrentUser(await res.json());
     } catch (err) {
-      console.error(err);
+      if (signal?.aborted) return;
+      if (!(err instanceof SessionExpiredError)) console.error(err);
       setCurrentUser(null);
+      setError(err instanceof Error ? err.message : 'Unable to load your account.');
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  };
+  }, []);
 
-  return { currentUser, loading, fetchCurrentUser };
+  return { currentUser, loading, error, fetchCurrentUser };
 }

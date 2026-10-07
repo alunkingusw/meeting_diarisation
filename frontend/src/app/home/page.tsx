@@ -18,34 +18,25 @@
 
 'use client';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { FaCog } from "react-icons/fa";
 import Link from 'next/link';
 import { useGroupsManager } from '@/hooks/groupsManager';
 import { useCurrentUser } from '@/hooks/currentUserManager';
 import AdminPanel from '@/components/AdminPanel';
-import Cookies from 'js-cookie';
 
 export default function HomePage() {
   const {groups, loading, error, fetchAllGroups, newGroupName, setNewGroupName, creatingGroup, handleCreateGroup, handleDeleteGroup} = useGroupsManager();
-  const { currentUser, fetchCurrentUser } = useCurrentUser();
+  const { currentUser, error: userError, fetchCurrentUser } = useCurrentUser();
   const [viewAllGroups, setViewAllGroups] = useState(false);
   
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
-    const token = Cookies.get('token');
-    if (!token) {
-      router.replace('/');
-      return;
-    }
-    fetchAllGroups();
-    fetchCurrentUser();
-    if(error){
-      router.replace('/');
-    }
-  }, []);
+    const controller = new AbortController();
+    fetchAllGroups(false, controller.signal);
+    fetchCurrentUser(controller.signal);
+    return () => controller.abort();
+  }, [fetchAllGroups, fetchCurrentUser]);
 
   const toggleView = (showAll: boolean) => {
     setViewAllGroups(showAll);
@@ -77,8 +68,11 @@ export default function HomePage() {
         </div>
       )}
 
+      {userError && <p role="alert">{userError}</p>}
       {loading ? (
         <p>Loading...</p>
+      ) : error ? (
+        <p role="alert">{error}</p>
       ) : groups.length === 0 ? (
         <p>{viewAllGroups ? 'No groups exist yet.' : 'You do not currently have any groups.'}</p>
       ) : (

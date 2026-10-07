@@ -16,15 +16,14 @@
 'use client';
 
 import { type FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Cookies from 'js-cookie';
+import { getRedirectTarget } from '@/lib/auth';
 
 export default function Home() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const router = useRouter();
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -46,7 +45,9 @@ export default function Home() {
         sameSite: 'strict',
         secure: window.location.protocol === 'https:',
       });
-      router.push('/home');
+      const redirectTarget = getRedirectTarget(new URLSearchParams(window.location.search).get('redirect'));
+      // A full navigation avoids reusing protected-route data cached before sign-in.
+      window.location.replace(redirectTarget);
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Unable to sign in.');
     } finally {
