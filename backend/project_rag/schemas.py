@@ -92,6 +92,7 @@ class ConversationQueryRequest(QueryRequest):
     until: date | None = Field(
         default=None, description="Only meetings dated before this date (exclusive)."
     )
+    meeting_id: int | None = Field(default=None, description="Only this meeting's transcript.")
     retrieve_only: bool = Field(
         default=False,
         description="Return the matching transcript chunks as evidence without calling the LLM.",

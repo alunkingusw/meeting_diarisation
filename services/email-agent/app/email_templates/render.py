@@ -70,7 +70,18 @@ def render_clarification_received(job_id: str, value: str) -> tuple[str, str]:
     return subject, body
 
 
+# Detail the backend returns when an administrator's emailed token is refused an admin action.
+ADMIN_OVER_EMAIL_MARKER = "Administrator actions are not available over email"
+ADMIN_OVER_EMAIL_EXPLANATION = (
+    "Administrator actions, such as managing users or groups you don't belong to, can't be "
+    "performed by email, even for administrators. Please use the web app or the API instead. "
+    "Your normal access to your own groups still works by email."
+)
+
+
 def render_failure(reason: str, job_id: Optional[str] = None) -> tuple[str, str]:
+    if ADMIN_OVER_EMAIL_MARKER in reason:
+        reason = ADMIN_OVER_EMAIL_EXPLANATION
     subject = f"Could not process your request — {job_id}" if job_id else "Could not process your request"
     body = _render("failure.txt.j2", job_id=job_id, reason=reason)
     return subject, body

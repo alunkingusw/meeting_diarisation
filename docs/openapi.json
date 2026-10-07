@@ -191,6 +191,18 @@
       },
       "ConversationQueryRequest": {
         "properties": {
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only this meeting's transcript.",
+            "title": "Meeting Id"
+          },
           "question": {
             "maxLength": 2000,
             "minLength": 3,

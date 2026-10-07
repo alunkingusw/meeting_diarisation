@@ -127,3 +127,14 @@ def test_assess_result_includes_unavailable_notes():
     )
     assert "Bob opened issue #4." in body
     assert "couldn't check past meeting transcripts" in body
+
+
+def test_failure_explains_admin_actions_are_not_available_over_email():
+    from app.email_templates.render import render_failure
+
+    _, body = render_failure(
+        "GET /users/ returned 403: Administrator actions are not available over email", job_id="DIAR-2026-1007-0001"
+    )
+
+    assert "can't be performed by email" in body
+    assert "returned 403" not in body

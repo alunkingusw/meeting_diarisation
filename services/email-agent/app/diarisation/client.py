@@ -274,22 +274,16 @@ class DiarisationClient:
     def search_transcripts(
         self, token: str, group_id: int, query: str, meeting_id: Optional[int] = None
     ) -> list[TranscriptChunk]:
-        """POST /groups/{id}/transcripts/search - semantic search over this group's already
-        submitted/transcribed meetings. Retrieval only, no LLM involved on the backend side."""
-        hits = self._retryer(self._generated.search_transcripts, token, group_id, query, meeting_id)
-        return [
-            TranscriptChunk(
-                chunk_id=r["chunk_id"],
-                meeting_id=r["meeting_id"],
-                meeting_title=r["meeting_title"],
-                meeting_date=r["meeting_date"],
-                speaker=r["speaker"],
-                text=r["text"],
-                start_ts=r["start_ts"],
-                end_ts=r["end_ts"],
-            )
-            for r in hits
-        ]
+        """POST /groups/{id}/conversation/query (retrieve_only) - semantic search over this group's
+        submitted meetings, returning chunks with no LLM answer."""
+        body = _query_body(query, None)
+        body["retrieve_only"] = True
+        if meeting_id is not None:
+            body["meeting_id"] = meeting_id
+        try:
+            return self._transcript_chunks(token, group_id, body)
+        except NotFoundError:
+            return []
 
     def query_source(
         self, token: str, group_id: int, source: str, question: str, since: Optional[date] = None
@@ -335,6 +329,9 @@ class DiarisationClient:
         dated in [since, until), without an LLM answer. Raises NotFoundError if there are none."""
         body = _query_body("meetings and decisions in this period", since)
         body.update({"until": until.isoformat(), "retrieve_only": True})
+        return self._transcript_chunks(token, group_id, body)
+
+    def _transcript_chunks(self, token: str, group_id: int, body: dict) -> list[TranscriptChunk]:
         resp = self._request(
             "POST",
             f"/groups/{group_id}/conversation/query",

@@ -19,7 +19,10 @@ from sqlalchemy.orm import Session
 from backend.models import Group, GroupMember, User, GroupOut
 from backend.db_dependency import get_db
 from backend.auth import (
+    ADMIN_OVER_EMAIL_DETAIL,
+    EMAIL_CHANNEL,
     get_current_user_id,
+    get_token_channel,
     get_email_principal,
     is_group_member,
     is_group_owner,
@@ -33,13 +36,20 @@ from backend.validation import GroupCreateEdit
 router = APIRouter(prefix="/groups", tags=["groups"])
 
 @router.post("/")
-def create_group(group_data: GroupCreateEdit, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+def create_group(
+    group_data: GroupCreateEdit,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+    channel: str | None = Depends(get_token_channel),
+):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     owner = user
     if group_data.owner_user_id is not None and group_data.owner_user_id != user_id:
+        if channel == EMAIL_CHANNEL:
+            raise HTTPException(status_code=403, detail=ADMIN_OVER_EMAIL_DETAIL)
         if not user.is_admin:
             raise HTTPException(status_code=403, detail="Administrator permission required to assign a different owner")
         owner = db.query(User).filter(User.id == group_data.owner_user_id).first()
@@ -65,6 +75,8 @@ def list_groups(
         all_groups: bool = Query(False, description="Admins only: list every group, not just ones you belong to"),
     ):
     if all_groups:
+        if principal.channel == EMAIL_CHANNEL:
+            raise HTTPException(status_code=403, detail=ADMIN_OVER_EMAIL_DETAIL)
         user = db.query(User).filter(User.id == principal.user_id).first()
         if not user or not user.is_admin:
             raise HTTPException(status_code=403, detail="Administrator permission required")

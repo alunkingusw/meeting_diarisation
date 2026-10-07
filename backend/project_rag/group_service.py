@@ -244,13 +244,18 @@ def _query_conversation(db: Session, group: Group, request: QueryRequest) -> Sou
     retrieve_only = getattr(request, "retrieve_only", False)
     group_name = group.name or ""
 
+    meeting_id = getattr(request, "meeting_id", None)
+
     hits = None
     if since is not None or until is not None:
         hits = transcripts_in_window(group_name, since, until, settings.transcript_window_chunk_limit)
+        if hits is not None and meeting_id is not None:
+            hits = [h for h in hits if str(h.get("meeting_id")) == str(meeting_id)]
     complete = hits is not None
     if hits is None:
         hits = search_transcripts(
-            group_name, request.question, n_results=settings.retrieval_top_k, since=since, until=until
+            group_name, request.question, n_results=settings.retrieval_top_k,
+            meeting_id=meeting_id, since=since, until=until,
         )
     if not hits:
         raise ValueError("No indexed meeting transcripts match this question")

@@ -22,7 +22,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional
 from backend.db_dependency import get_db
-from backend.auth import create_token_for_group_members, create_token_for_user, get_service_caller
+from backend.auth import EMAIL_CHANNEL, create_token_for_group_members, create_token_for_user, get_service_caller
 from backend.models import Group, GroupMember, User
 from backend.validation import ServiceUserTokenRequest
 
@@ -48,7 +48,7 @@ def user_token(
         .first()
     )
     if user:
-        return {"access_token": create_token_for_user(user.id), "token_type": "bearer"}
+        return {"access_token": create_token_for_user(user.id, channel=EMAIL_CHANNEL), "token_type": "bearer"}
 
     members = (
         db.query(GroupMember)

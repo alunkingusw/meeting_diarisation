@@ -100,7 +100,7 @@ def test_conversation_window_over_limit_falls_back_to_ranked_search(
     monkeypatch.setattr(group_service, "transcripts_in_window", lambda *a, **k: None)
     calls = {}
 
-    def fake_search(group_name, query, n_results, since, until):
+    def fake_search(group_name, query, n_results, meeting_id, since, until):
         calls.update(since=since, until=until)
         return [{**_chunk(2, "2026-09-08", 0, "ranked"), "distance": 0.1}]
 

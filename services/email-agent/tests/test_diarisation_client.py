@@ -234,32 +234,41 @@ def test_resolve_aliases(client):
 
 
 @respx.mock
-def test_search_transcripts(client):
-    respx.post(f"{BASE_URL}/groups/1/transcripts/search").mock(
+def test_search_transcripts_uses_conversation_endpoint_retrieve_only(client):
+    route = respx.post(f"{BASE_URL}/groups/1/conversation/query").mock(
         return_value=httpx.Response(
             200,
             json={
-                "results": [
+                "answer": "",
+                "evidence": [
                     {
-                        "chunk_id": "c1",
-                        "meeting_id": "42",
-                        "meeting_title": "Sprint planning",
-                        "meeting_date": "2026-08-11",
-                        "speaker": "Alice",
+                        "id": "c1",
                         "text": "Next week",
-                        "start_ts": "00:00:01",
-                        "end_ts": "00:00:03",
+                        "metadata": {
+                            "meeting_id": "42", "meeting_title": "Sprint planning",
+                            "meeting_date": "2026-08-11", "speaker": "Alice",
+                            "start_ts": "00:00:01", "end_ts": "00:00:03",
+                        },
                     }
-                ]
+                ],
             },
         )
     )
 
-    hits = client.search_transcripts("tok", 1, "Next week")
+    hits = client.search_transcripts("tok", 1, "Next week", meeting_id=42)
 
-    assert len(hits) == 1
-    assert hits[0].speaker == "Alice"
-    assert hits[0].meeting_id == "42"
+    assert len(hits) == 1 and hits[0].speaker == "Alice" and hits[0].meeting_id == "42"
+    sent = route.calls.last.request.read()
+    assert b'"retrieve_only":true' in sent and b'"meeting_id":42' in sent
+
+
+@respx.mock
+def test_search_transcripts_returns_empty_when_nothing_matches(client):
+    respx.post(f"{BASE_URL}/groups/1/conversation/query").mock(
+        return_value=httpx.Response(404, json={"detail": "No indexed meeting transcripts match this question"})
+    )
+
+    assert client.search_transcripts("tok", 1, "anything") == []
 
 
 @respx.mock

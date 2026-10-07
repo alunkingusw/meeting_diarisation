@@ -37,9 +37,17 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60  # Token expires after 1 hour
 # credential types can never be confused with or accepted in place of one another.
 SERVICE_API_KEY = os.getenv("SERVICE_API_KEY")
 
-def create_token_for_user(user_id: int) -> str:
+# Tokens minted for the email agent carry this channel. Administrator rights are not honoured on it:
+# an admin acts over email with their ordinary group roles only.
+EMAIL_CHANNEL = "email"
+ADMIN_OVER_EMAIL_DETAIL = "Administrator actions are not available over email"
+
+
+def create_token_for_user(user_id: int, channel: str | None = None) -> str:
     expire = datetime.now().astimezone() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {"sub": str(user_id), "exp": expire}
+    if channel:
+        to_encode["channel"] = channel
     token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return token
 
@@ -60,6 +68,7 @@ class EmailPrincipal:
     user_id: int | None = None
     group_member_ids: tuple[int, ...] = ()
     scoped_group_member_id: int | None = None
+    channel: str | None = None
 
 
 def get_email_principal(token: str = Depends(oauth2_scheme)) -> EmailPrincipal:
@@ -74,7 +83,7 @@ def get_email_principal(token: str = Depends(oauth2_scheme)) -> EmailPrincipal:
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
-        return EmailPrincipal(user_id=int(user_id))
+        return EmailPrincipal(user_id=int(user_id), channel=payload.get("channel"))
     except (JWTError, TypeError, ValueError):
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -93,13 +102,23 @@ def get_current_user_id(token: str = Depends(oauth2_scheme)) -> int:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+def get_token_channel(token: str = Depends(oauth2_scheme)) -> str | None:
+    try:
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM]).get("channel")
+    except JWTError:
+        return None
+
+
 def get_current_admin_id(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
+    channel: str | None = Depends(get_token_channel),
 ) -> int:
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if channel == EMAIL_CHANNEL:
+        raise HTTPException(status_code=403, detail=ADMIN_OVER_EMAIL_DETAIL)
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Administrator permission required")
     return user_id
@@ -120,18 +139,21 @@ def is_group_member(
     group_id: int = Path(...),
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
+    channel: str | None = Depends(get_token_channel),
 ) -> int:
     if not db.query(Group).filter(Group.id == group_id).first():
         raise HTTPException(status_code=404, detail="Group not found")
 
     role = get_group_role(db, user_id, group_id)
-    if role not in {"owner", "member"} and not _is_admin(db, user_id):
+    if role not in {"owner", "member"} and not _is_admin(db, user_id, channel):
         raise HTTPException(status_code=403, detail="Not authorised to view this group")
 
     return user_id
 
 
-def _is_admin(db: Session, user_id: int) -> bool:
+def _is_admin(db: Session, user_id: int, channel: str | None = None) -> bool:
+    if channel == EMAIL_CHANNEL:
+        return False
     user = db.query(User).filter(User.id == user_id).first()
     return bool(user and user.is_admin)
 
@@ -151,7 +173,7 @@ def is_email_workflow_group_member(
 
     if principal.user_id is not None:
         role = get_group_role(db, principal.user_id, group_id)
-        if role not in {"owner", "member"} and not _is_admin(db, principal.user_id):
+        if role not in {"owner", "member"} and not _is_admin(db, principal.user_id, principal.channel):
             raise HTTPException(status_code=403, detail="Not authorised to view this group")
         return principal
 
@@ -176,7 +198,7 @@ def is_group_owner_or_email_member(
         if not db.query(Group).filter(Group.id == group_id).first():
             raise HTTPException(status_code=404, detail="Group not found")
         if get_group_role(db, principal.user_id, group_id) != "owner" and not _is_admin(
-            db, principal.user_id
+            db, principal.user_id, principal.channel
         ):
             raise HTTPException(status_code=403, detail="Group owner permission required")
         return principal
@@ -187,12 +209,13 @@ def is_group_owner_or_email_member(
 def is_group_owner(
     group_id: int = Path(...),
     db: Session = Depends(get_db),
-    user_id: int = Depends(get_current_user_id)
+    user_id: int = Depends(get_current_user_id),
+    channel: str | None = Depends(get_token_channel),
 ) -> int:
     if not db.query(Group).filter(Group.id == group_id).first():
         raise HTTPException(status_code=404, detail="Group not found")
 
-    if _group_role(db, user_id, group_id) != "owner" and not _is_admin(db, user_id):
+    if _group_role(db, user_id, group_id) != "owner" and not _is_admin(db, user_id, channel):
         raise HTTPException(status_code=403, detail="Group owner permission required")
 
     return user_id

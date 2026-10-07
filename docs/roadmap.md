@@ -81,11 +81,25 @@ Done: the unified query (`backend/engine/query_graph.py`) and weekly report (`ba
 - Remove duplicated report generation: keep one implementation in the backend (`routes/reports.py`), and have the agent's `reports/` call it.
 - Keep the agent's LangGraph usage to intent parsing and tool selection only.
 
-### Phase 4: Command parity
+### Phase 4: Command parity (mostly done)
 
-- Build a table: every agent command -> exactly one API route. Fill gaps in either direction (comments, attendees, etc.).
-- Add tests that exercise each action via the generated client and via direct HTTP.
-- Confirm the agent acts as the emailing user (per-user token), not a privileged identity.
+Every email command goes through routes a Postman user can call, with the emailing user's own token. Guarded by `services/email-agent/tests/test_api_parity.py` (commands map to routes in `docs/openapi.json`) and `backend/tests/test_agent_client_parity.py` (the agent's real client runs each action against a live backend).
+
+| Email command | API routes |
+|---|---|
+| `submit_transcript` | `POST /admin/user-token` (service key, mints the sender's own token), `GET /groups/`, `POST /groups/{id}/meetings/`, `POST .../upload/`, `POST /groups/{id}/aliases/resolve`, `POST .../attendees` |
+| `assess_query` | `POST /groups/{id}/conversation/query`, `/github/query`, `/trello/query`, `/query` |
+| `add_comment` | `POST /groups/{id}/meetings/{mid}/comments` |
+| `log_meeting` | `POST /groups/{id}/meetings/` + `.../comments` |
+| weekly update and replies | `POST /groups/{id}/reports/weekly`, `/reports/answer` |
+| `status`, `results`, `cancel` | none: job tracking is agent-only until the Phase 5 jobs API |
+| `help` | local |
+
+API-only today (no email command): group, member and user administration, meeting delete, attendee removal, audio transcription, meeting summaries, GitHub/Trello ingest and stats. Candidates to expose by email if wanted: meeting summary, ingest, stats.
+
+Identity: the agent mints a token for the verified sender and uses it for everything except `/admin/*` reads. Tokens minted for email carry `channel=email`, and the backend ignores administrator rights on them: admin-only routes, the `all_groups` listing, assigning another owner, and the admin override on group access all return 403 "Administrator actions are not available over email". An admin emailing the agent has only their ordinary group roles, and the agent replies with an explanation instead of the raw error. The same admin keeps every right through the API. Tests confirm the email token cannot call service routes, that a group-member token can comment but not query, and the admin restriction.
+
+Future: new email abilities should not mean new hard-coded commands. The agent already wraps its API client as LangChain tools (`app/llm/manager_tools.py`). The intended flow is: email arrives, sender is authenticated, a per-user `channel=email` token is minted, and the model selects tools from the API-backed set to carry out the request. Every tool call runs with that token, so the backend's authorisation applies exactly as it does for a Postman user.
 
 ### Phase 5: Jobs and state
 
