@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     complete_retrieval_row_limit: int = 50
     # A date-windowed transcript query reads every chunk in the window if there are at most this many.
     transcript_window_chunk_limit: int = 80
+    # Worker threads for background jobs (backend/jobs).
+    job_workers: int = 2
 
     # Port the frontend dev server runs on - used to build the CORS allow list in main.py.
     frontend_port: str = "5000"

@@ -10,9 +10,10 @@ endpoints don't exist.
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Optional
+from typing import Callable, Optional
 
 import httpx
 from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -42,6 +43,14 @@ class ClientError(DiarisationApiError):
 
 class TransientError(DiarisationApiError):
     """Timeouts and 5xx - retried internally with backoff."""
+
+
+class JobFailedError(DiarisationApiError):
+    """A backend job ended in the failed state. Not retried: re-submitting would redo the work."""
+
+
+class JobCancelledError(DiarisationApiError):
+    """The backend job was cancelled."""
 
 
 @dataclass
@@ -117,6 +126,22 @@ class WeeklyReportResult:
 
 
 @dataclass
+class BackendJob:
+    id: str
+    kind: str
+    state: str
+    progress: Optional[str] = None
+    result: Optional[dict] = None
+    error: Optional[str] = None
+    error_type: Optional[str] = None
+    meeting_id: Optional[int] = None
+
+    @property
+    def finished(self) -> bool:
+        return self.state in ("completed", "failed", "cancelled")
+
+
+@dataclass
 class QueryAnswer:
     answer: str
     sources_used: list[str]
@@ -133,8 +158,10 @@ class DiarisationClient:
         retry_backoff_seconds: float = 1.0,
         service_api_key: Optional[str] = None,
         query_timeout: float = 180.0,
+        job_poll_seconds: float = 2.0,
     ):
         self._query_timeout = query_timeout
+        self._job_poll_seconds = job_poll_seconds
         self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout)
         self._retryer = Retrying(
             reraise=True,
@@ -286,17 +313,20 @@ class DiarisationClient:
             return []
 
     def query_source(
-        self, token: str, group_id: int, source: str, question: str, since: Optional[date] = None
+        self,
+        token: str,
+        group_id: int,
+        source: str,
+        question: str,
+        since: Optional[date] = None,
+        on_job: Optional[Callable[[str], None]] = None,
     ) -> QueryAnswer:
-        """POST /groups/{id}/{conversation|github|trello}/query - an answer from one source."""
-        resp = self._request(
-            "POST",
-            f"/groups/{group_id}/{source}/query",
-            headers=_auth(token),
-            json=_query_body(question, since),
-            timeout=self._query_timeout,
-        )
-        return QueryAnswer(answer=resp.json()["answer"], sources_used=[source])
+        """POST /groups/{id}/{conversation|github|trello}/query - an answer from one source.
+
+        With `on_job` the query runs as a backend job (so it can be cancelled and inspected); the
+        callback receives the job id as soon as it exists, and this call waits for the result."""
+        data = self._query(token, f"/groups/{group_id}/{source}/query", _query_body(question, since), on_job)
+        return QueryAnswer(answer=data["answer"], sources_used=[source])
 
     def query_unified(
         self,
@@ -305,22 +335,64 @@ class DiarisationClient:
         question: str,
         sources: Optional[list[str]] = None,
         since: Optional[date] = None,
+        on_job: Optional[Callable[[str], None]] = None,
     ) -> QueryAnswer:
         """POST /groups/{id}/query - the backend routes the question and merges source answers."""
         body = _query_body(question, since)
         if sources is not None:
             body["sources"] = sources
-        resp = self._request(
-            "POST",
-            f"/groups/{group_id}/query",
-            headers=_auth(token),
-            json=body,
-            timeout=self._query_timeout,
-        )
-        data = resp.json()
+        data = self._query(token, f"/groups/{group_id}/query", body, on_job)
         return QueryAnswer(
             answer=data["answer"], sources_used=data["sources_used"], errors=data.get("errors", {})
         )
+
+    def _query(self, token: str, path: str, body: dict, on_job: Optional[Callable[[str], None]]) -> dict:
+        if on_job is None:
+            return self._request(
+                "POST", path, headers=_auth(token), json=body, timeout=self._query_timeout
+            ).json()
+        resp = self._request("POST", f"{path}?async=true", headers=_auth(token), json=body)
+        job_id = resp.json()["job_id"]
+        on_job(job_id)
+        job = self._wait_for_job(token, job_id)
+        return job.result or {}
+
+    def _wait_for_job(self, token: str, job_id: str) -> BackendJob:
+        deadline = time.monotonic() + self._query_timeout
+        while True:
+            job = self.get_job(token, job_id)
+            if job.state == "completed":
+                return job
+            if job.state == "cancelled":
+                raise JobCancelledError(f"Backend job {job_id} was cancelled")
+            if job.state == "failed":
+                # The backend reports "nothing to answer from" as a ValueError, as the sync API does with a 404.
+                if job.error_type == "ValueError":
+                    raise NotFoundError(job.error or "No matching data")
+                raise JobFailedError(job.error or "Backend job failed")
+            if time.monotonic() >= deadline:
+                raise TransientError(f"Timed out waiting for backend job {job_id}")
+            time.sleep(self._job_poll_seconds)
+
+    def get_job(self, token: str, job_id: str) -> BackendJob:
+        """GET /jobs/{id}"""
+        return _job_from_api(self._request("GET", f"/jobs/{job_id}", headers=_auth(token)).json())
+
+    def list_jobs(
+        self, token: str, kind: Optional[str] = None, meeting_id: Optional[int] = None, limit: int = 1
+    ) -> list[BackendJob]:
+        """GET /jobs/ - newest first."""
+        params: dict = {"limit": limit}
+        if kind is not None:
+            params["kind"] = kind
+        if meeting_id is not None:
+            params["meeting_id"] = meeting_id
+        resp = self._request("GET", "/jobs/", headers=_auth(token), params=params)
+        return [_job_from_api(item) for item in resp.json()]
+
+    def cancel_job(self, token: str, job_id: str) -> BackendJob:
+        """POST /jobs/{id}/cancel - ConflictError if the job already finished."""
+        return _job_from_api(self._request("POST", f"/jobs/{job_id}/cancel", headers=_auth(token)).json())
 
     def transcript_chunks_in_window(
         self, token: str, group_id: int, since: date, until: date
@@ -448,4 +520,12 @@ def _evidence_from_api(item: dict) -> ReportEvidence:
         content=item["content"],
         citation=item["citation"],
         raw_json=json.dumps(item, sort_keys=True),
+    )
+
+
+def _job_from_api(item: dict) -> BackendJob:
+    return BackendJob(
+        id=item["id"], kind=item["kind"], state=item["state"], progress=item.get("progress"),
+        result=item.get("result"), error=item.get("error"), error_type=item.get("error_type"),
+        meeting_id=item.get("meeting_id"),
     )

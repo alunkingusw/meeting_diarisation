@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from backend.auth import is_group_member
@@ -24,6 +25,8 @@ from backend.engine.report_schemas import (
     WeeklyReportRequest,
     WeeklyReportResponse,
 )
+from backend.jobs.schemas import JobAccepted
+from backend.jobs.service import submit_job
 from backend.llm.ollama_client import OllamaError
 from backend.models import Group
 
@@ -37,10 +40,14 @@ def _get_group(db: Session, group_id: int) -> Group:
     return group
 
 
-@router.post("/weekly", response_model=WeeklyReportResponse)
+@router.post("/weekly", response_model=WeeklyReportResponse, responses={202: {"model": JobAccepted}})
 def weekly_report(
     group_id: int,
     payload: WeeklyReportRequest,
+    run_async: bool = Query(
+        False, alias="async",
+        description="Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+    ),
     db: Session = Depends(get_db),
     user_id: int = Depends(is_group_member),
 ):
@@ -49,6 +56,16 @@ def weekly_report(
     if payload.period_end <= payload.period_start:
         raise HTTPException(status_code=422, detail="period_end must be after period_start")
     group = _get_group(db, group_id)
+    if run_async:
+        job = submit_job(
+            db, "report",
+            {
+                "group_id": group_id, "period_start": payload.period_start.isoformat(),
+                "period_end": payload.period_end.isoformat(),
+            },
+            user_id=user_id, group_id=group_id,
+        )
+        return JSONResponse(status_code=202, content=JobAccepted(job_id=job.id).model_dump())
     try:
         return compose_weekly_report(db, group, payload.period_start, payload.period_end)
     except OllamaError as exc:

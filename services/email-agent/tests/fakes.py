@@ -32,6 +32,8 @@ from app.diarisation.client import (
     GroupSummary,
     MeetingComment,
     MeetingSummary,
+    BackendJob,
+    JobCancelledError,
     NotFoundError,
     QueryAnswer,
     RawFileSummary,
@@ -55,6 +57,10 @@ class FakeDiarisationClient:
         unlinked_sources: Optional[set[str]] = None,
     ):
         # source -> canned answer; a source in `unlinked_sources` raises NotFoundError like the backend's 404.
+        self.backend_jobs: dict[str, BackendJob] = {}
+        self.cancelled_backend_jobs: list[str] = []
+        self.announced_jobs: list[str] = []
+        self.cancel_queries = False
         self.composed_reports: list = []
         self.report_questions: list = []
         self.report_text = "The team agreed to ship. [Planning]"
@@ -148,15 +154,42 @@ class FakeDiarisationClient:
             raise NotFoundError("no transcripts in window")
         return self.transcript_chunks
 
-    def query_source(self, token: str, group_id: int, source: str, question: str, since=None) -> QueryAnswer:
+    def get_job(self, token: str, job_id: str) -> BackendJob:
+        self._maybe_fail("get_job")
+        return self.backend_jobs[job_id]
+
+    def list_jobs(self, token: str, kind=None, meeting_id=None, limit: int = 1) -> list[BackendJob]:
+        self._maybe_fail("list_jobs")
+        return [
+            j for j in self.backend_jobs.values()
+            if (kind is None or j.kind == kind) and (meeting_id is None or j.meeting_id == meeting_id)
+        ][:limit]
+
+    def cancel_job(self, token: str, job_id: str) -> BackendJob:
+        self._maybe_fail("cancel_job")
+        self.cancelled_backend_jobs.append(job_id)
+        return self.backend_jobs[job_id]
+
+    def _announce_job(self, on_job) -> None:
+        if on_job is None:
+            return
+        if self.cancel_queries:
+            raise JobCancelledError("cancelled")
+        job_id = f"backend-job-{len(self.announced_jobs) + 1}"
+        self.announced_jobs.append(job_id)
+        on_job(job_id)
+
+    def query_source(self, token: str, group_id: int, source: str, question: str, since=None, on_job=None) -> QueryAnswer:
         self._maybe_fail(f"query_{source}")
+        self._announce_job(on_job)
         if source in self.unlinked_sources:
             raise NotFoundError(f"no {source} source linked")
         self.queries.append((source, question))
         return QueryAnswer(answer=self.source_answers.get(source, f"{source} answer"), sources_used=[source])
 
-    def query_unified(self, token: str, group_id: int, question: str, sources=None, since=None) -> QueryAnswer:
+    def query_unified(self, token: str, group_id: int, question: str, sources=None, since=None, on_job=None) -> QueryAnswer:
         self._maybe_fail("query_unified")
+        self._announce_job(on_job)
         used = [s for s in (sources or []) if s not in self.unlinked_sources]
         if not used:
             raise NotFoundError("no sources linked")

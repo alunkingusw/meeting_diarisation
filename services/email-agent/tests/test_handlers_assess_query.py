@@ -180,3 +180,28 @@ def test_execute_backend_login_failure_marks_job_failed(db_path: Path):
     assess_query.execute(job, diarisation, job_store, outbox, admin)
 
     assert job_store.get(job.job_id).status == JobState.FAILED
+
+
+def test_execute_records_backend_job_id_and_stops_quietly_when_cancelled(db_path: Path):
+    job_store, job = _queued_job(db_path, transcript_focus="the API redesign")
+    outbox = Outbox(db_path)
+    admin = AdminNotifier(db_path, outbox, admin_email=None)
+    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")])
+
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
+
+    assert job_store.get(job.job_id).backend_job_id == "backend-job-1"
+    assert job_store.get(job.job_id).status == JobState.COMPLETED
+
+
+def test_execute_cancelled_backend_job_marks_job_cancelled_and_sends_nothing(db_path: Path):
+    job_store, job = _queued_job(db_path, transcript_focus="the API redesign")
+    outbox = Outbox(db_path)
+    admin = AdminNotifier(db_path, outbox, admin_email="admin@uni.ac.uk")
+    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")])
+    diarisation.cancel_queries = True
+
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
+
+    assert job_store.get(job.job_id).status == JobState.CANCELLED
+    assert outbox.pending() == []

@@ -671,6 +671,18 @@
             ],
             "title": "Issues Ingested"
           },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Poll GET /jobs/{job_id} while status is running.",
+            "title": "Job Id"
+          },
           "review_comments_ingested": {
             "anyOf": [
               {
@@ -714,6 +726,151 @@
           "group_id"
         ],
         "title": "IngestSummary",
+        "type": "object"
+      },
+      "JobAccepted": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "state": {
+            "default": "queued",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "JobAccepted",
+        "type": "object"
+      },
+      "JobOut": {
+        "properties": {
+          "cancel_requested": {
+            "default": false,
+            "title": "Cancel Requested",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exception class name when the job failed",
+            "title": "Error Type"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "description": "queued, running, completed, failed or cancelled",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "created_at"
+        ],
+        "title": "JobOut",
         "type": "object"
       },
       "MeetingAttendee": {
@@ -1110,6 +1267,17 @@
               }
             ],
             "title": "Processed Date"
+          },
+          "processing_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processing Job Id"
           },
           "type": {
             "$ref": "#/components/schemas/RawFileType"
@@ -2393,6 +2561,18 @@
               "title": "Group Id",
               "type": "integer"
             }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -2415,6 +2595,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "content": {
@@ -2451,6 +2641,18 @@
               "title": "Group Id",
               "type": "integer"
             }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -2473,6 +2675,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "content": {
@@ -3244,7 +3456,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RawFileOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -3644,6 +3858,18 @@
               "title": "Group Id",
               "type": "integer"
             }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -3666,6 +3892,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "content": {
@@ -3760,6 +3996,18 @@
               "title": "Group Id",
               "type": "integer"
             }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -3782,6 +4030,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
           },
           "422": {
             "content": {
@@ -3935,6 +4193,18 @@
               "title": "Group Id",
               "type": "integer"
             }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
           }
         ],
         "requestBody": {
@@ -3958,6 +4228,16 @@
             },
             "description": "Successful Response"
           },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -3977,6 +4257,220 @@
         "summary": "Query Trello",
         "tags": [
           "query"
+        ]
+      }
+    },
+    "/jobs/": {
+      "get": {
+        "description": "Jobs you started, plus jobs in groups you own. Newest first.",
+        "operationId": "list_jobs_jobs__get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "meeting_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JobOut"
+                  },
+                  "title": "Response List Jobs Jobs  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Jobs",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "operationId": "get_job_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{job_id}/cancel": {
+      "post": {
+        "description": "Cancel a queued job at once, or ask a running one to stop at its next checkpoint (an LLM call\nalready in progress finishes first).",
+        "operationId": "cancel_job_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Cancel Job",
+        "tags": [
+          "jobs"
         ]
       }
     },

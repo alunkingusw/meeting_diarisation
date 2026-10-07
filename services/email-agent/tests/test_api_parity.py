@@ -28,6 +28,10 @@ OPERATION_ROUTES = {
         ("POST", "/groups/{group_id}/query"),
     ],
     Operation.ADD_COMMENT: [("POST", "/groups/{group_id}/meetings/{meeting_id}/comments")],
+    # Job state for a request comes from the backend's jobs API.
+    Operation.STATUS: [("GET", "/jobs/{job_id}"), ("GET", "/jobs/")],
+    Operation.RESULTS: [("GET", "/jobs/{job_id}"), ("GET", "/jobs/")],
+    Operation.CANCEL: [("POST", "/jobs/{job_id}/cancel")],
     Operation.LOG_MEETING: [
         ("POST", "/groups/{group_id}/meetings/"),
         ("POST", "/groups/{group_id}/meetings/{meeting_id}/comments"),
@@ -40,8 +44,7 @@ REPORT_ROUTES = [
     ("POST", "/groups/{group_id}/reports/answer"),
 ]
 
-# No backend equivalent yet: job tracking lives only in the agent until the Phase 5 jobs API.
-LOCAL_ONLY = {Operation.STATUS, Operation.RESULTS, Operation.CANCEL, Operation.HELP}
+LOCAL_ONLY = {Operation.HELP}
 
 
 def _contract() -> set[tuple[str, str]]:

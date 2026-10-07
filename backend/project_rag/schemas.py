@@ -17,6 +17,7 @@ class IngestSummary(BaseModel):
 
     group_id: int
     status: Literal["completed", "running"] = "completed"
+    job_id: str | None = Field(default=None, description="Poll GET /jobs/{job_id} while status is running.")
     commits_ingested: int | None = None
     issues_ingested: int | None = None
     issue_comments_ingested: int | None = None

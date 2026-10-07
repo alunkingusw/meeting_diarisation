@@ -2,12 +2,11 @@
 
 import logging
 from pathlib import Path
-from typing import Callable
 
 from sqlalchemy.orm import Session
 
 from backend.config import settings
-from backend.db import SessionLocal
+from backend.jobs.service import submit_job
 from backend.llm.ollama_client import OllamaClient, OllamaError
 from backend.models import Group
 from backend.project_rag.models import Repo
@@ -98,34 +97,14 @@ def delete_group_index(db: Session, group_id: int) -> None:
 # ---------------------------------------------------------------- ingestion
 
 
-def _run_ingest_in_background(repo_id: int, local_path: Path, sources: tuple[str, ...]) -> None:
-    db = SessionLocal()
-    try:
-        repo = db.get(Repo, repo_id)
-        try:
-            ingest_repo(db, repo, local_path=local_path, sources=sources)
-        except Exception as exc:  # noqa: BLE001 - recorded for polling
-            logger.exception("Background ingest failed for repo %s", repo_id)
-            db.rollback()
-            repo.ingest_status = "failed"
-            repo.ingest_error = str(exc)
-            db.commit()
-            return
-        repo.ingest_status = "idle"
-        repo.ingest_error = None
-        db.commit()
-    finally:
-        db.close()
-
-
 def start_ingest(
     db: Session,
     group: Group,
     sources: tuple[str, ...],
     flush: bool,
-    add_background_task: Callable[..., None],
+    user_id: int | None = None,
 ) -> IngestSummary:
-    """Ingest the requested sources, inline for small repos and in the background for large ones."""
+    """Ingest the requested sources, inline for small repos and as a background job for large ones."""
     repo = get_or_create_repo(db, group)
     if repo.ingest_status == "running":
         raise IngestAlreadyRunning("Ingestion is already running for this group")
@@ -155,8 +134,12 @@ def start_ingest(
     db.commit()
 
     if background:
-        add_background_task(_run_ingest_in_background, repo.id, local_path, sources)
-        return IngestSummary(group_id=group.id, status="running", warnings=warnings)
+        job = submit_job(
+            db, "ingest",
+            {"repo_id": repo.id, "local_path": str(local_path), "sources": list(sources)},
+            user_id=user_id, group_id=group.id,
+        )
+        return IngestSummary(group_id=group.id, status="running", warnings=warnings, job_id=job.id)
 
     try:
         summary = ingest_repo(db, repo, local_path=local_path, sources=sources)

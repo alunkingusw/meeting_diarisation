@@ -16,7 +16,7 @@ from typing import Optional
 
 from app.admin.notifier import AdminCategory, AdminNotifier
 from app.commands.validator import ValidatedCommand
-from app.diarisation.client import DiarisationApiError, DiarisationClient, NotFoundError
+from app.diarisation.client import DiarisationApiError, DiarisationClient, JobCancelledError, NotFoundError
 from app.diarisation.group_matching import Matched, group_clarification_question, match_group
 from app.email_templates.render import (
     render_assess_ack,
@@ -31,6 +31,17 @@ from app.jobs.store import JobStore, Outbox, PendingClarificationStore
 logger = logging.getLogger(__name__)
 
 _SOURCE_LABELS = {"github": "the GitHub repo", "trello": "the Trello board"}
+
+
+def _was_cancelled(job: Job, job_store: JobStore) -> bool:
+    current = job_store.get(job.job_id)
+    return current is not None and current.status == JobState.CANCELLED
+
+
+def _mark_cancelled(job: Job, job_store: JobStore) -> None:
+    """The backend job was cancelled; the cancel email (or the API) already told the user."""
+    if not _was_cancelled(job, job_store):
+        job_store.set_status(job.job_id, JobState.CANCELLED)
 
 
 def _project_sources_label(sources: list[str]) -> str:
@@ -104,6 +115,7 @@ def execute(
             return
 
         group = match.group
+        track = lambda backend_job_id: job_store.update(job.job_id, backend_job_id=backend_job_id)  # noqa: E731
         transcript_answer: Optional[str] = None
         github_trello_answer: Optional[str] = None
         unavailable_notes: list[str] = []
@@ -111,8 +123,11 @@ def execute(
         if job.transcript_focus:
             try:
                 transcript_answer = diarisation_client.query_source(
-                    token, group.id, "conversation", job.transcript_focus
+                    token, group.id, "conversation", job.transcript_focus, on_job=track
                 ).answer
+            except JobCancelledError:
+                _mark_cancelled(job, job_store)
+                return
             except NotFoundError:
                 transcript_answer = "I didn't find anything in past transcripts that speaks to this."
             except DiarisationApiError:
@@ -122,14 +137,18 @@ def execute(
         project_sources = [
             name for name, focus in (("github", job.github_focus), ("trello", job.trello_focus)) if focus
         ]
+        if _was_cancelled(job, job_store):
+            return
         if project_sources:
             question = " ".join(f for f in (job.github_focus, job.trello_focus) if f)
             try:
                 if len(project_sources) == 1:
-                    result = diarisation_client.query_source(token, group.id, project_sources[0], question)
+                    result = diarisation_client.query_source(
+                        token, group.id, project_sources[0], question, on_job=track
+                    )
                 else:
                     result = diarisation_client.query_unified(
-                        token, group.id, question, sources=project_sources
+                        token, group.id, question, sources=project_sources, on_job=track
                     )
                 github_trello_answer = result.answer
                 unavailable_notes.extend(
@@ -137,6 +156,9 @@ def execute(
                     for name in result.errors
                     if name in _SOURCE_LABELS
                 )
+            except JobCancelledError:
+                _mark_cancelled(job, job_store)
+                return
             except NotFoundError:
                 unavailable_notes.append(
                     f"Your group doesn't have {_project_sources_label(project_sources)} linked yet, "
@@ -146,6 +168,8 @@ def execute(
                 logger.exception("GitHub/Trello query failed for job %s", job.job_id)
                 unavailable_notes.append("I couldn't check the GitHub repo/Trello board right now.")
 
+        if _was_cancelled(job, job_store):
+            return
         if transcript_answer is None and github_trello_answer is None:
             reason = "None of the sources I needed to answer this were reachable just now."
             if unavailable_notes:

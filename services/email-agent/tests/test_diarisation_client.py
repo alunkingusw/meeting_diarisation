@@ -471,3 +471,65 @@ def test_answer_report_question_sends_saved_evidence(client):
     assert answer == "Ship it."
     sent = route.calls.last.request.read()
     assert b'"question":"What was agreed?"' in sent and b'"evidence_id":"m1"' in sent
+
+
+def _job_json(state, **extra):
+    return {"id": "j1", "kind": "query", "state": state, "progress": None, "result": None, "error": None, **extra}
+
+
+@respx.mock
+def test_async_query_waits_for_the_job_and_reports_the_id(client):
+    client._job_poll_seconds = 0
+    respx.post(f"{BASE_URL}/groups/3/github/query", params={"async": "true"}).mock(
+        return_value=httpx.Response(202, json={"job_id": "j1", "state": "queued"})
+    )
+    respx.get(f"{BASE_URL}/jobs/j1").mock(
+        side_effect=[
+            httpx.Response(200, json=_job_json("running")),
+            httpx.Response(200, json=_job_json("completed", result={"answer": "Two issues.", "source": "github"})),
+        ]
+    )
+    seen = []
+
+    result = client.query_source("tok", 3, "github", "open issues?", on_job=seen.append)
+
+    assert result.answer == "Two issues." and seen == ["j1"]
+
+
+@respx.mock
+def test_async_query_failure_modes_map_to_client_errors(client):
+    from app.diarisation.client import JobCancelledError, JobFailedError
+
+    client._job_poll_seconds = 0
+    respx.post(f"{BASE_URL}/groups/3/trello/query", params={"async": "true"}).mock(
+        return_value=httpx.Response(202, json={"job_id": "j1", "state": "queued"})
+    )
+    job = respx.get(f"{BASE_URL}/jobs/j1")
+
+    job.mock(return_value=httpx.Response(200, json=_job_json("failed", error="nothing ingested", error_type="ValueError")))
+    with pytest.raises(NotFoundError):
+        client.query_source("tok", 3, "trello", "q", on_job=lambda _: None)
+
+    job.mock(return_value=httpx.Response(200, json=_job_json("failed", error="Ollama down", error_type="OllamaError")))
+    with pytest.raises(JobFailedError):
+        client.query_source("tok", 3, "trello", "q", on_job=lambda _: None)
+
+    job.mock(return_value=httpx.Response(200, json=_job_json("cancelled")))
+    with pytest.raises(JobCancelledError):
+        client.query_source("tok", 3, "trello", "q", on_job=lambda _: None)
+
+
+@respx.mock
+def test_list_and_cancel_jobs(client):
+    respx.get(f"{BASE_URL}/jobs/").mock(
+        return_value=httpx.Response(200, json=[_job_json("running", kind="transcript_processing", meeting_id=42)])
+    )
+    cancel_route = respx.post(f"{BASE_URL}/jobs/j1/cancel").mock(
+        return_value=httpx.Response(200, json=_job_json("cancelled"))
+    )
+
+    jobs = client.list_jobs("tok", kind="transcript_processing", meeting_id=42)
+    cancelled = client.cancel_job("tok", "j1")
+
+    assert jobs[0].meeting_id == 42 and not jobs[0].finished
+    assert cancelled.state == "cancelled" and cancel_route.called

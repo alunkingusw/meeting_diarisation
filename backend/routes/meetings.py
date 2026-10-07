@@ -14,14 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 from backend.models import Meeting, MeetingOut, MeetingComment, MeetingCommentOut, GroupMember, GroupMemberOut, RawFile, Group
 from backend.db_dependency import get_db
 from datetime import date, datetime, timedelta
 from backend.validation import MeetingCreateEdit, MeetingCommentCreate, MeetingAttendee
-from backend.processing.transcribe import transcribe_meeting
+from backend.jobs.service import submit_job
 from backend.llm.ollama_client import OllamaError
 from backend.summarization.summariser import generate_meeting_summary
 
@@ -202,7 +202,6 @@ async def start_transcription_job(
     reprocess: bool = Query(False),
     db: Session = Depends(get_db),
     user_id: int = Depends(is_group_owner),
-    background_tasks: BackgroundTasks = None
 ):
     meeting = db.query(Meeting).filter(
         and_(Meeting.id == meeting_id, Meeting.group_id == group_id)
@@ -231,13 +230,16 @@ async def start_transcription_job(
             detail="This file has already been processed. To reprocess, set the 'reprocess=true' query parameter."
         )
 
-    # Queue background transcription process
-    background_tasks.add_task(transcribe_meeting, group_id, meeting_id, db)
+    job = submit_job(
+        db, "transcription", {"group_id": group_id, "meeting_id": meeting_id},
+        user_id=user_id, group_id=group_id, meeting_id=meeting_id,
+    )
 
     return {
         "message": f"{'Reprocessing' if reprocess else 'Transcription job started'}.",
         "file": audio_file.file_name,
-        "status_check_url": f"/groups/{group_id}/meetings/{meeting_id}/transcription/status"
+        "job_id": job.id,
+        "status_check_url": f"/jobs/{job.id}",
     }
 
 

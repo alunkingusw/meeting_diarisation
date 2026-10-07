@@ -39,7 +39,8 @@ def live_backend(app, db_session, monkeypatch):
     import uvicorn
 
     monkeypatch.setattr("backend.auth.SERVICE_API_KEY", SERVICE_KEY)
-    monkeypatch.setattr("backend.routes.upload._process_uploaded_transcript", lambda *a, **k: None)
+    monkeypatch.setattr("backend.transcript_rag.indexer.index_transcript", lambda **kwargs: {})
+    monkeypatch.setattr("backend.summarization.summariser.summarise_meeting_task", lambda *a, **k: None)
 
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -110,6 +111,17 @@ def test_agent_actions_run_against_real_routes(
     unified = agent_client.query_unified(token, group.id, "What was agreed?", sources=["conversation"])
     assert unified.sources_used == ["conversation"]
     assert agent_client.search_transcripts(token, group.id, "ship")[0].speaker == "Bob"
+
+    # job status / cancel path: a query run as a backend job, then looked up by the agent's client
+    seen = []
+    assert agent_client.query_source(token, group.id, "conversation", "Again?", on_job=seen.append).answer == "fake answer"
+    job = agent_client.get_job(token, seen[0])
+    assert job.state == "completed" and job.kind == "query"
+    assert [j.id for j in agent_client.list_jobs(token, kind="query")] == [seen[0]]
+    from app.diarisation.client import ConflictError
+
+    with pytest.raises(ConflictError):
+        agent_client.cancel_job(token, seen[0])
 
     # weekly report path
     stored = db_session.get(Meeting, meeting.id)

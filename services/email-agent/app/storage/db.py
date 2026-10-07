@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     github_focus TEXT,
     trello_focus TEXT,
     comment_text TEXT,
+    backend_job_id TEXT,
     error TEXT,
     retry_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -153,6 +154,9 @@ def init_db(db_path: Path) -> None:
     try:
         conn.executescript(SCHEMA)
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
+        if "backend_job_id" not in columns:
+            conn.execute("ALTER TABLE jobs ADD COLUMN backend_job_id TEXT")
+            columns.add("backend_job_id")
         if "comment_text" not in columns:
             conn.execute("ALTER TABLE jobs ADD COLUMN comment_text TEXT")
             columns.add("comment_text")
@@ -193,6 +197,7 @@ def init_db(db_path: Path) -> None:
                     github_focus TEXT,
                     trello_focus TEXT,
                     comment_text TEXT,
+                    backend_job_id TEXT,
                     error TEXT,
                     retry_count INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,

@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 from backend.config import settings
 from backend.routes import router as api_router
 from backend.startup import bootstrap_initial_admin
+from backend.jobs.service import recover_interrupted
 
 import backend.startup
 import logging
@@ -32,6 +33,13 @@ backend = FastAPI()
 @backend.on_event("startup")
 def provision_initial_admin():
     bootstrap_initial_admin()
+
+
+@backend.on_event("startup")
+def fail_interrupted_jobs():
+    interrupted = recover_interrupted()
+    if interrupted:
+        logging.warning("Marked %s interrupted job(s) as failed", interrupted)
 
 #add middleware for communication between backend and frontend running on the same server
 origins = [

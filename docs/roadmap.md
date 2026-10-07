@@ -92,7 +92,7 @@ Every email command goes through routes a Postman user can call, with the emaili
 | `add_comment` | `POST /groups/{id}/meetings/{mid}/comments` |
 | `log_meeting` | `POST /groups/{id}/meetings/` + `.../comments` |
 | weekly update and replies | `POST /groups/{id}/reports/weekly`, `/reports/answer` |
-| `status`, `results`, `cancel` | none: job tracking is agent-only until the Phase 5 jobs API |
+| `status`, `results`, `cancel` | `GET /jobs/{id}`, `GET /jobs/`, `POST /jobs/{id}/cancel` (agent keeps email-thread state and a `backend_job_id` mapping) |
 | `help` | local |
 
 API-only today (no email command): group, member and user administration, meeting delete, attendee removal, audio transcription, meeting summaries, GitHub/Trello ingest and stats. Candidates to expose by email if wanted: meeting summary, ingest, stats.
@@ -101,10 +101,13 @@ Identity: the agent mints a token for the verified sender and uses it for everyt
 
 Future: new email abilities should not mean new hard-coded commands. The agent already wraps its API client as LangChain tools (`app/llm/manager_tools.py`). The intended flow is: email arrives, sender is authenticated, a per-user `channel=email` token is minted, and the model selects tools from the API-backed set to carry out the request. Every tool call runs with that token, so the backend's authorisation applies exactly as it does for a Postman user.
 
-### Phase 5: Jobs and state
+### Phase 5: Jobs and state (done for backend long-running work)
 
-- Add an async job API (create, status, result) for transcription, reports, and long queries.
-- Move user-visible job state from the agent's store into Postgres. The agent keeps only email-thread state.
+`jobs` table in Postgres plus an in-process worker pool (`backend/jobs`, `job_workers` setting). `GET /jobs/` (yours, plus jobs in groups you own), `GET /jobs/{id}`, `POST /jobs/{id}/cancel`. Job kinds: `transcript_processing` (indexing and summarising after an upload; the upload response carries `processing_job_id`), `transcription` (audio), `ingest` (large repos; `IngestSummary.job_id`), and `query`/`report`, which any query or weekly-report route runs as a job when called with `?async=true` (202 plus a job id). Anything queued or running at API start is marked failed ("Interrupted by a restart"). Cancelling a queued job is immediate; a running job stops at its next checkpoint, so a query already waiting on the LLM finishes first.
+
+The agent keeps email-thread state and a `backend_job_id` per request. `assess_query` runs its queries as backend jobs and polls them; `status` and `results` add the backend job's progress (for submit_transcript, the transcript processing job found by meeting id); `cancel` stops the backend job.
+
+Not moved: the agent's own submit/comment/log-meeting orchestration, weekly report composition (still a synchronous call), and the agent's SQLite job rows themselves. A one-call transcript submission endpoint was left out of this phase.
 
 ## Open decisions
 

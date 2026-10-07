@@ -14,11 +14,14 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from backend.auth import is_group_member, is_group_owner
 from backend.db_dependency import get_db
+from backend.jobs.schemas import JobAccepted
+from backend.jobs.service import submit_job
 from backend.llm.ollama_client import OllamaError
 from backend.models import Group
 from backend.engine.query_graph import run_unified_query
@@ -47,6 +50,22 @@ def _get_group(db: Session, group_id: int) -> Group:
     return group
 
 
+ASYNC_PARAM = Query(
+    False, alias="async",
+    description="Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+)
+
+
+def _accepted(db: Session, group_id: int, user_id: int, scope: str, payload) -> JSONResponse:
+    _get_group(db, group_id)
+    job = submit_job(
+        db, "query",
+        {"group_id": group_id, "scope": scope, "payload": payload.model_dump(mode="json")},
+        user_id=user_id, group_id=group_id,
+    )
+    return JSONResponse(status_code=202, content=JobAccepted(job_id=job.id).model_dump())
+
+
 def _run_source_query(
     db: Session, group_id: int, source: SourceName, payload: QueryRequest
 ) -> SourceQueryResponse:
@@ -59,10 +78,11 @@ def _run_source_query(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
-@router.post("/conversation/query", response_model=SourceQueryResponse)
+@router.post("/conversation/query", response_model=SourceQueryResponse, responses={202: {"model": JobAccepted}})
 def query_conversation(
     group_id: int,
     payload: ConversationQueryRequest,
+    run_async: bool = ASYNC_PARAM,
     db: Session = Depends(get_db),
     user_id: int = Depends(is_group_member),
 ):
@@ -71,40 +91,51 @@ def query_conversation(
     With `since`/`until` the meeting-date range is applied inside the vector store, and a small
     enough window is read in full (chronologically) rather than relevance-sampled. Set
     `retrieve_only` to get the chunks without an LLM answer."""
+    if run_async:
+        return _accepted(db, group_id, user_id, "conversation", payload)
     return _run_source_query(db, group_id, "conversation", payload)
 
 
-@router.post("/github/query", response_model=SourceQueryResponse)
+@router.post("/github/query", response_model=SourceQueryResponse, responses={202: {"model": JobAccepted}})
 def query_github(
     group_id: int,
     payload: QueryRequest,
+    run_async: bool = ASYNC_PARAM,
     db: Session = Depends(get_db),
     user_id: int = Depends(is_group_member),
 ):
     """Answer a question from the group's ingested GitHub commits, issues and review comments."""
+    if run_async:
+        return _accepted(db, group_id, user_id, "github", payload)
     return _run_source_query(db, group_id, "github", payload)
 
 
-@router.post("/trello/query", response_model=SourceQueryResponse)
+@router.post("/trello/query", response_model=SourceQueryResponse, responses={202: {"model": JobAccepted}})
 def query_trello(
     group_id: int,
     payload: QueryRequest,
+    run_async: bool = ASYNC_PARAM,
     db: Session = Depends(get_db),
     user_id: int = Depends(is_group_member),
 ):
     """Answer a question from the group's ingested Trello card activity."""
+    if run_async:
+        return _accepted(db, group_id, user_id, "trello", payload)
     return _run_source_query(db, group_id, "trello", payload)
 
 
-@router.post("/query", response_model=UnifiedQueryResponse)
+@router.post("/query", response_model=UnifiedQueryResponse, responses={202: {"model": JobAccepted}})
 def query_unified(
     group_id: int,
     payload: UnifiedQueryRequest,
+    run_async: bool = ASYNC_PARAM,
     db: Session = Depends(get_db),
     user_id: int = Depends(is_group_member),
 ):
     """Query across sources. Without `sources`, the question is routed to the sources it needs
     and, if several are used, their answers are merged into one."""
+    if run_async:
+        return _accepted(db, group_id, user_id, "unified", payload)
     group = _get_group(db, group_id)
     try:
         return run_unified_query(db, group, payload)
@@ -130,7 +161,6 @@ def group_stats(
 @router.post("/ingest", response_model=IngestSummary)
 def ingest(
     group_id: int,
-    background_tasks: BackgroundTasks,
     sources: list[Literal["github", "trello"]] = Query(default=["github", "trello"]),
     flush: bool = Query(
         default=False, description="Discard the selected sources' stored data and rebuild from scratch."
@@ -145,7 +175,7 @@ def ingest(
         raise HTTPException(status_code=400, detail="Group has no GitHub repo or Trello board linked")
     try:
         return group_service.start_ingest(
-            db, group, tuple(dict.fromkeys(sources)), flush, background_tasks.add_task
+            db, group, tuple(dict.fromkeys(sources)), flush, user_id=user_id
         )
     except group_service.IngestAlreadyRunning as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

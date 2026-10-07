@@ -286,15 +286,18 @@ class EmailProcessingPipeline:
             )
         elif validated.operation == Operation.STATUS:
             outcome = status_handler.handle(
-                validated, sender_email, self._job_store, self._outbox, in_reply_to, references
+                validated, sender_email, self._job_store, self._outbox, in_reply_to, references,
+                diarisation_client=self._diarisation_client,
             )
         elif validated.operation == Operation.RESULTS:
             outcome = results_handler.handle(
-                validated, sender_email, self._job_store, self._outbox, in_reply_to, references
+                validated, sender_email, self._job_store, self._outbox, in_reply_to, references,
+                diarisation_client=self._diarisation_client,
             )
         elif validated.operation == Operation.CANCEL:
             outcome = cancel_handler.handle(
-                validated, sender_email, self._job_store, self._outbox, in_reply_to, references
+                validated, sender_email, self._job_store, self._outbox, in_reply_to, references,
+                diarisation_client=self._diarisation_client,
             )
         elif validated.operation == Operation.ASSESS_QUERY:
             outcome = assess_query_handler.accept(

@@ -154,6 +154,20 @@ def db_session(app, db_engine):
         _truncate_all_tables(db_engine)
 
 
+class _SyncJobPool:
+    """Runs submitted jobs on the calling thread, so tests never race a background worker."""
+
+    def submit(self, fn, *args):
+        fn(*args)
+
+
+@pytest.fixture(autouse=True)
+def sync_job_pool(app, monkeypatch):
+    from backend.jobs import service
+
+    monkeypatch.setattr(service, "_executor", _SyncJobPool())
+
+
 @pytest.fixture
 def client(app, db_session):
     from fastapi.testclient import TestClient

@@ -30,6 +30,7 @@ ALLOWED_TRANSITIONS: dict[JobState, set[JobState]] = {
         JobState.COMPLETED,
         JobState.FAILED,
         JobState.NEEDS_CLARIFICATION,
+        JobState.CANCELLED,
     },
     JobState.COMPLETED: set(),
     JobState.FAILED: set(),
@@ -67,6 +68,8 @@ class Job:
     github_focus: Optional[str] = None
     trello_focus: Optional[str] = None
     comment_text: Optional[str] = None
+    # The backend job doing the slow part of this request (see backend /jobs), if any.
+    backend_job_id: Optional[str] = None
     error: Optional[str] = None
     retry_count: int = 0
     created_at: str = field(default_factory=utcnow_iso)
@@ -110,6 +113,7 @@ class Job:
             github_focus=row["github_focus"],
             trello_focus=row["trello_focus"],
             comment_text=row["comment_text"],
+            backend_job_id=row["backend_job_id"] if "backend_job_id" in row.keys() else None,
             error=row["error"],
             retry_count=row["retry_count"],
             created_at=row["created_at"],

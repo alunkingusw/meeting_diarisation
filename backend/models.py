@@ -164,6 +164,29 @@ class RawFile(Base):
     meeting=relationship("Meeting", back_populates="media_files")
     status=Column(Text, nullable=True)
 
+class Job(Base):
+    """A long-running piece of work (see backend/jobs). State lives here so any API client can poll it."""
+
+    __tablename__ = "jobs"
+    id = Column(String(36), primary_key=True)
+    kind = Column(String(40), nullable=False, index=True)
+    state = Column(String(20), nullable=False, default="queued", index=True)
+    # Who asked for it: a user, or a group member who emailed a transcript in.
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    group_member_id = Column(Integer, ForeignKey("group_members.id"), nullable=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True, index=True)
+    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=True, index=True)
+    params = Column(JSON, nullable=False, default=dict)
+    result = Column(JSON, nullable=True)
+    progress = Column(String(255), nullable=True)
+    error = Column(Text, nullable=True)
+    error_type = Column(String(80), nullable=True)
+    cancel_requested = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+
 class GroupMemberOut(BaseModel):
     id: int
     name: str
@@ -201,6 +224,8 @@ class RawFileOut(BaseModel):
     description:Optional[str]
     processed_date:Optional[datetime]
     type:RawFileType
+    # Set for a transcript upload: poll GET /jobs/{id} for indexing and summarising.
+    processing_job_id: Optional[str] = None
     class Config:
         from_attributes =True
 
