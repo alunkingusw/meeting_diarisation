@@ -40,7 +40,7 @@ from backend.project_rag.models import Commit, Issue, IssueComment, Repo, Review
 from backend.project_rag.ingestion.commit_parser import ParsedCommit
 from backend.project_rag.ingestion.github_api import RemoteIssue, RemoteIssueComment, RemoteReviewComment
 from backend.project_rag.ingestion.trello_api import RemoteTrelloAction
-from backend.llm.ollama_client import OllamaClient
+from backend.llm.ollama_client import generate
 from backend.project_rag.services.repo_stats import (
     SOURCES, ProjectStats, collect_project_stats, format_stats_for_prompt,
 )
@@ -380,8 +380,7 @@ def answer_question(
         f"QUESTION: {question}"
     )
 
-    with OllamaClient() as llm:
-        generated = llm.chat(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
+    generated = generate(SYSTEM_PROMPT, user_prompt)
 
     return QueryResult(
         question=question,

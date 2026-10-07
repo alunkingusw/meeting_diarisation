@@ -15,7 +15,7 @@ from backend.engine.report_schemas import (
     ReportEvidenceItem,
     WeeklyReportResponse,
 )
-from backend.llm.ollama_client import OllamaClient, OllamaError
+from backend.llm.ollama_client import OllamaError, generate
 from backend.models import Group, Meeting, MeetingComment
 from backend.project_rag import group_service
 from backend.project_rag.schemas import QueryRequest
@@ -185,8 +185,7 @@ def build_report_graph(db: Session, group: Group, since: date, until: date):
             f"Evidence:\n{_format_evidence(state['evidence']) or '(No source evidence was returned.)'}\n\n"
             f"Unavailable sources:\n{unavailable}"
         )
-        with OllamaClient() as llm:
-            generated = llm.chat(system_prompt=REPORT_SYSTEM_PROMPT, user_prompt=prompt)
+        generated = generate(REPORT_SYSTEM_PROMPT, prompt)
         return {"report_text": generated.text, "model": generated.model}
 
     graph = StateGraph(ReportState)
@@ -220,6 +219,5 @@ def answer_report_question(group: Group, request: ReportAnswerRequest) -> Report
         f"User question: {request.question}\n\n"
         f"Persisted evidence:\n{_format_evidence(request.evidence) or '(No evidence was persisted.)'}"
     )
-    with OllamaClient() as llm:
-        generated = llm.chat(system_prompt=ANSWER_SYSTEM_PROMPT, user_prompt=prompt)
+    generated = generate(ANSWER_SYSTEM_PROMPT, prompt)
     return ReportAnswerResponse(answer=generated.text, model=generated.model)

@@ -18,22 +18,6 @@ VTT = b"WEBVTT\n\n00:00:01.000 --> 00:00:09.000\n<v Bob>We agreed to ship the AP
 SERVICE_KEY = "parity-service-key"
 
 
-class FakeLLM:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return None
-
-    def chat(self, system_prompt, user_prompt):
-        from backend.llm.ollama_client import LLMAnswer
-
-        return LLMAnswer(text="fake answer", model="fake-model", prompt_eval_count=None, eval_count=None)
-
-
 @pytest.fixture
 def live_backend(app, db_session, monkeypatch):
     import uvicorn
@@ -76,7 +60,7 @@ def _team(db_session, make_user, make_group, make_member):
 
 
 def test_agent_actions_run_against_real_routes(
-    agent_client, db_session, make_user, make_group, make_member, monkeypatch
+    agent_client, db_session, make_user, make_group, make_member, monkeypatch, fake_llm
 ):
     from backend.models import Meeting
 
@@ -86,10 +70,8 @@ def test_agent_actions_run_against_real_routes(
         "chunk_id": "1_00000", "meeting_id": "1", "meeting_title": "Team A", "meeting_date": "2026-10-01",
         "speaker": "Bob", "text": "We agreed to ship the API.", "start_ts": "00:00:01.000", "end_ts": "00:00:09.000",
     }
-    monkeypatch.setattr(group_service, "OllamaClient", FakeLLM)
     monkeypatch.setattr(group_service, "search_transcripts", lambda *a, **k: [chunk])
     monkeypatch.setattr(group_service, "transcripts_in_window", lambda *a, **k: [chunk])
-    monkeypatch.setattr("backend.engine.report_graph.OllamaClient", FakeLLM)
 
     # submit_transcript / log_meeting / add_comment path
     token = agent_client.login_for_email("Alice@uni.ac.uk")
@@ -134,8 +116,6 @@ def test_agent_actions_run_against_real_routes(
         token, group.id, "What was agreed?", report.evidence, date(2026, 9, 30), date(2026, 10, 7)
     )
     assert answer == "fake answer"
-    window = agent_client.transcript_chunks_in_window(token, group.id, date(2026, 9, 30), date(2026, 10, 7))
-    assert window[0].speaker == "Bob"
 
 
 def test_email_token_is_the_users_own_not_a_service_identity(

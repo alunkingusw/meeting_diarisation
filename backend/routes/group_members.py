@@ -20,7 +20,7 @@ from typing import List
 from pathlib import Path
 from string import Template
 from backend.models import GroupMember, Group, GroupMemberOut, User, users_groups
-from backend.db_dependency import get_db
+from backend.db_dependency import get_db, get_group_or_404
 from backend.auth import is_group_owner
 from backend.validation import GroupMembersCreateEdit
 from backend.config import settings
@@ -72,10 +72,7 @@ def create_member(
         db: Session = Depends(get_db), 
         user_id: int = Depends(is_group_owner)
     ):
-    # check if group exists and belongs to the user
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_or_404(db, group_id)
 
     owner_emails = db.query(User.email).join(
         users_groups, users_groups.c.user_id == User.id
@@ -104,9 +101,7 @@ def list_members(
         user_id: int = Depends(is_group_owner),
         
     ):
-    group = db.query(Group).get(group_id)
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_or_404(db, group_id)
 
     # Optional: check if user is part of the group
     if user_id not in [member.id for member in group.users]:
@@ -172,9 +167,7 @@ def upload_member_embedding(
         user_id: int = Depends(is_group_owner),
     ):
     # Validate group and member
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_or_404(db, group_id)
 
     member = db.query(GroupMember).filter(
         GroupMember.id == member_id

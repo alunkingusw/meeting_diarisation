@@ -17,12 +17,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 import bleach
 from datetime import datetime
 
-#define the required and optional fields that accompany a file upload. Specify default values.
-class FileUploadMetadata(BaseModel):
-    description: str = Field(min_length=5)
-    speaker_hint: Optional[int] = Field(None, ge=1, le=10, example=3)
-    language: Optional[str] = Field("en", example="en")
-
 class ServiceUserTokenRequest(BaseModel):
     email: str = Field(min_length=3, max_length=255)
 

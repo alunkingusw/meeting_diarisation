@@ -6,7 +6,7 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.orm import Session
 
-from backend.llm.ollama_client import OllamaClient, OllamaError
+from backend.llm.ollama_client import OllamaError, generate
 from backend.models import Group
 from backend.project_rag import group_service
 from backend.project_rag.schemas import (
@@ -44,11 +44,10 @@ def infer_sources(question: str, available: list[SourceName]) -> list[SourceName
     if len(available) == 1:
         return available
     try:
-        with OllamaClient() as llm:
-            reply = llm.chat(
-                system_prompt=ROUTER_SYSTEM_PROMPT,
-                user_prompt=f"Available sources: {', '.join(available)}\nQuestion: {question}",
-            ).text.lower()
+        reply = generate(
+            ROUTER_SYSTEM_PROMPT,
+            f"Available sources: {', '.join(available)}\nQuestion: {question}",
+        ).text.lower()
     except OllamaError:
         return available
     chosen = [s for s in available if s in reply]
@@ -92,11 +91,7 @@ def build_unified_graph(db: Session, group: Group, request: UnifiedQueryRequest)
             answer, model = only.answer, only.model
         else:
             source_answers = "\n\n".join(f"SOURCE: {name}\n{r.answer}" for name, r in results.items())
-            with OllamaClient() as llm:
-                composed = llm.chat(
-                    system_prompt=COMPOSE_SYSTEM_PROMPT,
-                    user_prompt=f"{source_answers}\n\nQUESTION: {request.question}",
-                )
+            composed = generate(COMPOSE_SYSTEM_PROMPT, f"{source_answers}\n\nQUESTION: {request.question}")
             answer, model = composed.text, composed.model
         return {
             "response": UnifiedQueryResponse(

@@ -60,7 +60,7 @@ def _group_with_owner(db_session, make_user, make_group):
 
 
 def test_conversation_retrieve_only_returns_window_without_llm(
-    client, db_session, make_user, make_group, auth_header_for, monkeypatch
+    client, db_session, make_user, make_group, auth_header_for, monkeypatch, fake_llm
 ):
     from backend.project_rag import group_service
 
@@ -72,9 +72,7 @@ def test_conversation_retrieve_only_returns_window_without_llm(
         return [_chunk(2, "2026-09-08", 0, "first")]
 
     monkeypatch.setattr(group_service, "transcripts_in_window", fake_window)
-    monkeypatch.setattr(
-        group_service, "OllamaClient", lambda *a, **k: (_ for _ in ()).throw(AssertionError("LLM called"))
-    )
+    fake_llm.error = AssertionError("LLM called")
 
     response = client.post(
         f"/groups/{group.id}/conversation/query",

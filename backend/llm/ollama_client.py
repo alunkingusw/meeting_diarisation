@@ -48,13 +48,8 @@ class LLMAnswer:
 
 class OllamaClient:
     """
-    Thin wrapper over the two Ollama endpoints this project needs:
-    `/api/chat` for generation and `/api/tags` for a health check.
-
-    Usable as a context manager:
-
-        with OllamaClient() as llm:
-            answer = llm.chat(system_prompt="...", user_prompt="...")
+    Thin wrapper over Ollama's `/api/chat` endpoint. Most callers should use
+    the module-level `generate()` helper rather than this class directly.
     """
 
     def __init__(self, base_url: str | None = None, model: str | None = None):
@@ -81,34 +76,6 @@ class OllamaClient:
     @property
     def base_url(self) -> str:
         return self._base_url
-
-    def health(self) -> dict:
-        """Check the server is reachable and report whether the configured model
-        is actually present on it."""
-        try:
-            response = self._client.get("/api/tags", timeout=10.0)
-            response.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise OllamaError(
-                f"Could not reach Ollama at {self._base_url}: {exc}. "
-                "Check OLLAMA_BASE_URL in .env, that the server is running, and that "
-                "it listens on a non-loopback address (OLLAMA_HOST=0.0.0.0) if it is "
-                "on another machine."
-            ) from exc
-
-        available = [m.get("name", "") for m in response.json().get("models", [])]
-        # Ollama reports "llama3.1:8b"; tolerate a configured name without a tag.
-        model_present = any(
-            name == self._model or name.split(":")[0] == self._model.split(":")[0]
-            for name in available
-        )
-        return {
-            "base_url": self._base_url,
-            "reachable": True,
-            "configured_model": self._model,
-            "model_available": model_present,
-            "available_models": available,
-        }
 
     def chat(self, system_prompt: str, user_prompt: str) -> LLMAnswer:
         """Send a single-turn chat completion and return the generated text.
@@ -155,3 +122,9 @@ class OllamaClient:
             prompt_eval_count=body.get("prompt_eval_count"),
             eval_count=body.get("eval_count"),
         )
+
+
+def generate(system_prompt: str, user_prompt: str) -> LLMAnswer:
+    """One-shot chat completion against the configured Ollama server."""
+    with OllamaClient() as llm:
+        return llm.chat(system_prompt=system_prompt, user_prompt=user_prompt)

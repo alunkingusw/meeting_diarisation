@@ -13,11 +13,11 @@
 # limitations under the License.
 
 """Chunks a transcript .vtt via the vendored vtt_rag pipeline and embeds the
-result into a per-group Chroma collection, so it can later be semantically
-searched (see backend/routes/transcripts.py). Two call sites feed this: a
-directly-uploaded .vtt (backend/routes/upload.py) and a server-transcribed
-one (backend/processing/transcribe.py) - both produce the same chunk/stats
-shape, so one indexing path covers both.
+result into a per-group Chroma collection for semantic search through the
+conversation-query workflow. Two call sites feed this: a directly-uploaded
+.vtt (backend/routes/upload.py) and a server-transcribed one
+(backend/processing/transcribe.py); both produce the same chunk/stats shape,
+so one indexing path covers both.
 """
 
 import json

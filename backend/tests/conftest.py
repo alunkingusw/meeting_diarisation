@@ -270,3 +270,32 @@ def make_meeting(db_session):
         return meeting
 
     return _make
+
+
+class _FakeOllama:
+    """Stand-in for OllamaClient: records prompts, returns a canned answer, or raises `error`."""
+
+    def __init__(self):
+        self.prompts: list[str] = []
+        self.error: Exception | None = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return None
+
+    def chat(self, system_prompt, user_prompt):
+        from backend.llm.ollama_client import LLMAnswer
+
+        if self.error:
+            raise self.error
+        self.prompts.append(user_prompt)
+        return LLMAnswer(text="fake answer", model="fake-model")
+
+
+@pytest.fixture
+def fake_llm(monkeypatch):
+    llm = _FakeOllama()
+    monkeypatch.setattr("backend.llm.ollama_client.OllamaClient", lambda *a, **k: llm)
+    return llm

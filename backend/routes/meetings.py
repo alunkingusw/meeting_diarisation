@@ -17,8 +17,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
-from backend.models import Meeting, MeetingOut, MeetingComment, MeetingCommentOut, GroupMember, GroupMemberOut, RawFile, Group
-from backend.db_dependency import get_db
+from backend.models import Meeting, MeetingOut, MeetingComment, MeetingCommentOut, GroupMember, GroupMemberOut, RawFile
+from backend.db_dependency import get_db, get_group_or_404
 from datetime import date, datetime, timedelta
 from backend.validation import MeetingCreateEdit, MeetingCommentCreate, MeetingAttendee
 from backend.jobs.service import submit_job
@@ -268,7 +268,7 @@ def summarise_meeting(
             "cached": True,
         }
 
-    group = db.query(Group).get(group_id)
+    group = get_group_or_404(db, group_id)
     try:
         summary = generate_meeting_summary(db, group, meeting)
     except FileNotFoundError:

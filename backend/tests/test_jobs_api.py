@@ -133,17 +133,15 @@ def test_interrupted_jobs_are_marked_failed_on_recovery(db_session, make_user, m
 
 
 def test_async_query_returns_202_and_result_lands_on_the_job(
-    sync_jobs, client, db_session, make_user, make_group, auth_header_for, monkeypatch
+    sync_jobs, client, db_session, make_user, make_group, auth_header_for, monkeypatch, fake_llm
 ):
     from backend.project_rag import group_service
-    from test_queries_api import FakeLLM
 
     owner, group = _team(db_session, make_user, make_group)
     chunk = {
         "chunk_id": "1_0", "meeting_id": "1", "meeting_title": "Team A", "meeting_date": "2026-10-01",
         "speaker": "Bob", "text": "We agreed.", "start_ts": "00:00:01.000", "end_ts": "00:00:09.000",
     }
-    monkeypatch.setattr(group_service, "OllamaClient", FakeLLM)
     monkeypatch.setattr(group_service, "search_transcripts", lambda *a, **k: [chunk])
 
     accepted = client.post(
@@ -158,24 +156,11 @@ def test_async_query_returns_202_and_result_lands_on_the_job(
 
 
 def test_async_report_job_fails_cleanly_when_llm_is_down(
-    sync_jobs, client, db_session, make_user, make_group, auth_header_for, monkeypatch
+    sync_jobs, client, db_session, make_user, make_group, auth_header_for, monkeypatch, fake_llm
 ):
     from backend.llm.ollama_client import OllamaError
 
-    class DownLLM:
-        def __init__(self, *a, **k):
-            pass
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *exc):
-            return None
-
-        def chat(self, **kwargs):
-            raise OllamaError("Ollama is unreachable")
-
-    monkeypatch.setattr("backend.engine.report_graph.OllamaClient", DownLLM)
+    fake_llm.error = OllamaError("Ollama is unreachable")
     owner, group = _team(db_session, make_user, make_group)
 
     accepted = client.post(

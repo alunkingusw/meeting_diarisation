@@ -4,22 +4,6 @@ from datetime import datetime, timezone
 # and the `app` fixture sets that env after collection.
 
 
-class FakeLLM:
-    def __init__(self, *args, **kwargs):
-        pass
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return None
-
-    def chat(self, system_prompt, user_prompt):
-        from backend.llm.ollama_client import LLMAnswer
-
-        return LLMAnswer(text="fake answer", model="fake-model", prompt_eval_count=None, eval_count=None)
-
-
 def _linked_group(db_session, make_user, make_group, trello=True, github=True):
     owner = make_user(username="owner")
     group = make_group(name="Team A", owner=owner)
@@ -53,11 +37,10 @@ def _seed_index(db_session, group):
 
 
 def test_github_query_returns_answer_and_stats(
-    client, db_session, make_user, make_group, auth_header_for, monkeypatch
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
 ):
     owner, group = _linked_group(db_session, make_user, make_group)
     _seed_index(db_session, group)
-    monkeypatch.setattr("backend.project_rag.services.query_service.OllamaClient", FakeLLM)
 
     response = client.post(
         f"/groups/{group.id}/github/query",
@@ -74,11 +57,10 @@ def test_github_query_returns_answer_and_stats(
 
 
 def test_trello_query_is_scoped_to_trello(
-    client, db_session, make_user, make_group, auth_header_for, monkeypatch
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
 ):
     owner, group = _linked_group(db_session, make_user, make_group)
     _seed_index(db_session, group)
-    monkeypatch.setattr("backend.project_rag.services.query_service.OllamaClient", FakeLLM)
 
     response = client.post(
         f"/groups/{group.id}/trello/query",
@@ -122,14 +104,12 @@ def test_query_requires_group_membership(
 
 
 def test_unified_query_merges_sources(
-    client, db_session, make_user, make_group, auth_header_for, monkeypatch
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
 ):
     from backend.project_rag import group_service
 
     owner, group = _linked_group(db_session, make_user, make_group)
     _seed_index(db_session, group)
-    monkeypatch.setattr("backend.project_rag.services.query_service.OllamaClient", FakeLLM)
-    monkeypatch.setattr("backend.engine.query_graph.OllamaClient", FakeLLM)
 
     response = client.post(
         f"/groups/{group.id}/query",
@@ -145,7 +125,7 @@ def test_unified_query_merges_sources(
 
 
 def test_unified_query_reports_partial_failure(
-    client, db_session, make_user, make_group, auth_header_for, monkeypatch
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
 ):
     from backend.project_rag import group_service
     from backend.project_rag.models import TrelloAction
@@ -160,8 +140,6 @@ def test_unified_query_reports_partial_failure(
         )
     )
     db_session.commit()
-    monkeypatch.setattr("backend.project_rag.services.query_service.OllamaClient", FakeLLM)
-    monkeypatch.setattr("backend.engine.query_graph.OllamaClient", FakeLLM)
 
     response = client.post(
         f"/groups/{group.id}/query",

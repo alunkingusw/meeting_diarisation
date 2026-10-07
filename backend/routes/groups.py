@@ -17,7 +17,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from backend.models import Group, GroupMember, User, GroupOut
-from backend.db_dependency import get_db
+from backend.db_dependency import get_db, get_group_or_404
 from backend.auth import (
     ADMIN_OVER_EMAIL_DETAIL,
     EMAIL_CHANNEL,
@@ -98,7 +98,7 @@ def list_groups(
 
 @router.get("/{group_id}", response_model=GroupOut)
 def get_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_member)):
-    group = db.query(Group).get(group_id)
+    group = get_group_or_404(db, group_id)
     group_out = GroupOut.model_validate(group)
     github_connected, trello_connected = check_group_connections(
         group.github_repo_url,
@@ -111,7 +111,7 @@ def get_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depend
 
 @router.put("/{group_id}")
 def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depends(get_db), user_id:int = Depends(is_group_owner)):
-    group = db.query(Group).get(group_id)
+    group = get_group_or_404(db, group_id)
     group.name = group_data.name
     group.github_repo_url = group_data.github_repo_url
     group.trello_board_id = group_data.trello_board_id
@@ -122,7 +122,7 @@ def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depen
 
 @router.delete("/{group_id}")
 def delete_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_owner)):
-    group = db.query(Group).get(group_id)
+    group = get_group_or_404(db, group_id)
     delete_group_index(db, group_id)
     db.delete(group)
     db.commit()

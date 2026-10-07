@@ -29,7 +29,6 @@ from .resolve_aliases_groups_group_id_aliases_resolve_post_response_resolve_alia
     ResolveAliasesGroupsGroupIdAliasesResolvePostResponseResolveAliasesGroupsGroupIdAliasesResolvePost,
 )
 from .service_user_token_request import ServiceUserTokenRequest
-from .transcript_search_request import TranscriptSearchRequest
 from .user_create_edit import UserCreateEdit
 from .validation_error import ValidationError
 from .validation_error_context import ValidationErrorContext
@@ -56,7 +55,6 @@ __all__ = (
     "RawFileType",
     "ResolveAliasesGroupsGroupIdAliasesResolvePostResponseResolveAliasesGroupsGroupIdAliasesResolvePost",
     "ServiceUserTokenRequest",
-    "TranscriptSearchRequest",
     "UserCreateEdit",
     "ValidationError",
     "ValidationErrorContext",

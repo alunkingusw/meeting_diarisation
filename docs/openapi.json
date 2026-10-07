@@ -1485,30 +1485,6 @@
         "title": "SourceQueryResponse",
         "type": "object"
       },
-      "TranscriptSearchRequest": {
-        "properties": {
-          "meeting_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Meeting Id"
-          },
-          "query": {
-            "title": "Query",
-            "type": "string"
-          }
-        },
-        "required": [
-          "query"
-        ],
-        "title": "TranscriptSearchRequest",
-        "type": "object"
-      },
       "UnifiedQueryRequest": {
         "properties": {
           "question": {
@@ -4120,63 +4096,6 @@
         "summary": "Group Stats",
         "tags": [
           "query"
-        ]
-      }
-    },
-    "/groups/{group_id}/transcripts/search": {
-      "post": {
-        "deprecated": true,
-        "description": "Deprecated: use POST /groups/{group_id}/conversation/query.\n\nSemantic search over this group's indexed transcript chunks (see\nbackend/transcript_rag/indexer.py). Retrieval only - no LLM call - the\ncaller is responsible for turning results into prose if it wants that.",
-        "operationId": "search_groups__group_id__transcripts_search_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "group_id",
-            "required": true,
-            "schema": {
-              "title": "Group Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TranscriptSearchRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Search",
-        "tags": [
-          "transcripts"
         ]
       }
     },

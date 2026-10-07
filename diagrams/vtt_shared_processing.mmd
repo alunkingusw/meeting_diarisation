@@ -16,7 +16,7 @@ flowchart LR
     I --> J["Chroma PersistentClient"]
     J --> K["get_or_create_collection\n    {group}_transcripts"]
     K --> L["collection.upsert\n    ids, documents, metadatas, embeddings"]
-    L --> M["Available to POST\n    /groups/{group_id}/transcripts/search"]
+    L --> M["Available to POST\n    /groups/{group_id}/conversation/query"]
 
     N["Meeting summarisation is separate from retrieval"] --> O["Read latest transcript file"]
     O --> P["Parse and merge transcript"]

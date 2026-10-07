@@ -148,12 +148,6 @@ class FakeDiarisationClient:
         self.report_questions.append((group_id, question, list(evidence)))
         return self.report_answer
 
-    def transcript_chunks_in_window(self, token: str, group_id: int, since, until) -> list[TranscriptChunk]:
-        self._maybe_fail("transcript_chunks_in_window")
-        if not self.transcript_chunks:
-            raise NotFoundError("no transcripts in window")
-        return self.transcript_chunks
-
     def get_job(self, token: str, job_id: str) -> BackendJob:
         self._maybe_fail("get_job")
         return self.backend_jobs[job_id]

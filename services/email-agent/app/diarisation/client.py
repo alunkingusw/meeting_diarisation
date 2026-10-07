@@ -308,9 +308,28 @@ class DiarisationClient:
         if meeting_id is not None:
             body["meeting_id"] = meeting_id
         try:
-            return self._transcript_chunks(token, group_id, body)
+            resp = self._request(
+                "POST",
+                f"/groups/{group_id}/conversation/query",
+                headers=_auth(token),
+                json=body,
+                timeout=self._query_timeout,
+            )
         except NotFoundError:
             return []
+        return [
+            TranscriptChunk(
+                chunk_id=item["id"],
+                meeting_id=str(item["metadata"].get("meeting_id", "")),
+                meeting_title=item["metadata"].get("meeting_title", ""),
+                meeting_date=item["metadata"].get("meeting_date", ""),
+                speaker=item["metadata"].get("speaker", ""),
+                text=item["text"],
+                start_ts=item["metadata"].get("start_ts", ""),
+                end_ts=item["metadata"].get("end_ts", ""),
+            )
+            for item in resp.json()["evidence"]
+        ]
 
     def query_source(
         self,
@@ -394,37 +413,6 @@ class DiarisationClient:
         """POST /jobs/{id}/cancel - ConflictError if the job already finished."""
         return _job_from_api(self._request("POST", f"/jobs/{job_id}/cancel", headers=_auth(token)).json())
 
-    def transcript_chunks_in_window(
-        self, token: str, group_id: int, since: date, until: date
-    ) -> list[TranscriptChunk]:
-        """POST /groups/{id}/conversation/query (retrieve_only) - the transcript chunks of meetings
-        dated in [since, until), without an LLM answer. Raises NotFoundError if there are none."""
-        body = _query_body("meetings and decisions in this period", since)
-        body.update({"until": until.isoformat(), "retrieve_only": True})
-        return self._transcript_chunks(token, group_id, body)
-
-    def _transcript_chunks(self, token: str, group_id: int, body: dict) -> list[TranscriptChunk]:
-        resp = self._request(
-            "POST",
-            f"/groups/{group_id}/conversation/query",
-            headers=_auth(token),
-            json=body,
-            timeout=self._query_timeout,
-        )
-        return [
-            TranscriptChunk(
-                chunk_id=item["id"],
-                meeting_id=str(item["metadata"].get("meeting_id", "")),
-                meeting_title=item["metadata"].get("meeting_title", ""),
-                meeting_date=item["metadata"].get("meeting_date", ""),
-                speaker=item["metadata"].get("speaker", ""),
-                text=item["text"],
-                start_ts=item["metadata"].get("start_ts", ""),
-                end_ts=item["metadata"].get("end_ts", ""),
-            )
-            for item in resp.json()["evidence"]
-        ]
-
     def compose_weekly_report(
         self, token: str, group_id: int, period_start: date, period_end: date
     ) -> WeeklyReportResult:
@@ -487,17 +475,24 @@ class DiarisationClient:
         except httpx.TransportError as e:
             raise TransientError(f"Transport error calling {method} {path}: {e}") from e
 
-        if resp.status_code >= 500:
-            raise TransientError(f"{method} {path} returned {resp.status_code}: {resp.text[:200]}")
-        if resp.status_code in (401, 403):
-            raise AuthError(f"{method} {path} returned {resp.status_code}: {resp.text[:200]}")
-        if resp.status_code == 404:
-            raise NotFoundError(f"{method} {path} returned 404: {resp.text[:200]}")
-        if resp.status_code == 409:
-            raise ConflictError(f"{method} {path} returned 409: {resp.text[:200]}")
-        if resp.status_code >= 400:
-            raise ClientError(f"{method} {path} returned {resp.status_code}: {resp.text[:200]}")
+        raise_for_status(resp.status_code, f"{method} {path}", resp.text)
         return resp
+
+
+def raise_for_status(status_code: int, operation: str, body: str = "") -> None:
+    """Map an HTTP error status to the matching DiarisationApiError (no-op below 400)."""
+    if status_code < 400:
+        return
+    message = f"{operation} returned {status_code}" + (f": {body[:200]}" if body else "")
+    if status_code >= 500:
+        raise TransientError(message)
+    if status_code in (401, 403):
+        raise AuthError(message)
+    if status_code == 404:
+        raise NotFoundError(message)
+    if status_code == 409:
+        raise ConflictError(message)
+    raise ClientError(message)
 
 
 def _auth(token: str) -> dict:

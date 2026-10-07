@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.email_client import EmailError, send_email
-from backend.llm.ollama_client import OllamaClient
+from backend.llm.ollama_client import generate
 from backend.models import Group, Meeting, RawFile, RawFileType
 from backend.transcript_rag.vtt_rag.chunker import merge_cues_into_turns
 from backend.transcript_rag.vtt_rag.parsing import parse_vtt_cues
@@ -131,8 +131,7 @@ def generate_meeting_summary(db: Session, group: Group, meeting: Meeting) -> str
         f"Transcript:\n{transcript_text}"
     )
 
-    with OllamaClient() as llm:
-        answer = llm.chat(system_prompt=SYSTEM_PROMPT, user_prompt=user_prompt)
+    answer = generate(SYSTEM_PROMPT, user_prompt)
 
     meeting.summary = answer.text
     meeting.summary_generated_at = datetime.now().astimezone()

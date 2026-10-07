@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.jobs.service import submit_job
-from backend.llm.ollama_client import OllamaClient, OllamaError
+from backend.llm.ollama_client import OllamaError, generate
 from backend.models import Group
 from backend.project_rag.models import Repo
 from backend.project_rag.schemas import (
@@ -29,7 +29,6 @@ from backend.transcript_rag.indexer import search_transcripts, transcripts_in_wi
 
 logger = logging.getLogger(__name__)
 
-ALL_SOURCES: tuple[SourceName, ...] = ("conversation", "github", "trello")
 
 
 class IngestAlreadyRunning(Exception):
@@ -262,11 +261,10 @@ def _query_conversation(db: Session, group: Group, request: QueryRequest) -> Sou
         parts.append(rendered)
         used += len(rendered)
 
-    with OllamaClient() as llm:
-        generated = llm.chat(
-            system_prompt=CONVERSATION_SYSTEM_PROMPT,
-            user_prompt="TRANSCRIPT EXTRACTS:\n" + "\n\n".join(parts) + f"\n\nQUESTION: {request.question}",
-        )
+    generated = generate(
+        CONVERSATION_SYSTEM_PROMPT,
+        "TRANSCRIPT EXTRACTS:\n" + "\n\n".join(parts) + f"\n\nQUESTION: {request.question}",
+    )
 
     kept = hits[: len(parts)]
     return SourceQueryResponse(

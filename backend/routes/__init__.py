@@ -20,7 +20,6 @@ from .groups import router as groups_router
 from .meetings import router as meetings_router
 from .users import router as users_router
 from .aliases import router as aliases_router
-from .transcripts import router as transcripts_router
 from .admin import router as admin_router
 from .reports import router as reports_router
 from .jobs import router as jobs_router
@@ -34,7 +33,6 @@ router.include_router(groups_router)
 router.include_router(meetings_router)
 router.include_router(users_router)
 router.include_router(aliases_router)
-router.include_router(transcripts_router)
 router.include_router(admin_router)
 router.include_router(reports_router)
 router.include_router(jobs_router)

@@ -53,18 +53,13 @@ Design notes:
 
 - Per-source endpoints return retrieval-grounded answers with evidence. A `mode=retrieve` option may return evidence only, with no LLM call.
 - The unified endpoint is a LangGraph workflow: route (choose sources) -> parallel retrieve -> compose -> answer. Source failures degrade gracefully and are reported in the response.
-- Deprecate `POST /transcripts/search`, keeping a redirect or alias for one release.
 
 ## Phases
 
 ### Phase 1: Rename and expose per-source query endpoints (done)
 
-GitHub-RAGinator was ported into `backend/project_rag/` (migrated, not proxied). Endpoints live in `backend/routes/queries.py`; `/transcripts/search` is deprecated. The agent now uses these endpoints (Phase 2). Transcript queries accept `since`/`until` (range filtered in Chroma via numeric `meeting_ts`, small windows read in full) and `retrieve_only`; run `python -m scripts.backfill_transcript_dates` once to add `meeting_ts` to existing chunks.
+GitHub-RAGinator was ported into `backend/project_rag/` (migrated, not proxied). Endpoints live in `backend/routes/queries.py`; the old `/transcripts/search` route has been removed. The agent now uses these endpoints (Phase 2). Transcript queries accept `since`/`until` (range filtered in Chroma via numeric `meeting_ts`, small windows read in full) and `retrieve_only`; run `python -m scripts.backfill_transcript_dates` once to add `meeting_ts` to existing chunks.
 
-- Add `conversation/query` over the existing transcript vector store, and deprecate `/transcripts/search`.
-- Add `github/query` and `trello/query` in the backend. Choose one:
-  - Proxy GitHub-RAGinator behind the backend, using group `github_repo_url` and `trello_board_id`.
-  - Move GitHub/Trello indexing into the backend and ChromaDB (preferred long-term, removes the unauthenticated service).
 - Regenerate `docs/openapi.json` and the agent's generated client.
 
 ### Phase 2: Unified query (done)

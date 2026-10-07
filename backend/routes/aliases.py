@@ -15,9 +15,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from typing import Dict, Optional
-from backend.db_dependency import get_db
+from backend.db_dependency import get_db, get_group_or_404
 from backend.auth import is_email_workflow_group_member
-from backend.models import Group
 from backend.validation import AliasResolveRequest
 
 router = APIRouter(prefix="/groups/{group_id}/aliases", tags=["aliases"])
@@ -33,7 +32,7 @@ def resolve_aliases(
     """Match each given name against this group's members by exact,
     case-insensitive name comparison. `source` is accepted but not
     currently used to vary matching behaviour."""
-    group = db.query(Group).get(group_id)
+    group = get_group_or_404(db, group_id)
     members_by_name = {
         member.name.strip().lower(): member.id for member in group.members if member.name
     }

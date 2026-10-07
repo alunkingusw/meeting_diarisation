@@ -13,8 +13,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from backend.db import SessionLocal
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
+
+from backend.db import SessionLocal
+from backend.models import Group
 
 def get_db():
     db = SessionLocal()
@@ -22,3 +25,10 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def get_group_or_404(db: Session, group_id: int) -> Group:
+    group = db.get(Group, group_id)
+    if group is None:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return group

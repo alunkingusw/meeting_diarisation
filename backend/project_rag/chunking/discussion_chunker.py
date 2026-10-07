@@ -73,16 +73,3 @@ def chunk_review_comment(comment: RemoteReviewComment, repo_name: str) -> Chunk:
             "line": comment.line if comment.line is not None else -1,
         },
     )
-
-
-def chunk_discussions(
-    issues: list[RemoteIssue],
-    issue_comments: list[RemoteIssueComment],
-    review_comments: list[RemoteReviewComment],
-    repo_name: str,
-) -> list[Chunk]:
-    """Convenience wrapper: chunk every discussion item for a repo."""
-    chunks: list[Chunk] = [chunk_issue(i, repo_name) for i in issues]
-    chunks += [chunk_issue_comment(c, repo_name) for c in issue_comments]
-    chunks += [chunk_review_comment(c, repo_name) for c in review_comments]
-    return chunks

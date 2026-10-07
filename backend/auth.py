@@ -19,8 +19,8 @@ from jose import JWTError, jwt
 from fastapi import HTTPException, Depends, Path, Header
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
-from backend.db_dependency import get_db
-from backend.models import Group, User, users_groups
+from backend.db_dependency import get_db, get_group_or_404
+from backend.models import User, users_groups
 import os
 import secrets
 
@@ -141,8 +141,7 @@ def is_group_member(
     user_id: int = Depends(get_current_user_id),
     channel: str | None = Depends(get_token_channel),
 ) -> int:
-    if not db.query(Group).filter(Group.id == group_id).first():
-        raise HTTPException(status_code=404, detail="Group not found")
+    get_group_or_404(db, group_id)
 
     role = get_group_role(db, user_id, group_id)
     if role not in {"owner", "member"} and not _is_admin(db, user_id, channel):
@@ -167,9 +166,7 @@ def is_email_workflow_group_member(
     db: Session = Depends(get_db),
     principal: EmailPrincipal = Depends(get_email_principal),
 ) -> EmailPrincipal:
-    group = db.query(Group).filter(Group.id == group_id).first()
-    if not group:
-        raise HTTPException(status_code=404, detail="Group not found")
+    group = get_group_or_404(db, group_id)
 
     if principal.user_id is not None:
         role = get_group_role(db, principal.user_id, group_id)
@@ -195,8 +192,7 @@ def is_group_owner_or_email_member(
     principal: EmailPrincipal = Depends(get_email_principal),
 ) -> EmailPrincipal:
     if principal.user_id is not None:
-        if not db.query(Group).filter(Group.id == group_id).first():
-            raise HTTPException(status_code=404, detail="Group not found")
+        get_group_or_404(db, group_id)
         if get_group_role(db, principal.user_id, group_id) != "owner" and not _is_admin(
             db, principal.user_id, principal.channel
         ):
@@ -212,17 +208,13 @@ def is_group_owner(
     user_id: int = Depends(get_current_user_id),
     channel: str | None = Depends(get_token_channel),
 ) -> int:
-    if not db.query(Group).filter(Group.id == group_id).first():
-        raise HTTPException(status_code=404, detail="Group not found")
+    get_group_or_404(db, group_id)
 
     if _group_role(db, user_id, group_id) != "owner" and not _is_admin(db, user_id, channel):
         raise HTTPException(status_code=403, detail="Group owner permission required")
 
     return user_id
 
-
-# Existing routes can continue to use this name while they are migrated to explicit roles.
-is_group_user = is_group_member
 
 
 def get_service_caller(x_service_key: str = Header(default=None)) -> None:

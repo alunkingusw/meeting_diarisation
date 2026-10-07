@@ -3,17 +3,12 @@ from __future__ import annotations
 
 import datetime
 import json
+from contextlib import contextmanager
+from typing import Iterator
 
 import httpx
 
-from app.diarisation.client import (
-    AuthError,
-    ClientError,
-    ConflictError,
-    MeetingComment,
-    NotFoundError,
-    TransientError,
-)
+from app.diarisation.client import ClientError, MeetingComment, TransientError, raise_for_status
 from app.diarisation.generated_client.fast_api_client import AuthenticatedClient, Client
 from app.diarisation.generated_client.fast_api_client.api.admin.user_token_admin_user_token_post import (
     sync_detailed as user_token_detailed,
@@ -42,9 +37,6 @@ from app.diarisation.generated_client.fast_api_client.api.meetings.list_meetings
 from app.diarisation.generated_client.fast_api_client.api.meetings.add_meeting_comment_groups_group_id_meetings_meeting_id_comments_post import (
     sync_detailed as add_comment_detailed,
 )
-from app.diarisation.generated_client.fast_api_client.api.transcripts.search_groups_group_id_transcripts_search_post import (
-    sync_detailed as search_transcripts_detailed,
-)
 from app.diarisation.generated_client.fast_api_client.models.alias_resolve_request import AliasResolveRequest
 from app.diarisation.generated_client.fast_api_client.models.meeting_attendee import MeetingAttendee
 from app.diarisation.generated_client.fast_api_client.models.meeting_comment_create import (
@@ -56,9 +48,6 @@ from app.diarisation.generated_client.fast_api_client.models.meeting_create_edit
 from app.diarisation.generated_client.fast_api_client.models.service_user_token_request import (
     ServiceUserTokenRequest,
 )
-from app.diarisation.generated_client.fast_api_client.models.transcript_search_request import (
-    TranscriptSearchRequest,
-)
 from app.diarisation.generated_client.fast_api_client.types import Unset
 
 
@@ -67,9 +56,9 @@ class GeneratedDiarisationAdapter:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
 
-    def add_comment(
-        self, token: str, group_id: int, meeting_id: int, comment: str
-    ) -> MeetingComment:
+    @contextmanager
+    def _session(self, token: str, operation: str) -> Iterator[AuthenticatedClient]:
+        """An authenticated client that is always closed, with network failures mapped to TransientError."""
         client = AuthenticatedClient(
             base_url=self._base_url,
             token=token,
@@ -77,240 +66,16 @@ class GeneratedDiarisationAdapter:
             raise_on_unexpected_status=False,
         )
         try:
-            response = add_comment_detailed(
-                group_id=group_id,
-                meeting_id=meeting_id,
-                client=client,
-                body=MeetingCommentCreate(comment=comment),
-            )
+            yield client
         except httpx.TimeoutException as exc:
-            raise TransientError(
-                f"Timeout calling POST /groups/{group_id}/meetings/{meeting_id}/comments: {exc}"
-            ) from exc
+            raise TransientError(f"Timeout calling {operation}: {exc}") from exc
         except httpx.TransportError as exc:
-            raise TransientError(
-                f"Transport error calling POST /groups/{group_id}/meetings/{meeting_id}/comments: {exc}"
-            ) from exc
+            raise TransientError(f"Transport error calling {operation}: {exc}") from exc
         finally:
             client.get_httpx_client().close()
-
-        if response.status_code >= 500:
-            raise TransientError(
-                f"POST /groups/{group_id}/meetings/{meeting_id}/comments returned "
-                f"{response.status_code}: {response.content[:200]}"
-            )
-        if response.status_code in (401, 403):
-            raise AuthError(
-                f"POST /groups/{group_id}/meetings/{meeting_id}/comments returned "
-                f"{response.status_code}: {response.content[:200]}"
-            )
-        if response.status_code == 404:
-            raise NotFoundError(
-                f"POST /groups/{group_id}/meetings/{meeting_id}/comments returned 404"
-            )
-        if response.status_code == 409:
-            raise ConflictError(
-                f"POST /groups/{group_id}/meetings/{meeting_id}/comments returned 409"
-            )
-        if response.status_code >= 400:
-            raise ClientError(
-                f"POST /groups/{group_id}/meetings/{meeting_id}/comments returned "
-                f"{response.status_code}: {response.content[:200]}"
-            )
-        if response.parsed is None:
-            raise ClientError("Comment endpoint returned no comment response")
-
-        result = response.parsed
-        return MeetingComment(
-            id=result.id,
-            meeting_id=result.meeting_id,
-            user_id=result.user_id,
-            comment=result.comment,
-            created=result.created.isoformat(),
-            group_member_id=result.group_member_id,
-        )
-
-    def list_groups(self, token: str) -> list[dict]:
-        client = self._authenticated(token)
-        try:
-            try:
-                response = list_groups_detailed(client=client)
-            except httpx.TimeoutException as exc:
-                raise TransientError(f"Timeout calling GET /groups/: {exc}") from exc
-            except httpx.TransportError as exc:
-                raise TransientError(f"Transport error calling GET /groups/: {exc}") from exc
-            self._raise_for_response(response.status_code, "GET /groups/")
-            return json.loads(response.content)
-        finally:
-            client.get_httpx_client().close()
-
-    def get_group(self, token: str, group_id: int):
-        client = self._authenticated(token)
-        try:
-            try:
-                response = get_group_detailed(group_id=group_id, client=client)
-            except httpx.TimeoutException as exc:
-                raise TransientError(f"Timeout calling GET /groups/{group_id}: {exc}") from exc
-            except httpx.TransportError as exc:
-                raise TransientError(
-                    f"Transport error calling GET /groups/{group_id}: {exc}"
-                ) from exc
-            self._raise_for_response(response.status_code, f"GET /groups/{group_id}")
-            return response.parsed
-        finally:
-            client.get_httpx_client().close()
-
-    def add_attendee(self, token: str, group_id: int, meeting_id: int, member_id: int) -> dict:
-        client = self._authenticated(token)
-        try:
-            response = add_attendee_detailed(
-                group_id=group_id,
-                meeting_id=meeting_id,
-                client=client,
-                body=MeetingAttendee(member_id=member_id),
-            )
-            self._raise_for_response(
-                response.status_code,
-                f"POST /groups/{group_id}/meetings/{meeting_id}/attendees",
-            )
-            return response.parsed.to_dict()
-        finally:
-            client.get_httpx_client().close()
-
-    def resolve_aliases(
-        self, token: str, group_id: int, names: list[str], source: str | None = "transcript_name"
-    ) -> dict[str, int | None]:
-        client = self._authenticated(token)
-        try:
-            response = resolve_aliases_detailed(
-                group_id=group_id,
-                client=client,
-                body=AliasResolveRequest(names=names, source=source),
-            )
-            self._raise_for_response(response.status_code, f"POST /groups/{group_id}/aliases/resolve")
-            return response.parsed.to_dict()
-        finally:
-            client.get_httpx_client().close()
-
-    def search_transcripts(
-        self,
-        token: str,
-        group_id: int,
-        query: str,
-        meeting_id: int | None = None,
-    ) -> list[dict]:
-        client = self._authenticated(token)
-        try:
-            response = search_transcripts_detailed(
-                group_id=group_id,
-                client=client,
-                body=TranscriptSearchRequest(query=query, meeting_id=meeting_id),
-            )
-            self._raise_for_response(response.status_code, f"POST /groups/{group_id}/transcripts/search")
-            return response.parsed.get("results", [])
-        finally:
-            client.get_httpx_client().close()
-
-    def upload_file(
-        self, token: str, group_id: int, meeting_id: int, filename: str, content: bytes
-    ) -> dict:
-        client = self._authenticated(token)
-        try:
-            lower_name = filename.lower()
-            if lower_name.endswith(".vtt"):
-                content_type = "text/vtt"
-            elif lower_name.endswith(".srt"):
-                content_type = "text/plain"
-            else:
-                content_type = "application/octet-stream"
-
-            response = client.get_httpx_client().request(
-                "POST",
-                f"/groups/{group_id}/meetings/{meeting_id}/upload/",
-                files={"file": (filename, content, content_type)},
-            )
-            self._raise_for_response(
-                response.status_code,
-                f"POST /groups/{group_id}/meetings/{meeting_id}/upload/",
-            )
-            return response.json()
-        finally:
-            client.get_httpx_client().close()
-
-    def create_meeting(
-        self,
-        token: str,
-        group_id: int,
-        date: datetime.datetime,
-        idempotency_key: str | None = None,
-    ) -> dict:
-        client = self._authenticated(token)
-        try:
-            response = create_meeting_detailed(
-                group_id=group_id,
-                client=client,
-                body=MeetingCreateEdit(date=date),
-                idempotency_key=idempotency_key if idempotency_key is not None else Unset(),
-            )
-            self._raise_for_response(response.status_code, f"POST /groups/{group_id}/meetings/")
-            return json.loads(response.content)
-        finally:
-            client.get_httpx_client().close()
-
-    def list_meetings(
-        self,
-        token: str,
-        group_id: int,
-        from_date: datetime.date | None = None,
-        to_date: datetime.date | None = None,
-    ) -> list[dict]:
-        client = self._authenticated(token)
-        try:
-            response = list_meetings_detailed(
-                group_id=group_id,
-                client=client,
-                from_date=from_date if from_date is not None else Unset(),
-                to_date=to_date if to_date is not None else Unset(),
-            )
-            self._raise_for_response(response.status_code, f"GET /groups/{group_id}/meetings/")
-            return json.loads(response.content)
-        finally:
-            client.get_httpx_client().close()
-
-    def get_meeting(self, token: str, group_id: int, meeting_id: int) -> dict:
-        client = self._authenticated(token)
-        try:
-            response = get_meeting_detailed(group_id=group_id, meeting_id=meeting_id, client=client)
-            self._raise_for_response(
-                response.status_code,
-                f"GET /groups/{group_id}/meetings/{meeting_id}",
-            )
-            return json.loads(response.content)
-        finally:
-            client.get_httpx_client().close()
-
-    def _authenticated(self, token: str) -> AuthenticatedClient:
-        return AuthenticatedClient(
-            base_url=self._base_url,
-            token=token,
-            timeout=httpx.Timeout(self._timeout),
-            raise_on_unexpected_status=False,
-        )
-
-    @staticmethod
-    def _raise_for_response(status_code: int, operation: str) -> None:
-        if status_code >= 500:
-            raise TransientError(f"{operation} returned {status_code}")
-        if status_code in (401, 403):
-            raise AuthError(f"{operation} returned {status_code}")
-        if status_code == 404:
-            raise NotFoundError(f"{operation} returned 404")
-        if status_code == 409:
-            raise ConflictError(f"{operation} returned 409")
-        if status_code >= 400:
-            raise ClientError(f"{operation} returned {status_code}")
 
     def login_for_email(self, email: str, service_api_key: str) -> str:
+        operation = "POST /admin/user-token"
         client = Client(
             base_url=self._base_url,
             timeout=httpx.Timeout(self._timeout),
@@ -323,20 +88,138 @@ class GeneratedDiarisationAdapter:
                 x_service_key=service_api_key,
             )
         except httpx.TimeoutException as exc:
-            raise TransientError(f"Timeout calling POST /admin/user-token: {exc}") from exc
+            raise TransientError(f"Timeout calling {operation}: {exc}") from exc
         except httpx.TransportError as exc:
-            raise TransientError(f"Transport error calling POST /admin/user-token: {exc}") from exc
+            raise TransientError(f"Transport error calling {operation}: {exc}") from exc
         finally:
             client.get_httpx_client().close()
 
-        if response.status_code >= 500:
-            raise TransientError(f"POST /admin/user-token returned {response.status_code}")
-        if response.status_code in (401, 403):
-            raise AuthError(f"POST /admin/user-token returned {response.status_code}")
-        if response.status_code == 404:
-            raise NotFoundError("POST /admin/user-token returned 404: user not found")
-        if response.status_code >= 400:
-            raise ClientError(f"POST /admin/user-token returned {response.status_code}")
+        raise_for_status(response.status_code, operation, response.content.decode(errors="replace"))
         if not isinstance(response.parsed, dict) or "access_token" not in response.parsed:
             raise ClientError("User-token endpoint returned no access token")
         return response.parsed["access_token"]
+
+    def list_groups(self, token: str) -> list[dict]:
+        operation = "GET /groups/"
+        with self._session(token, operation) as client:
+            response = list_groups_detailed(client=client)
+        raise_for_status(response.status_code, operation)
+        return json.loads(response.content)
+
+    def get_group(self, token: str, group_id: int):
+        operation = f"GET /groups/{group_id}"
+        with self._session(token, operation) as client:
+            response = get_group_detailed(group_id=group_id, client=client)
+        raise_for_status(response.status_code, operation)
+        return response.parsed
+
+    def create_meeting(
+        self,
+        token: str,
+        group_id: int,
+        date: datetime.datetime,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        operation = f"POST /groups/{group_id}/meetings/"
+        with self._session(token, operation) as client:
+            response = create_meeting_detailed(
+                group_id=group_id,
+                client=client,
+                body=MeetingCreateEdit(date=date),
+                idempotency_key=idempotency_key if idempotency_key is not None else Unset(),
+            )
+        raise_for_status(response.status_code, operation)
+        return json.loads(response.content)
+
+    def list_meetings(
+        self,
+        token: str,
+        group_id: int,
+        from_date: datetime.date | None = None,
+        to_date: datetime.date | None = None,
+    ) -> list[dict]:
+        operation = f"GET /groups/{group_id}/meetings/"
+        with self._session(token, operation) as client:
+            response = list_meetings_detailed(
+                group_id=group_id,
+                client=client,
+                from_date=from_date if from_date is not None else Unset(),
+                to_date=to_date if to_date is not None else Unset(),
+            )
+        raise_for_status(response.status_code, operation)
+        return json.loads(response.content)
+
+    def get_meeting(self, token: str, group_id: int, meeting_id: int) -> dict:
+        operation = f"GET /groups/{group_id}/meetings/{meeting_id}"
+        with self._session(token, operation) as client:
+            response = get_meeting_detailed(group_id=group_id, meeting_id=meeting_id, client=client)
+        raise_for_status(response.status_code, operation)
+        return json.loads(response.content)
+
+    def add_attendee(self, token: str, group_id: int, meeting_id: int, member_id: int) -> dict:
+        operation = f"POST /groups/{group_id}/meetings/{meeting_id}/attendees"
+        with self._session(token, operation) as client:
+            response = add_attendee_detailed(
+                group_id=group_id,
+                meeting_id=meeting_id,
+                client=client,
+                body=MeetingAttendee(member_id=member_id),
+            )
+        raise_for_status(response.status_code, operation)
+        return response.parsed.to_dict()
+
+    def add_comment(self, token: str, group_id: int, meeting_id: int, comment: str) -> MeetingComment:
+        operation = f"POST /groups/{group_id}/meetings/{meeting_id}/comments"
+        with self._session(token, operation) as client:
+            response = add_comment_detailed(
+                group_id=group_id,
+                meeting_id=meeting_id,
+                client=client,
+                body=MeetingCommentCreate(comment=comment),
+            )
+        raise_for_status(response.status_code, operation, response.content.decode(errors="replace"))
+        if response.parsed is None:
+            raise ClientError("Comment endpoint returned no comment response")
+        result = response.parsed
+        return MeetingComment(
+            id=result.id,
+            meeting_id=result.meeting_id,
+            user_id=result.user_id,
+            comment=result.comment,
+            created=result.created.isoformat(),
+            group_member_id=result.group_member_id,
+        )
+
+    def resolve_aliases(
+        self, token: str, group_id: int, names: list[str], source: str | None = "transcript_name"
+    ) -> dict[str, int | None]:
+        operation = f"POST /groups/{group_id}/aliases/resolve"
+        with self._session(token, operation) as client:
+            response = resolve_aliases_detailed(
+                group_id=group_id,
+                client=client,
+                body=AliasResolveRequest(names=names, source=source),
+            )
+        raise_for_status(response.status_code, operation)
+        return response.parsed.to_dict()
+
+    def upload_file(
+        self, token: str, group_id: int, meeting_id: int, filename: str, content: bytes
+    ) -> dict:
+        operation = f"POST /groups/{group_id}/meetings/{meeting_id}/upload/"
+        lower_name = filename.lower()
+        if lower_name.endswith(".vtt"):
+            content_type = "text/vtt"
+        elif lower_name.endswith(".srt"):
+            content_type = "text/plain"
+        else:
+            content_type = "application/octet-stream"
+
+        with self._session(token, operation) as client:
+            response = client.get_httpx_client().request(
+                "POST",
+                f"/groups/{group_id}/meetings/{meeting_id}/upload/",
+                files={"file": (filename, content, content_type)},
+            )
+        raise_for_status(response.status_code, operation)
+        return response.json()

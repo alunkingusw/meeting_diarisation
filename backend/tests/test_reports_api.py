@@ -1,12 +1,10 @@
+import pytest
 from datetime import date, datetime
 
-from test_queries_api import FakeLLM  # noqa: E402  (shared stand-in for the Ollama client)
 
-
-def _patch_llm(monkeypatch):
-    monkeypatch.setattr("backend.engine.report_graph.OllamaClient", FakeLLM)
-    monkeypatch.setattr("backend.engine.query_graph.OllamaClient", FakeLLM)
-    monkeypatch.setattr("backend.project_rag.services.query_service.OllamaClient", FakeLLM)
+@pytest.fixture(autouse=True)
+def _llm(fake_llm):
+    return fake_llm
 
 
 def _group(db_session, make_user, make_group, linked=False):
@@ -23,7 +21,6 @@ def test_weekly_report_uses_summaries_and_comments_in_window(
 ):
     from backend.models import MeetingComment
 
-    _patch_llm(monkeypatch)
     owner, group = _group(db_session, make_user, make_group)
     inside = make_meeting(group, datetime(2026, 9, 8, 10))
     inside.summary = "The team agreed to ship the API."
@@ -49,7 +46,6 @@ def test_weekly_report_uses_summaries_and_comments_in_window(
 def test_weekly_report_falls_back_to_transcript_chunks_for_unsummarised_meetings(
     client, db_session, make_user, make_group, make_meeting, auth_header_for, monkeypatch
 ):
-    _patch_llm(monkeypatch)
     owner, group = _group(db_session, make_user, make_group)
     meeting = make_meeting(group, datetime(2026, 9, 8, 10))
     chunk = {
@@ -77,7 +73,6 @@ def test_weekly_report_falls_back_to_transcript_chunks_for_unsummarised_meetings
 def test_weekly_report_marks_linked_but_empty_source_unavailable(
     client, db_session, make_user, make_group, auth_header_for, monkeypatch
 ):
-    _patch_llm(monkeypatch)
     owner, group = _group(db_session, make_user, make_group, linked=True)
 
     response = client.post(
@@ -108,16 +103,8 @@ def test_weekly_report_rejects_empty_period_and_non_members(
 
 
 def test_report_answer_uses_supplied_evidence(
-    client, db_session, make_user, make_group, auth_header_for, monkeypatch
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
 ):
-    sent = {}
-
-    class Recorder(FakeLLM):
-        def chat(self, system_prompt, user_prompt):
-            sent["prompt"] = user_prompt
-            return super().chat(system_prompt, user_prompt)
-
-    monkeypatch.setattr("backend.engine.report_graph.OllamaClient", Recorder)
     owner, group = _group(db_session, make_user, make_group)
 
     response = client.post(
@@ -134,7 +121,7 @@ def test_report_answer_uses_supplied_evidence(
 
     assert response.status_code == 200
     assert response.json()["answer"] == "fake answer"
-    assert "We agreed to ship." in sent["prompt"] and "[Planning]" in sent["prompt"]
+    assert "We agreed to ship." in fake_llm.prompts[0] and "[Planning]" in fake_llm.prompts[0]
 
 
 def test_weekly_report_treats_quiet_ingested_source_as_no_evidence(
@@ -144,7 +131,6 @@ def test_weekly_report_treats_quiet_ingested_source_as_no_evidence(
 
     from backend.project_rag import group_service
 
-    _patch_llm(monkeypatch)
     owner, group = _group(db_session, make_user, make_group, linked=True)
     repo = group_service.get_or_create_repo(db_session, group)
     repo.last_synced_at = datetime(2026, 9, 1, tzinfo=timezone.utc)

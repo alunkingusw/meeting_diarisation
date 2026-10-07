@@ -14,16 +14,15 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from backend.auth import is_group_member, is_group_owner
-from backend.db_dependency import get_db
-from backend.jobs.schemas import JobAccepted
+from backend.db_dependency import get_db, get_group_or_404
+from backend.jobs.schemas import ASYNC_PARAM, JobAccepted, accepted_response
 from backend.jobs.service import submit_job
 from backend.llm.ollama_client import OllamaError
-from backend.models import Group
 from backend.engine.query_graph import run_unified_query
 from backend.project_rag import group_service
 from backend.project_rag.models import Repo
@@ -43,33 +42,20 @@ from backend.project_rag.services.repo_stats import collect_project_stats
 router = APIRouter(prefix="/groups/{group_id}", tags=["query"])
 
 
-def _get_group(db: Session, group_id: int) -> Group:
-    group = db.get(Group, group_id)
-    if group is None:
-        raise HTTPException(status_code=404, detail="Group not found")
-    return group
-
-
-ASYNC_PARAM = Query(
-    False, alias="async",
-    description="Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
-)
-
-
 def _accepted(db: Session, group_id: int, user_id: int, scope: str, payload) -> JSONResponse:
-    _get_group(db, group_id)
+    get_group_or_404(db, group_id)
     job = submit_job(
         db, "query",
         {"group_id": group_id, "scope": scope, "payload": payload.model_dump(mode="json")},
         user_id=user_id, group_id=group_id,
     )
-    return JSONResponse(status_code=202, content=JobAccepted(job_id=job.id).model_dump())
+    return accepted_response(job.id)
 
 
 def _run_source_query(
     db: Session, group_id: int, source: SourceName, payload: QueryRequest
 ) -> SourceQueryResponse:
-    group = _get_group(db, group_id)
+    group = get_group_or_404(db, group_id)
     try:
         return group_service.query_source(db, group, source, payload)
     except ValueError as exc:
@@ -136,7 +122,7 @@ def query_unified(
     and, if several are used, their answers are merged into one."""
     if run_async:
         return _accepted(db, group_id, user_id, "unified", payload)
-    group = _get_group(db, group_id)
+    group = get_group_or_404(db, group_id)
     try:
         return run_unified_query(db, group, payload)
     except ValueError as exc:
@@ -153,7 +139,7 @@ def group_stats(
     user_id: int = Depends(is_group_member),
 ):
     """Facts computed from ingested GitHub/Trello data, with no LLM involved."""
-    group = _get_group(db, group_id)
+    group = get_group_or_404(db, group_id)
     repo = group_service.get_or_create_repo(db, group)
     return collect_project_stats(db, repo, weeks=weeks, label=group.name)
 
@@ -170,7 +156,7 @@ def ingest(
 ):
     """Ingest the group's linked GitHub repo and/or Trello board. Idempotent unless `flush` is set.
     Large repos are ingested in the background; poll `GET /groups/{group_id}/ingest/status`."""
-    group = _get_group(db, group_id)
+    group = get_group_or_404(db, group_id)
     if not (group.github_repo_url or group.trello_board_id):
         raise HTTPException(status_code=400, detail="Group has no GitHub repo or Trello board linked")
     try:
@@ -189,6 +175,6 @@ def ingest_status(
     db: Session = Depends(get_db),
     user_id: int = Depends(is_group_member),
 ):
-    group = _get_group(db, group_id)
+    group = get_group_or_404(db, group_id)
     repo: Repo = group_service.get_or_create_repo(db, group)
     return repo

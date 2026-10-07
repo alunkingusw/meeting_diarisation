@@ -8,7 +8,7 @@ def test_openapi_exposes_email_agent_contract(client):
     assert "/groups/{group_id}" in paths
     assert "/groups/{group_id}/meetings/" in paths
     assert "/groups/{group_id}/meetings/{meeting_id}/comments" in paths
-    assert "/groups/{group_id}/transcripts/search" in paths
+    assert "/groups/{group_id}/conversation/query" in paths
 
 
 def test_group_response_documents_provider_connectivity(client):
