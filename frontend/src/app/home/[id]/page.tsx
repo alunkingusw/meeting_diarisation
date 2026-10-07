@@ -18,38 +18,23 @@
 
 'use client'; // Required for using client-side hooks like useEffect and useRouter
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { useGroupManager } from '@/hooks/groupManager';
-import Cookies from 'js-cookie';
 import NavigationTabs from '@/components/NavigationTabs';
+import GroupLoadState from '@/components/GroupLoadState';
 
 export default function GroupPage() {
   const { id } = useParams(); // Extract the group ID from the URL (/home/[id])
-  const router = useRouter(); // Used to navigate/redirect programmatically
-const {loading, getGroup, group, error, newMemberName, setNewMemberName, handleCreateMember} = useGroupManager();
+  const {loading, getGroup, group, error} = useGroupManager();
 
   useEffect(() => {
-    // Check for JWT token in session storage
-    const token = Cookies.get('token');
-    if (!token) {
-      // If no token is found, redirect to login page ("/")
-      console.warn('No token found, redirecting to /');
-      router.push('/');
-      return;
-    }
-    
-    getGroup(Number(id));
-    if(error){
-      router.replace('/home')
-    }
-  }, [id, router]); // Re-run if ID or router changes
+    const controller = new AbortController();
+    getGroup(Number(id), controller.signal);
+    return () => controller.abort();
+  }, [id, getGroup]);
 
-  // Show loading state while fetching
-  if (loading) return <p>Loading group...</p>;
-
-  // Show fallback if group wasn't loaded or access was denied
-  if (!group) return <p>Group not found or access denied.</p>;
+  if (loading || error || !group) return <GroupLoadState loading={loading} error={error} />;
 
   // Render group info if successfully fetched
   return (
@@ -73,12 +58,12 @@ const {loading, getGroup, group, error, newMemberName, setNewMemberName, handleC
           <ul className="text-sm list-disc pl-5">
 
             
-            {group.members?.map((m: any) => (
+            {group.members?.map(m => (
               <li key={m.id}>{m.name}</li>
             ))}
           </ul>
           ):(
-            <p className="text-sm text-gray-500 italic"> No members yet. Go to 'members' tab to manage members.</p>
+            <p className="text-sm text-gray-500 italic"> No members yet. Go to the members tab to manage members.</p>
           )}
 
         </div>

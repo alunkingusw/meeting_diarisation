@@ -27,6 +27,7 @@ import { useGroupManager, Person } from '@/hooks/groupManager';
 import { useMeetingManager } from '@/hooks/meetingManager';
 import { useMediaManager, MeetingMediaPlayer } from '@/hooks/mediaManager'
 import NavigationTabs from '@/components/NavigationTabs';
+import GroupLoadState from '@/components/GroupLoadState';
 import TranscriptPreview from '@/components/TranscriptPreview';
 import MediaHelper from '@/components/MediaHelper';
 import { MediaFile } from '@/components/MediaHelper';
@@ -36,21 +37,22 @@ export default function MeetingsPage() {
   const { id } = useParams();
   const [showHelp, setShowHelp] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
-  const { groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings, group, getGroup } = useGroupManager();
+  const { loading, error, groupMembers, fetchGroupMembers, fetchGroupMeetings, meetings, group, getGroup } = useGroupManager();
   const { handleAddGuest, handleSelectMeeting, newMeetingDate, setNewMeetingDate, creatingMeeting, selectedMeeting, handleToggleAttendance, isAttending, handleCreateMeeting, handleDeleteMeeting, handleProcessMeetingAudio } = useMeetingManager();
   const { isValidMeetingFile, uploading, uploadProgress, handleDrop } = useMediaManager();
   const [selectedMedia, setSelectedMedia] = useState<MediaFile | null>(null);
   useEffect(() => {
-    getGroup(Number(id))
-    fetchGroupMembers(Number(id))
-    fetchGroupMeetings(Number(id))
-  }, [id]);
+    const controller = new AbortController();
+    getGroup(Number(id), controller.signal);
+    fetchGroupMembers(Number(id), controller.signal);
+    fetchGroupMeetings(Number(id), controller.signal);
+    return () => controller.abort();
+  }, [id, getGroup, fetchGroupMembers, fetchGroupMeetings]);
   useEffect(() => {
     setSelectedMedia(null);
   }, [selectedMeeting]);
 
-  // Show fallback if group wasn't loaded or access was denied
-  if (!group) return <p>Group not found or access denied.</p>;
+  if (loading || error || !group) return <GroupLoadState loading={loading} error={error} />;
 
 
   return (

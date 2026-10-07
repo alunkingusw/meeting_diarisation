@@ -19,14 +19,24 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useSearchParams } from 'next/navigation';
+import Cookies from 'js-cookie';
 
 export default function Header() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = Cookies.get('token');
     setLoggedIn(!!token);
-  }, []);
+  }, [pathname, searchParams]);
+
+  const returnPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+  const loginHref =
+    pathname === '/'
+      ? '/'
+      : `/?redirect=${encodeURIComponent(returnPath)}`;
 
   return (
     <header className="bg-blue-600 text-white p-4 flex justify-between items-center">
@@ -34,14 +44,14 @@ export default function Header() {
       {loggedIn ? (
         <button
           onClick={() => {
-            localStorage.removeItem('token');
+            Cookies.remove('token');
             window.location.href = '/';
           }}
         >
           Logout
         </button>
       ) : (
-        <Link href="/">Login</Link>
+        <Link href={loginHref}>Login</Link>
       )}
     </header>
   );

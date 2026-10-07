@@ -25,27 +25,23 @@ import Link from 'next/link';
 import { useGroupManager, Person } from '@/hooks/groupManager';
 import { useMediaManager, EmbeddingAudioPlayer } from '@/hooks/mediaManager'
 import NavigationTabs from '@/components/NavigationTabs';
-import Cookies from 'js-cookie';
+import GroupLoadState from '@/components/GroupLoadState';
 
 export default function MembersPage() {
   const { id } = useParams();
 
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
-  const { loading, getGroup, group, groupMembers, error, selectedMember, setSelectedMember, newMemberName, setNewMemberName, newMemberEmail, setNewMemberEmail, handleCreateMember, handleRemoveMember, fetchGroupMembers } = useGroupManager();
-  const { isValidMeetingFile, isValidAudioFile, uploading, uploadProgress, handleEmbeddingAudioDrop } = useMediaManager();
+  const { loading, getGroup, group, error, selectedMember, setSelectedMember, newMemberName, setNewMemberName, newMemberEmail, setNewMemberEmail, handleCreateMember, handleRemoveMember, fetchGroupMembers } = useGroupManager();
+  const { isValidAudioFile, uploading, uploadProgress, handleEmbeddingAudioDrop } = useMediaManager();
   useEffect(() => {
     if (!id) return;
-    getGroup(Number(id));
-    fetchGroupMembers(Number(id))
+    const controller = new AbortController();
+    getGroup(Number(id), controller.signal);
+    fetchGroupMembers(Number(id), controller.signal);
+    return () => controller.abort();
+  }, [id, getGroup, fetchGroupMembers]);
 
-
-    if (selectedMember) {
-      console.log("Selected member:", selectedMember);
-    }
-  }, [id, selectedMember]);
-
-  // Show fallback if group wasn't loaded or access was denied
-  if (!group) return <p>Group not found or access denied.</p>;
+  if (loading || error || !group) return <GroupLoadState loading={loading} error={error} />;
 
 
 

@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "node --test tests/*.test.cjs"
   },
   "dependencies": {
     "js-cookie": "^3.0.5",
@@ -16,6 +17,7 @@
     "next": "15.3.2"
   },
   "devDependencies": {
+    "@types/js-cookie": "^3.0.6",
     "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^19",
