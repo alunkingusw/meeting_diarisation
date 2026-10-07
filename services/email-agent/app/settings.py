@@ -74,7 +74,6 @@ class InternalApiSettings(BaseModel):
 
 
 class WeeklyUpdateSettings(BaseModel):
-    enabled: bool = False
     lookback_days: int = 7
 
 

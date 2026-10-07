@@ -60,7 +60,6 @@ internal_api:
   max_body_chars: 20000
 
 weekly_update:
-  enabled: false          # Enables the one-shot weekly-project-update command
   lookback_days: 7
 
 # The agent's timer makes one authenticated API request; the backend discovers owner-linked

@@ -47,9 +47,6 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=None)
     args = parser.parse_args()
     settings = load_settings(args.config)
-    if not settings.weekly_update.enabled:
-        logger.info("weekly_update.enabled is false; nothing to do")
-        return
     configure_logging(settings)
     result = run_once(settings)
     logger.info("Weekly report batch accepted by backend: %s", result)

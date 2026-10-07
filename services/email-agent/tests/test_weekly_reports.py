@@ -85,3 +85,20 @@ def test_weekly_update_triggers_backend_for_configured_period(monkeypatch):
 
     assert result == {"job_id": "weekly-job", "state": "queued"}
     assert calls == [(date(2026, 9, 7), date(2026, 9, 14))]
+
+
+def test_explicit_weekly_update_command_runs_without_enable_flag(monkeypatch):
+    import sys
+
+    from app.weekly_update import main
+
+    settings = Settings.model_validate({"weekly_update": {"lookback_days": 7}})
+    triggered = []
+    monkeypatch.setattr("app.weekly_update.load_settings", lambda path: settings)
+    monkeypatch.setattr("app.weekly_update.configure_logging", lambda settings: None)
+    monkeypatch.setattr("app.weekly_update.run_once", lambda settings: triggered.append(settings))
+    monkeypatch.setattr(sys, "argv", ["weekly-project-update"])
+
+    main()
+
+    assert triggered == [settings]

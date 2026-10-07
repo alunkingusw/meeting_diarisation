@@ -279,7 +279,8 @@ Restart the agent after changing the config. On startup it schedules one API tri
 configured weekday and time in `storage.default_timezone`. The backend selects projects with
 email-enabled `owner` users, composes and persists one report per project and period, then queues
 delivery through the agent's existing outbox. `weekly_update.lookback_days` controls the report
-window. Meeting summaries and comments, transcript chunks, and GitHub/Trello activity are gathered
+window. The one-shot `weekly-project-update` command always runs when invoked; there is no second
+enable flag. Meeting summaries and comments, transcript chunks, and GitHub/Trello activity are gathered
 by the backend. Report evidence stays in the backend; the agent forwards authenticated replies to
 the backend, which checks that the sender received that report before answering.
 
