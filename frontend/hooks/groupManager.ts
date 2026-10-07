@@ -55,6 +55,22 @@ export function useGroupManager() {
     }
   }, []);
 
+  const updateGroupNotify = useCallback(async (notify: boolean) => {
+    if (!group) throw new Error('Group is not loaded.');
+    const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${group.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: group.name,
+        github_repo_url: group.github_repo_url ?? null,
+        trello_board_id: group.trello_board_id ?? null,
+        notify,
+      }),
+    });
+    checkGroupResponse(res, 'Unable to update group notifications');
+    setGroup(current => current ? { ...current, notify } : current);
+  }, [group]);
+
   const fetchGroupMeetings = useCallback(async (groupId: number, signal?: AbortSignal) => {
     setMeetings([]);
     try {
@@ -123,7 +139,7 @@ export function useGroupManager() {
 
   return {
     fetchGroupMembers, fetchGroupMeetings, handleCreateMember, handleRemoveMember,
-    groupMembers, meetings, loading, getGroup, group, error,
+    groupMembers, meetings, loading, getGroup, updateGroupNotify, group, error,
     selectedMember, setSelectedMember, newMemberName, setNewMemberName,
     newMemberEmail, setNewMemberEmail,
   };
