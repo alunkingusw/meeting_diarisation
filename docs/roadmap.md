@@ -57,9 +57,9 @@ Design notes:
 
 ## Phases
 
-### Phase 1: Rename and expose per-source query endpoints (done in backend; agent not yet switched)
+### Phase 1: Rename and expose per-source query endpoints (done)
 
-GitHub-RAGinator was ported into `backend/project_rag/` (migrated, not proxied). Endpoints live in `backend/routes/queries.py`; `/transcripts/search` is deprecated. The email agent still calls RAGinator directly until Phase 2.
+GitHub-RAGinator was ported into `backend/project_rag/` (migrated, not proxied). Endpoints live in `backend/routes/queries.py`; `/transcripts/search` is deprecated. The agent now uses these endpoints (Phase 2). Transcript queries accept `since`/`until` (range filtered in Chroma via numeric `meeting_ts`, small windows read in full) and `retrieve_only`; run `python -m scripts.backfill_transcript_dates` once to add `meeting_ts` to existing chunks.
 
 - Add `conversation/query` over the existing transcript vector store, and deprecate `/transcripts/search`.
 - Add `github/query` and `trello/query` in the backend. Choose one:

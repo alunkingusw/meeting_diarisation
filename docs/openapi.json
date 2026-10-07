@@ -189,6 +189,53 @@
         "title": "ContributorStatsResponse",
         "type": "object"
       },
+      "ConversationQueryRequest": {
+        "properties": {
+          "question": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          },
+          "retrieve_only": {
+            "default": false,
+            "description": "Return the matching transcript chunks as evidence without calling the LLM.",
+            "title": "Retrieve Only",
+            "type": "boolean"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only consider activity on or after this date.",
+            "title": "Since"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only meetings dated before this date (exclusive).",
+            "title": "Until"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "ConversationQueryRequest",
+        "type": "object"
+      },
       "EvidenceItem": {
         "properties": {
           "author": {
@@ -1148,6 +1195,7 @@
         "description": "An answer plus the evidence it was built from.",
         "properties": {
           "answer": {
+            "default": "",
             "title": "Answer",
             "type": "string"
           },
@@ -1165,8 +1213,15 @@
             "type": "array"
           },
           "model": {
-            "title": "Model",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
           },
           "question": {
             "title": "Question",
@@ -1200,8 +1255,6 @@
         "required": [
           "source",
           "question",
-          "answer",
-          "model",
           "evidence"
         ],
         "title": "SourceQueryResponse",
@@ -2195,7 +2248,7 @@
     },
     "/groups/{group_id}/conversation/query": {
       "post": {
-        "description": "Answer a question from this group's meeting transcripts, with the extracts used.",
+        "description": "Answer a question from this group's meeting transcripts, with the extracts used.\n\nWith `since`/`until` the meeting-date range is applied inside the vector store, and a small\nenough window is read in full (chronologically) rather than relevance-sampled. Set\n`retrieve_only` to get the chunks without an LLM answer.",
         "operationId": "query_conversation_groups__group_id__conversation_query_post",
         "parameters": [
           {
@@ -2212,7 +2265,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/QueryRequest"
+                "$ref": "#/components/schemas/ConversationQueryRequest"
               }
             }
           },

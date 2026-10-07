@@ -75,21 +75,38 @@ def replace_meeting_chunks(
         vector_store._collection.delete(ids=list(stale_ids))
 
 
+def _build_where(
+    meeting_id: int | None, since_ts: int | None, until_ts: int | None
+) -> dict[str, Any] | None:
+    conditions: list[dict[str, Any]] = []
+    if meeting_id is not None:
+        conditions.append({"meeting_id": str(meeting_id)})
+    if since_ts is not None:
+        conditions.append({"meeting_ts": {"$gte": since_ts}})
+    if until_ts is not None:
+        conditions.append({"meeting_ts": {"$lt": until_ts}})
+    if not conditions:
+        return None
+    return conditions[0] if len(conditions) == 1 else {"$and": conditions}
+
+
 def search_chunks(
     collection_name: str,
     query: str,
     n_results: int = 5,
     meeting_id: int | None = None,
+    since_ts: int | None = None,
+    until_ts: int | None = None,
 ) -> list[dict[str, Any]]:
-    """Search with an optional metadata filter applied inside Chroma."""
+    """Search with metadata filters (meeting, and a [since_ts, until_ts) meeting-date range)
+    applied inside Chroma."""
     if get_collection_if_exists(collection_name) is None:
         return []
 
-    where = {"meeting_id": str(meeting_id)} if meeting_id is not None else None
     results = get_vector_store(collection_name).similarity_search_with_score(
         query,
         k=n_results,
-        filter=where,
+        filter=_build_where(meeting_id, since_ts, until_ts),
     )
     hits = []
     for document, distance in results:
@@ -97,3 +114,28 @@ def search_chunks(
         hit["distance"] = float(distance)
         hits.append(hit)
     return hits
+
+
+def get_chunks_in_window(
+    collection_name: str, since_ts: int | None, until_ts: int | None, limit: int
+) -> list[dict[str, Any]] | None:
+    """Every chunk of meetings dated in [since_ts, until_ts), in meeting then speech order.
+
+    Returns None if more than `limit` chunks match, so callers can fall back to a relevance-ranked
+    sample instead of an unbounded read.
+    """
+    collection = get_collection_if_exists(collection_name)
+    if collection is None:
+        return []
+
+    found = collection.get(
+        where=_build_where(None, since_ts, until_ts), limit=limit + 1, include=["metadatas", "documents"]
+    )
+    if len(found["ids"]) > limit:
+        return None
+    chunks = [
+        {**metadata, "text": metadata.get("text") or document}
+        for metadata, document in zip(found["metadatas"], found["documents"])
+    ]
+    chunks.sort(key=lambda c: (c.get("meeting_ts") or 0, c.get("meeting_id", ""), c.get("start_sec") or 0))
+    return chunks

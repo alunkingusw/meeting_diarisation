@@ -318,6 +318,34 @@ class DiarisationClient:
             answer=data["answer"], sources_used=data["sources_used"], errors=data.get("errors", {})
         )
 
+    def transcript_chunks_in_window(
+        self, token: str, group_id: int, since: date, until: date
+    ) -> list[TranscriptChunk]:
+        """POST /groups/{id}/conversation/query (retrieve_only) - the transcript chunks of meetings
+        dated in [since, until), without an LLM answer. Raises NotFoundError if there are none."""
+        body = _query_body("meetings and decisions in this period", since)
+        body.update({"until": until.isoformat(), "retrieve_only": True})
+        resp = self._request(
+            "POST",
+            f"/groups/{group_id}/conversation/query",
+            headers=_auth(token),
+            json=body,
+            timeout=self._query_timeout,
+        )
+        return [
+            TranscriptChunk(
+                chunk_id=item["id"],
+                meeting_id=str(item["metadata"].get("meeting_id", "")),
+                meeting_title=item["metadata"].get("meeting_title", ""),
+                meeting_date=item["metadata"].get("meeting_date", ""),
+                speaker=item["metadata"].get("speaker", ""),
+                text=item["text"],
+                start_ts=item["metadata"].get("start_ts", ""),
+                end_ts=item["metadata"].get("end_ts", ""),
+            )
+            for item in resp.json()["evidence"]
+        ]
+
     def generate_report(self, token: str, start_date: date, end_date: date) -> list[dict]:
         """POST /reports/generate_report - backend emails one report per supervised group."""
         resp = self._request(

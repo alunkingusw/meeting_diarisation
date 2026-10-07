@@ -49,6 +49,8 @@ class Settings(BaseSettings):
     max_context_chars: int = 24000
     # A `since`-scoped query reads every matching row directly if there are at most this many.
     complete_retrieval_row_limit: int = 50
+    # A date-windowed transcript query reads every chunk in the window if there are at most this many.
+    transcript_window_chunk_limit: int = 80
 
     # Port the frontend dev server runs on - used to build the CORS allow list in main.py.
     frontend_port: str = "5000"

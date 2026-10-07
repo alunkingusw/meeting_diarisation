@@ -22,14 +22,36 @@ shape, so one indexing path covers both.
 
 import json
 import logging
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Any
 
 from backend.transcript_rag.vtt_rag import process_vtt_file
 from backend.config import settings
-from backend.transcript_rag.vectorstore import replace_meeting_chunks, search_chunks, transcripts_collection_name
+from backend.transcript_rag.vectorstore import (
+    get_chunks_in_window,
+    replace_meeting_chunks,
+    search_chunks,
+    transcripts_collection_name,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def meeting_date_ts(meeting_date: str) -> int | None:
+    """UTC-midnight epoch seconds for a 'YYYY-MM-DD...' meeting date, or None if unparseable.
+
+    Chroma can only range-filter numbers, so the date string is mirrored as `meeting_ts`.
+    """
+    try:
+        day = date.fromisoformat(str(meeting_date)[:10])
+    except ValueError:
+        return None
+    return int(datetime.combine(day, time.min, tzinfo=timezone.utc).timestamp())
+
+
+def date_to_ts(day: date | None) -> int | None:
+    return None if day is None else meeting_date_ts(day.isoformat())
 
 
 def index_transcript(
@@ -55,6 +77,10 @@ def index_transcript(
 
     chunks_path = Path(summary["chunks_path"])
     chunks = [json.loads(line) for line in chunks_path.read_text(encoding="utf-8").splitlines() if line]
+    ts = meeting_date_ts(meeting_date)
+    if ts is not None:
+        for chunk in chunks:
+            chunk["meeting_ts"] = ts
 
     replace_meeting_chunks(
         collection_name=transcripts_collection_name(group_name),
@@ -71,12 +97,25 @@ def search_transcripts(
     query: str,
     n_results: int = 5,
     meeting_id: int | None = None,
+    since: date | None = None,
+    until: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Semantic search over one group's indexed transcript chunks. Returns
-    an empty list if the group has nothing indexed yet, rather than raising."""
+    """Semantic search over one group's indexed transcript chunks, optionally limited to meetings
+    dated in [since, until). Returns an empty list if nothing is indexed, rather than raising."""
     return search_chunks(
         collection_name=transcripts_collection_name(group_name),
         query=query,
         n_results=n_results,
         meeting_id=meeting_id,
+        since_ts=date_to_ts(since),
+        until_ts=date_to_ts(until),
+    )
+
+
+def transcripts_in_window(
+    group_name: str, since: date | None, until: date | None, limit: int
+) -> list[dict[str, Any]] | None:
+    """All chunks of meetings dated in [since, until), or None if there are more than `limit`."""
+    return get_chunks_in_window(
+        transcripts_collection_name(group_name), date_to_ts(since), date_to_ts(until), limit
     )

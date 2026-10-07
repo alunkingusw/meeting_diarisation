@@ -88,6 +88,16 @@ class QueryRequest(BaseModel):
     )
 
 
+class ConversationQueryRequest(QueryRequest):
+    until: date | None = Field(
+        default=None, description="Only meetings dated before this date (exclusive)."
+    )
+    retrieve_only: bool = Field(
+        default=False,
+        description="Return the matching transcript chunks as evidence without calling the LLM.",
+    )
+
+
 class UnifiedQueryRequest(QueryRequest):
     sources: list[SourceName] | None = Field(
         default=None,
@@ -110,8 +120,8 @@ class SourceQueryResponse(BaseModel):
 
     source: SourceName
     question: str
-    answer: str
-    model: str
+    answer: str = ""
+    model: str | None = None
     evidence: list[EvidenceItem]
     truncated_evidence: int = 0
     complete_window: bool = Field(

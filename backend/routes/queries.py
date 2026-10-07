@@ -25,6 +25,7 @@ from backend.project_rag import group_service
 from backend.project_rag.models import Repo
 from backend.project_rag.schemas import (
     IngestStatus,
+    ConversationQueryRequest,
     IngestSummary,
     ProjectStatsResponse,
     QueryRequest,
@@ -60,11 +61,15 @@ def _run_source_query(
 @router.post("/conversation/query", response_model=SourceQueryResponse)
 def query_conversation(
     group_id: int,
-    payload: QueryRequest,
+    payload: ConversationQueryRequest,
     db: Session = Depends(get_db),
     user_id: int = Depends(is_group_member),
 ):
-    """Answer a question from this group's meeting transcripts, with the extracts used."""
+    """Answer a question from this group's meeting transcripts, with the extracts used.
+
+    With `since`/`until` the meeting-date range is applied inside the vector store, and a small
+    enough window is read in full (chronologically) rather than relevance-sampled. Set
+    `retrieve_only` to get the chunks without an LLM answer."""
     return _run_source_query(db, group_id, "conversation", payload)
 
 

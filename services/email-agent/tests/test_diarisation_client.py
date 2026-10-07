@@ -387,3 +387,32 @@ def test_query_source_not_linked_raises_not_found(client):
     )
     with pytest.raises(NotFoundError):
         client.query_source("tok", 3, "trello", "blocked?")
+
+
+@respx.mock
+def test_transcript_chunks_in_window_requests_retrieve_only(client):
+    from datetime import date
+
+    route = respx.post(f"{BASE_URL}/groups/3/conversation/query").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "answer": "",
+                "evidence": [
+                    {
+                        "id": "1_00000", "text": "We agreed to ship.",
+                        "metadata": {
+                            "meeting_id": "1", "meeting_title": "Team A", "meeting_date": "2026-09-08",
+                            "speaker": "Alice", "start_ts": "00:00:01.000", "end_ts": "00:00:09.000",
+                        },
+                    }
+                ],
+            },
+        )
+    )
+
+    chunks = client.transcript_chunks_in_window("tok", 3, date(2026, 9, 7), date(2026, 9, 14))
+
+    assert chunks[0].speaker == "Alice" and chunks[0].meeting_date == "2026-09-08"
+    sent = route.calls.last.request.read()
+    assert b'"retrieve_only":true' in sent and b'"until":"2026-09-14"' in sent and b'"since":"2026-09-07"' in sent

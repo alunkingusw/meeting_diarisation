@@ -53,20 +53,17 @@ class WeeklySourceCollector:
         period_start: date, period_end: date,
     ) -> SourceCollection:
         result = SourceCollection()
-        query = f"meetings and decisions between {period_start.isoformat()} and {period_end.isoformat()}"
         try:
-            chunks = self._diarisation.search_transcripts(token, group.id, query)
+            chunks = self._diarisation.transcript_chunks_in_window(
+                token, group.id, period_start, period_end
+            )
+        except NotFoundError:
+            return result
         except DiarisationApiError as exc:
             result.unavailable.append(f"meetings ({exc})")
             return result
 
         for chunk in chunks:
-            try:
-                chunk_date = date.fromisoformat(chunk.meeting_date[:10])
-            except ValueError:
-                continue
-            if not (period_start <= chunk_date < period_end):
-                continue
             result.evidence.append(
                 ReportEvidence(
                     source="meetings",

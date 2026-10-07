@@ -126,6 +126,12 @@ class FakeDiarisationClient:
         self._maybe_fail("search_transcripts")
         return self.transcript_chunks
 
+    def transcript_chunks_in_window(self, token: str, group_id: int, since, until) -> list[TranscriptChunk]:
+        self._maybe_fail("transcript_chunks_in_window")
+        if not self.transcript_chunks:
+            raise NotFoundError("no transcripts in window")
+        return self.transcript_chunks
+
     def query_source(self, token: str, group_id: int, source: str, question: str, since=None) -> QueryAnswer:
         self._maybe_fail(f"query_{source}")
         if source in self.unlinked_sources:

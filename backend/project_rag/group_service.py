@@ -1,7 +1,6 @@
 """Group-level orchestration: index sync, ingestion, and the per-source and unified query flows."""
 
 import logging
-from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -10,7 +9,7 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.db import SessionLocal
 from backend.llm.ollama_client import OllamaClient, OllamaError
-from backend.models import Group, Meeting
+from backend.models import Group
 from backend.project_rag.models import Repo
 from backend.project_rag.schemas import (
     EvidenceItem,
@@ -29,7 +28,7 @@ from backend.project_rag.services.ingest_service import (
 )
 from backend.project_rag.services.query_service import answer_question
 from backend.project_rag.vectorstore import RetrievedChunk, collection_name, delete_repo_chunks
-from backend.transcript_rag.indexer import search_transcripts
+from backend.transcript_rag.indexer import search_transcripts, transcripts_in_window
 
 logger = logging.getLogger(__name__)
 
@@ -229,20 +228,44 @@ def _format_transcript_hit(index: int, hit: dict) -> str:
     )
 
 
-def _query_conversation(db: Session, group: Group, request: QueryRequest) -> SourceQueryResponse:
-    top_k = settings.retrieval_top_k
-    hits = search_transcripts(
-        group.name or "", request.question, n_results=top_k * 3 if request.since else top_k
+def _evidence_from_transcript_hit(hit: dict) -> EvidenceItem:
+    return EvidenceItem(
+        id=str(hit.get("chunk_id", "")),
+        source_type="transcript",
+        author=hit.get("speaker"),
+        timestamp=hit.get("start_ts"),
+        distance=hit.get("distance"),
+        text=hit.get("text", ""),
+        metadata={k: v for k, v in hit.items() if k not in ("text", "distance")},
     )
-    if request.since:
-        start = datetime.combine(request.since, time.min)
-        meeting_ids = {
-            str(m.id)
-            for m in db.query(Meeting).filter(Meeting.group_id == group.id, Meeting.date >= start)
-        }
-        hits = [h for h in hits if str(h.get("meeting_id")) in meeting_ids][:top_k]
+
+
+def _query_conversation(db: Session, group: Group, request: QueryRequest) -> SourceQueryResponse:
+    since = request.since
+    until = getattr(request, "until", None)
+    retrieve_only = getattr(request, "retrieve_only", False)
+    group_name = group.name or ""
+
+    hits = None
+    if since is not None or until is not None:
+        hits = transcripts_in_window(group_name, since, until, settings.transcript_window_chunk_limit)
+    complete = hits is not None
+    if hits is None:
+        hits = search_transcripts(
+            group_name, request.question, n_results=settings.retrieval_top_k, since=since, until=until
+        )
     if not hits:
         raise ValueError("No indexed meeting transcripts match this question")
+
+    if retrieve_only:
+        return SourceQueryResponse(
+            source="conversation",
+            question=request.question,
+            answer="",
+            model=None,
+            evidence=[_evidence_from_transcript_hit(h) for h in hits],
+            complete_window=complete,
+        )
 
     parts: list[str] = []
     used = 0
@@ -265,19 +288,9 @@ def _query_conversation(db: Session, group: Group, request: QueryRequest) -> Sou
         question=request.question,
         answer=generated.text,
         model=generated.model,
-        evidence=[
-            EvidenceItem(
-                id=str(h.get("chunk_id", "")),
-                source_type="transcript",
-                author=h.get("speaker"),
-                timestamp=h.get("start_ts"),
-                distance=h.get("distance"),
-                text=h.get("text", ""),
-                metadata={k: v for k, v in h.items() if k not in ("text", "distance")},
-            )
-            for h in kept
-        ],
+        evidence=[_evidence_from_transcript_hit(h) for h in kept],
         truncated_evidence=len(hits) - len(kept),
+        complete_window=complete and len(kept) == len(hits),
     )
 
 
