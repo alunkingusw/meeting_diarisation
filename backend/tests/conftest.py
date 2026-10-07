@@ -74,7 +74,7 @@ def _stub_missing_module(dotted_name: str) -> None:
         try:
             importlib.import_module(prefix)
             continue
-        except ImportError:
+        except (ImportError, AttributeError):
             pass
         stub = MagicMock(name=prefix)
         sys.modules[prefix] = stub

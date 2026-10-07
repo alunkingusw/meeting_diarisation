@@ -33,8 +33,22 @@ class Settings(BaseSettings):
     email_api_token: str = ""
     email_api_url: str = "http://agent:8080/internal/email"
     email_timeout_seconds: float = 10.0
-    github_raginator_base_url: str = "http://repo_analysis_app:8000"
-    github_raginator_timeout_seconds: float = 5.0
+
+    # GitHub / Trello ingestion (backend/project_rag). Tokens are optional: public repos
+    # work without one, and Trello is skipped unless both Trello values are set.
+    github_token: str = ""
+    github_api_base_url: str = "https://api.github.com"
+    trello_api_key: str = ""
+    trello_token: str = ""
+    trello_api_base_url: str = "https://api.trello.com/1"
+    repo_storage_dir: str = "/backend/cloned_repos"
+    # Repos with more commits than this are ingested in a background task.
+    background_ingest_commit_threshold: int = 100
+    large_repo_warning_commit_threshold: int = 5000
+    retrieval_top_k: int = 8
+    max_context_chars: int = 24000
+    # A `since`-scoped query reads every matching row directly if there are at most this many.
+    complete_retrieval_row_limit: int = 50
 
     # Port the frontend dev server runs on - used to build the CORS allow list in main.py.
     frontend_port: str = "5000"

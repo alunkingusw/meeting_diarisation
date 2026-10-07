@@ -9,6 +9,9 @@ ENV XDG_CACHE_HOME=/models
 ENV TRANSFORMERS_CACHE=/models/hf
 ENV PYANNOTE_CACHE=/models/pyannote
 
+# git is needed to clone group repos for GitHub ingestion (backend/project_rag)
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+
 # Copy requirements and install
 COPY requirements.txt .
 RUN pip install --upgrade pip

@@ -12,6 +12,7 @@ services:
     volumes:
       - ./uploads:/backend/uploads
       - ./transcript_chroma:/backend/transcript_chroma
+      - ./cloned_repos:/backend/cloned_repos
     depends_on:
       - db
     env_file:

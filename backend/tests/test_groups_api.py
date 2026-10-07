@@ -55,8 +55,6 @@ def test_get_group_allowed_for_member(client, make_user, make_group, auth_header
 
 
 def test_get_group_reports_provider_access(client, db_session, make_user, make_group, auth_header_for, monkeypatch):
-    from types import SimpleNamespace
-
     import backend.integrations as integrations
 
     owner = make_user(username="owner")
@@ -65,15 +63,8 @@ def test_get_group_reports_provider_access(client, db_session, make_user, make_g
     group.trello_board_id = "board-id"
     db_session.commit()
 
-    monkeypatch.setattr(integrations.settings, "github_raginator_base_url", "http://raginator.test")
-    monkeypatch.setattr(
-        integrations.httpx,
-        "post",
-        lambda *args, **kwargs: SimpleNamespace(
-            status_code=200,
-            json=lambda: {"github_connected": True, "trello_connected": True},
-        ),
-    )
+    monkeypatch.setattr(integrations.GitHubClient, "check_repo_access", lambda self, url: True)
+    monkeypatch.setattr(integrations.TrelloClient, "check_board_access", lambda self, board_id: True)
 
     response = client.get(f"/groups/{group.id}", headers=auth_header_for(owner.id))
 
@@ -83,8 +74,6 @@ def test_get_group_reports_provider_access(client, db_session, make_user, make_g
 
 
 def test_get_group_reports_denied_provider_access(client, db_session, make_user, make_group, auth_header_for, monkeypatch):
-    from types import SimpleNamespace
-
     import backend.integrations as integrations
 
     owner = make_user(username="owner")
@@ -93,15 +82,8 @@ def test_get_group_reports_denied_provider_access(client, db_session, make_user,
     group.trello_board_id = "board-id"
     db_session.commit()
 
-    monkeypatch.setattr(integrations.settings, "github_raginator_base_url", "http://raginator.test")
-    monkeypatch.setattr(
-        integrations.httpx,
-        "post",
-        lambda *args, **kwargs: SimpleNamespace(
-            status_code=200,
-            json=lambda: {"github_connected": False, "trello_connected": False},
-        ),
-    )
+    monkeypatch.setattr(integrations.GitHubClient, "check_repo_access", lambda self, url: False)
+    monkeypatch.setattr(integrations.TrelloClient, "check_board_access", lambda self, board_id: False)
 
     response = client.get(f"/groups/{group.id}", headers=auth_header_for(owner.id))
 

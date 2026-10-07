@@ -3,6 +3,7 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
 from backend import models
+from backend.project_rag import models as project_rag_models  # noqa: F401 - registers tables for autogenerate
 from backend.db import Base
 from alembic import context
 

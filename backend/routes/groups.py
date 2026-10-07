@@ -26,6 +26,7 @@ from backend.auth import (
     EmailPrincipal,
 )
 from backend.integrations import check_group_connections
+from backend.project_rag.group_service import delete_group_index
 from backend.validation import GroupCreateEdit
 
 
@@ -110,6 +111,7 @@ def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depen
 @router.delete("/{group_id}")
 def delete_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_owner)):
     group = db.query(Group).get(group_id)
+    delete_group_index(db, group_id)
     db.delete(group)
     db.commit()
     return {"message": "Group deleted"}

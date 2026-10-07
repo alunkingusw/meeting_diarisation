@@ -29,14 +29,16 @@ class TranscriptSearchRequest(BaseModel):
     meeting_id: Optional[int] = None
 
 
-@router.post("/search")
+@router.post("/search", deprecated=True)
 def search(
         group_id: int,
         payload: TranscriptSearchRequest,
         db: Session = Depends(get_db),
         user_id: int = Depends(is_group_member),
     ):
-    """Semantic search over this group's indexed transcript chunks (see
+    """Deprecated: use POST /groups/{group_id}/conversation/query.
+
+    Semantic search over this group's indexed transcript chunks (see
     backend/transcript_rag/indexer.py). Retrieval only - no LLM call - the
     caller is responsible for turning results into prose if it wants that."""
     group = db.query(Group).get(group_id)

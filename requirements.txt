@@ -34,5 +34,8 @@ sentence-transformers==3.1.1
 # Meeting summarisation (backend/summarization) - local Ollama server client
 httpx
 
+# GitHub ingestion (backend/project_rag) - clones group repos and reads commit history
+GitPython==3.1.43
+
 # Transcript format conversion
 pysubs2

@@ -1,30 +1,20 @@
-import httpx
-
-from backend.config import settings
+from backend.project_rag.ingestion.github_api import GitHubClient
+from backend.project_rag.ingestion.trello_api import TrelloClient
 
 
 def check_group_connections(
     github_repo_url: str | None,
     trello_board_id: str | None,
 ) -> tuple[bool, bool]:
-    if not github_repo_url and not trello_board_id:
-        return False, False
+    """Probe the linked repo and board with the configured credentials."""
+    github_connected = False
+    if github_repo_url:
+        with GitHubClient() as github:
+            github_connected = github.check_repo_access(github_repo_url)
 
-    try:
-        response = httpx.post(
-            f"{settings.github_raginator_base_url.rstrip('/')}/connections/check",
-            json={"github_url": github_repo_url, "trello_board_id": trello_board_id},
-            timeout=settings.github_raginator_timeout_seconds,
-        )
-    except httpx.HTTPError:
-        return False, False
-    if not 200 <= response.status_code < 300:
-        return False, False
+    trello_connected = False
+    if trello_board_id:
+        with TrelloClient() as trello:
+            trello_connected = trello.check_board_access(trello_board_id)
 
-    try:
-        result = response.json()
-    except ValueError:
-        return False, False
-    if not isinstance(result, dict):
-        return False, False
-    return result.get("github_connected") is True, result.get("trello_connected") is True
+    return github_connected, trello_connected

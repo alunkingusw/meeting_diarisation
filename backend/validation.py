@@ -43,6 +43,14 @@ class GroupCreateEdit(BaseModel):
     # group owned by another user instead of themselves. Ignored/rejected for everyone else.
     owner_user_id: Optional[int] = None
 
+    @field_validator("github_repo_url")
+    @classmethod
+    def check_github_repo_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or not value.strip():
+            return None
+        from backend.project_rag.url_validation import validate_github_url
+        return validate_github_url(value)
+
 class MeetingCreateEdit(BaseModel):
     date: datetime
 
