@@ -8,7 +8,6 @@ from langgraph.graph import END, START, StateGraph
 
 from app.admin.notifier import AdminCategory, AdminNotifier
 from app.diarisation.client import DiarisationClient, GroupSummary
-from app.github_raginator.client import GithubRaginatorClient
 from app.jobs.store import Outbox
 from app.llm.ollama_client import OllamaClient
 from app.reports.models import ReportEvidence
@@ -44,13 +43,12 @@ class WeeklyReportWorkflow:
         report_store: ReportStore,
         outbox: Outbox,
         diarisation: DiarisationClient,
-        github: GithubRaginatorClient,
         ollama: OllamaClient,
         admin: AdminNotifier,
     ):
         self._reports = report_store
         self._outbox = outbox
-        self._sources = WeeklySourceCollector(diarisation, github)
+        self._sources = WeeklySourceCollector(diarisation)
         self._diarisation = diarisation
         self._ollama = ollama
         self._admin = admin

@@ -13,8 +13,7 @@ from app.mail.thread_matcher import ThreadMatcher
 from app.pipeline import EmailProcessingPipeline
 from app.settings import LimitsSettings, StorageSettings
 
-from app.github_raginator.client import RepoSummary
-from tests.fakes import FakeDiarisationClient, FakeGithubRaginatorClient, StubLLM
+from tests.fakes import FakeDiarisationClient, StubLLM
 
 FIXTURES = Path(__file__).parent / "fixtures" / "vtt"
 PASS = AuthSignals(spf="pass", dkim="pass", dmarc="pass")
@@ -315,16 +314,13 @@ def test_group_member_gets_available_actions_when_parser_fails(db_path: Path, tm
 
 def _worker(
     job_store, storage, outbox, admin, groups, member_by_name=None, transcript_chunks=None,
-    github_raginator_client=None, ollama_client=None,
+    source_answers=None,
 ):
     fake_client = FakeDiarisationClient(
-        groups=groups, member_by_name=member_by_name or {}, transcript_chunks=transcript_chunks
+        groups=groups, member_by_name=member_by_name or {}, transcript_chunks=transcript_chunks,
+        source_answers=source_answers,
     )
-    worker = JobWorker(
-        job_store, fake_client, outbox, admin, storage,
-        github_raginator_client or FakeGithubRaginatorClient(),
-        ollama_client or StubLLM("A synthesised answer."),
-    )
+    worker = JobWorker(job_store, fake_client, outbox, admin, storage)
     return worker, fake_client
 
 
@@ -612,10 +608,7 @@ def test_assess_query_end_to_end_sends_ack_then_answer(db_path: Path, tmp_path: 
     worker, _ = _worker(
         job_store, storage, outbox, admin, groups=[GroupSummary(id=1, name="Team A")],
         transcript_chunks=[],
-        github_raginator_client=FakeGithubRaginatorClient(
-            repo_by_group_name={"Team A": RepoSummary(id=1, github_url="https://github.com/org/repo", group_name="Team A")},
-            answer="Alice opened issue #12 about the API redesign.",
-        ),
+        source_answers={"github": "Alice opened issue #12 about the API redesign."},
     )
     worker.run_once()
     pipeline.flush_outbox()

@@ -43,16 +43,8 @@ class BackendSettings(BaseModel):
     request_timeout_seconds: float = 10.0
     max_retry_attempts: int = 3
     retry_backoff_seconds: float = 1.0
-
-
-class GithubRaginatorSettings(BaseModel):
-    base_url: str = "http://localhost:8010"
-    # /query does retrieval + a full LLM generation over the repo's activity - measured at
-    # 200s+ on CPU against a repo with an unusually large issue history. Raise further for a
-    # bigger/slower local model or an especially active repo.
-    request_timeout_seconds: float = 120.0
-    max_retry_attempts: int = 3
-    retry_backoff_seconds: float = 1.0
+    # Query endpoints run retrieval plus LLM generation (200s+ on CPU for a large repo).
+    query_timeout_seconds: float = 240.0
 
 
 class LimitsSettings(BaseModel):
@@ -108,7 +100,6 @@ class Settings(BaseModel):
     authorisation: AuthorisationSettings = Field(default_factory=AuthorisationSettings)
     llm: LlmSettings = Field(default_factory=LlmSettings)
     backend: BackendSettings = Field(default_factory=BackendSettings)
-    github_raginator: GithubRaginatorSettings = Field(default_factory=GithubRaginatorSettings)
     limits: LimitsSettings = Field(default_factory=LimitsSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)
     admin: AdminSettings = Field(default_factory=AdminSettings)

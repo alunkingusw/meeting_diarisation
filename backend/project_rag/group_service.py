@@ -197,7 +197,7 @@ def _query_provider_source(
 ) -> SourceQueryResponse:
     repo = get_or_create_repo(db, group)
     result = answer_question(
-        db, repo, request.question, since=request.since, sources=(source,)
+        db, repo, request.question, since=request.since, sources=(source,), label=group.name
     )
     return SourceQueryResponse(
         source=source,
@@ -212,17 +212,20 @@ def _query_provider_source(
 
 
 CONVERSATION_SYSTEM_PROMPT = (
-    "You answer questions about a group's recorded meetings using only the transcript "
-    "extracts provided. Each extract is labelled with its meeting, speaker and time. "
-    "Attribute statements to the speaker who made them. If the extracts do not answer "
-    "the question, say so plainly rather than guessing. Be concise; lead with the answer."
+    "You answer questions about a group's recorded meetings using ONLY the transcript "
+    "extracts provided, never a fact an extract does not directly support. Cite every factual "
+    "claim as [Meeting Title, YYYY-MM-DD, start time, Speaker] exactly as labelled on the "
+    "extract, and attribute statements to the speaker who made them. If the extracts do not "
+    "answer the question, say so plainly rather than guessing. Keep it to a few sentences."
 )
 
 
 def _format_transcript_hit(index: int, hit: dict) -> str:
+    title = hit.get("meeting_title") or f"meeting {hit.get('meeting_id')}"
+    date_part = str(hit.get("meeting_date") or "")[:10]
     return (
-        f"[{index}] meeting {hit.get('meeting_id')} | speaker: {hit.get('speaker', 'unknown')} | "
-        f"at: {hit.get('start_ts', '?')}\n{hit.get('text', '')}"
+        f"[{index}] {title}, {date_part}, {hit.get('start_ts', '?')}, "
+        f"{hit.get('speaker', 'unknown')}\n{hit.get('text', '')}"
     )
 
 
@@ -334,6 +337,8 @@ def query_unified(db: Session, group: Group, request: UnifiedQueryRequest) -> Un
     errors: dict[str, str] = {}
     llm_error: OllamaError | None = None
     for source in sources:
+        # Release the read transaction so a connection idle through the previous LLM call can't go stale.
+        db.rollback()
         try:
             results[source] = query_source(db, group, source, request)
         except OllamaError as exc:

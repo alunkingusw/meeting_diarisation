@@ -25,7 +25,7 @@ def chunk_commit(commit: ParsedCommit, repo_name: str) -> Chunk:
         diff_excerpt += "\n... [diff truncated for embedding] ..."
 
     text = (
-        f"Commit {commit.sha[:8]} by {commit.author_name} in {repo_name} "
+        f"Commit {commit.sha[:8]} by {commit.author_name} "
         f"on {commit.committed_at.date().isoformat()}\n"
         f"Message: {commit.message}\n"
         f"Files changed: {commit.files_changed}, "

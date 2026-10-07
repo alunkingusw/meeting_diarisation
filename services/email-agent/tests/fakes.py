@@ -32,11 +32,12 @@ from app.diarisation.client import (
     GroupSummary,
     MeetingComment,
     MeetingSummary,
+    NotFoundError,
+    QueryAnswer,
     RawFileSummary,
     TranscriptChunk,
     TransientError,
 )
-from app.github_raginator.client import QueryResult, RepoSummary, TransientError as GithubTransientError
 
 
 class FakeDiarisationClient:
@@ -49,7 +50,13 @@ class FakeDiarisationClient:
         member_by_name: Optional[dict[str, Optional[int]]] = None,
         fail_on: Optional[str] = None,
         transcript_chunks: Optional[list[TranscriptChunk]] = None,
+        source_answers: Optional[dict[str, str]] = None,
+        unlinked_sources: Optional[set[str]] = None,
     ):
+        # source -> canned answer; a source in `unlinked_sources` raises NotFoundError like the backend's 404.
+        self.source_answers = source_answers or {}
+        self.unlinked_sources = unlinked_sources or set()
+        self.queries: list[tuple[str, str]] = []
         self.groups = groups
         self.transcript_chunks = transcript_chunks or []
         self.member_by_name = member_by_name or {}
@@ -119,28 +126,21 @@ class FakeDiarisationClient:
         self._maybe_fail("search_transcripts")
         return self.transcript_chunks
 
+    def query_source(self, token: str, group_id: int, source: str, question: str, since=None) -> QueryAnswer:
+        self._maybe_fail(f"query_{source}")
+        if source in self.unlinked_sources:
+            raise NotFoundError(f"no {source} source linked")
+        self.queries.append((source, question))
+        return QueryAnswer(answer=self.source_answers.get(source, f"{source} answer"), sources_used=[source])
 
-class FakeGithubRaginatorClient:
-    """Duck-type stand-in for GithubRaginatorClient - no HTTP involved."""
-
-    def __init__(
-        self,
-        repo_by_group_name: Optional[dict[str, RepoSummary]] = None,
-        answer: str = "Alice made most of the recent commits.",
-        fail_on: Optional[str] = None,
-    ):
-        self.repo_by_group_name = repo_by_group_name or {}
-        self.answer = answer
-        self.fail_on = fail_on
-        self.questions_asked: list[str] = []
-
-    def find_repo_by_group_name(self, group_name: str) -> Optional[RepoSummary]:
-        if self.fail_on == "find_repo_by_group_name":
-            raise GithubTransientError("simulated failure in find_repo_by_group_name")
-        return self.repo_by_group_name.get(group_name)
-
-    def query(self, repo_id: int, question: str) -> QueryResult:
-        if self.fail_on == "query":
-            raise GithubTransientError("simulated failure in query")
-        self.questions_asked.append(question)
-        return QueryResult(answer=self.answer)
+    def query_unified(self, token: str, group_id: int, question: str, sources=None, since=None) -> QueryAnswer:
+        self._maybe_fail("query_unified")
+        used = [s for s in (sources or []) if s not in self.unlinked_sources]
+        if not used:
+            raise NotFoundError("no sources linked")
+        self.queries.append(("unified:" + ",".join(used), question))
+        return QueryAnswer(
+            answer=" ".join(self.source_answers.get(s, f"{s} answer") for s in used),
+            sources_used=used,
+            errors={s: "unavailable" for s in sources or [] if s in self.unlinked_sources},
+        )

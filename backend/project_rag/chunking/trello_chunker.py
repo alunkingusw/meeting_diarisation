@@ -15,7 +15,7 @@ def chunk_trello_action(action: RemoteTrelloAction, repo_name: str) -> Chunk:
     """Build a single Chunk from a Trello action."""
     text = (
         f"Trello {action.action_type} by {action.member_creator} on card "
-        f"'{action.card_name}' in {repo_name} on {action.created_at.date().isoformat()}\n"
+        f"'{action.card_name}' on {action.created_at.date().isoformat()}\n"
         f"{action.text}"
     )
 

@@ -11,7 +11,6 @@ from app.admin.notifier import AdminNotifier
 from app.auth.authorisation import SenderAuthoriser
 from app.diarisation.admin_client import AdminDiarisationApiError, AdminDiarisationClient
 from app.diarisation.client import DiarisationClient
-from app.github_raginator.client import GithubRaginatorClient
 from app.jobs.store import JobStore, Outbox, ProcessedMessageStore
 from app.jobs.worker import JobWorker
 from app.internal_api import EmailApiServer
@@ -143,12 +142,7 @@ def run(settings: Settings) -> None:
         settings.backend.max_retry_attempts,
         settings.backend.retry_backoff_seconds,
         settings.diarisation_service_api_key,
-    )
-    github_raginator_client = GithubRaginatorClient(
-        settings.github_raginator.base_url,
-        settings.github_raginator.request_timeout_seconds,
-        settings.github_raginator.max_retry_attempts,
-        settings.github_raginator.retry_backoff_seconds,
+        settings.backend.query_timeout_seconds,
     )
 
     pipeline = EmailProcessingPipeline(
@@ -172,8 +166,6 @@ def run(settings: Settings) -> None:
         outbox,
         admin_notifier,
         settings.storage,
-        github_raginator_client,
-        ollama_client,
     )
 
     stop_event = threading.Event()
@@ -264,7 +256,6 @@ def run(settings: Settings) -> None:
             report_thread.join(timeout=5.0)
         ollama_client.close()
         diarisation_client.close()
-        github_raginator_client.close()
         logger.info("GroupAssessmentAgent stopped.")
 
 

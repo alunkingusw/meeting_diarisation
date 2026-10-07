@@ -92,6 +92,7 @@ def collect_project_stats(
     since: datetime | None = None,
     weeks: int = 12,
     sources: tuple[str, ...] = SOURCES,
+    label: str | None = None,
 ) -> ProjectStats:
     """
     Aggregate all activity for one repo into a `ProjectStats`.
@@ -105,7 +106,9 @@ def collect_project_stats(
     window like "what happened last week" instead of always reporting
     all-time totals.
     """
-    stats = ProjectStats(repo_id=repo.id, repo_name=repo.name, last_synced_at=repo.last_synced_at)
+    stats = ProjectStats(
+        repo_id=repo.id, repo_name=label or repo.name, last_synced_at=repo.last_synced_at
+    )
 
     contributors: dict[str, ContributorStats] = {}
 
@@ -191,14 +194,49 @@ def collect_project_stats(
         contributor(name).trello_actions = count
         stats.total_trello_actions += count
 
-    # --- Overall activity window ---
+    # --- Overall activity window, across every record type in scope ---
+    ranges = []
     if use_github:
-        bounds = db.execute(
-            select(func.min(Commit.committed_at), func.max(Commit.committed_at)).where(
-                Commit.repo_id == repo.id, *commit_since
-            )
-        ).one()
-        stats.first_activity_at, stats.last_activity_at = bounds
+        ranges.append(
+            db.execute(
+                select(func.min(Commit.committed_at), func.max(Commit.committed_at)).where(
+                    Commit.repo_id == repo.id, *commit_since
+                )
+            ).one()
+        )
+        ranges.append(
+            db.execute(
+                select(func.min(Issue.created_at), func.max(Issue.created_at)).where(
+                    Issue.repo_id == repo.id, *since_filter(Issue.created_at)
+                )
+            ).one()
+        )
+        ranges.append(
+            db.execute(
+                select(func.min(IssueComment.created_at), func.max(IssueComment.created_at))
+                .join(Issue, IssueComment.issue_id == Issue.id)
+                .where(Issue.repo_id == repo.id, *since_filter(IssueComment.created_at))
+            ).one()
+        )
+        ranges.append(
+            db.execute(
+                select(func.min(ReviewComment.created_at), func.max(ReviewComment.created_at)).where(
+                    ReviewComment.repo_id == repo.id, *since_filter(ReviewComment.created_at)
+                )
+            ).one()
+        )
+    if use_trello:
+        ranges.append(
+            db.execute(
+                select(func.min(TrelloAction.created_at), func.max(TrelloAction.created_at)).where(
+                    TrelloAction.repo_id == repo.id, *since_filter(TrelloAction.created_at)
+                )
+            ).one()
+        )
+    firsts = [first for first, _ in ranges if first is not None]
+    lasts = [last for _, last in ranges if last is not None]
+    stats.first_activity_at = min(firsts) if firsts else None
+    stats.last_activity_at = max(lasts) if lasts else None
 
     # --- Commits per week, most recent `weeks` buckets ---
     # `type_` is given explicitly so SQLAlchemy knows to hand back a datetime
@@ -251,7 +289,7 @@ def format_stats_for_prompt(stats: ProjectStats, sources: tuple[str, ...] = SOUR
         totals.append(f"{stats.total_trello_actions} Trello card actions")
 
     lines = [
-        f"Repository: {stats.repo_name}",
+        f"Project: {stats.repo_name}",
         f"Activity window: {_fmt_date(stats.first_activity_at)} to {_fmt_date(stats.last_activity_at)}",
         f"Last ingested: {_fmt_date(stats.last_synced_at)}",
         f"Totals: {', '.join(totals)}",

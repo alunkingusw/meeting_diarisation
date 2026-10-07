@@ -19,7 +19,7 @@ from backend.project_rag.ingestion.github_api import RemoteIssue, RemoteIssueCom
 def chunk_issue(issue: RemoteIssue, repo_name: str) -> Chunk:
     """One chunk for an issue's title + body."""
     text = (
-        f"Issue #{issue.number} in {repo_name} opened by {issue.author} "
+        f"Issue #{issue.number} opened by {issue.author} "
         f"on {issue.created_at.date().isoformat()} (state: {issue.state})\n"
         f"Title: {issue.title}\n"
         f"Body: {issue.body or ''}"
@@ -38,7 +38,7 @@ def chunk_issue(issue: RemoteIssue, repo_name: str) -> Chunk:
 def chunk_issue_comment(comment: RemoteIssueComment, repo_name: str) -> Chunk:
     """One chunk per comment on an issue."""
     text = (
-        f"Comment by {comment.author} on issue #{comment.issue_number} in {repo_name} "
+        f"Comment by {comment.author} on issue #{comment.issue_number} "
         f"on {comment.created_at.date().isoformat()}\n{comment.body}"
     )
     return Chunk(
@@ -57,7 +57,7 @@ def chunk_review_comment(comment: RemoteReviewComment, repo_name: str) -> Chunk:
     location = f"{comment.file_path}:{comment.line}" if comment.file_path else "unknown location"
     text = (
         f"Review comment by {comment.author} on PR #{comment.pr_number} "
-        f"in {repo_name} at {location} on {comment.created_at.date().isoformat()}\n"
+        f"at {location} on {comment.created_at.date().isoformat()}\n"
         f"{comment.body}"
     )
     return Chunk(

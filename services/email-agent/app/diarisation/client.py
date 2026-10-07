@@ -106,6 +106,14 @@ class TranscriptChunk:
         return f"[{self.meeting_title}, {self.meeting_date}, {self.start_ts}-{self.end_ts}, {self.speaker}]"
 
 
+@dataclass
+class QueryAnswer:
+    answer: str
+    sources_used: list[str]
+    # Per-source failures the backend tolerated because another source still answered.
+    errors: dict[str, str] = field(default_factory=dict)
+
+
 class DiarisationClient:
     def __init__(
         self,
@@ -114,7 +122,9 @@ class DiarisationClient:
         max_retry_attempts: int = 3,
         retry_backoff_seconds: float = 1.0,
         service_api_key: Optional[str] = None,
+        query_timeout: float = 180.0,
     ):
+        self._query_timeout = query_timeout
         self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout)
         self._retryer = Retrying(
             reraise=True,
@@ -271,6 +281,43 @@ class DiarisationClient:
             for r in hits
         ]
 
+    def query_source(
+        self, token: str, group_id: int, source: str, question: str, since: Optional[date] = None
+    ) -> QueryAnswer:
+        """POST /groups/{id}/{conversation|github|trello}/query - an answer from one source."""
+        resp = self._request(
+            "POST",
+            f"/groups/{group_id}/{source}/query",
+            headers=_auth(token),
+            json=_query_body(question, since),
+            timeout=self._query_timeout,
+        )
+        return QueryAnswer(answer=resp.json()["answer"], sources_used=[source])
+
+    def query_unified(
+        self,
+        token: str,
+        group_id: int,
+        question: str,
+        sources: Optional[list[str]] = None,
+        since: Optional[date] = None,
+    ) -> QueryAnswer:
+        """POST /groups/{id}/query - the backend routes the question and merges source answers."""
+        body = _query_body(question, since)
+        if sources is not None:
+            body["sources"] = sources
+        resp = self._request(
+            "POST",
+            f"/groups/{group_id}/query",
+            headers=_auth(token),
+            json=body,
+            timeout=self._query_timeout,
+        )
+        data = resp.json()
+        return QueryAnswer(
+            answer=data["answer"], sources_used=data["sources_used"], errors=data.get("errors", {})
+        )
+
     def generate_report(self, token: str, start_date: date, end_date: date) -> list[dict]:
         """POST /reports/generate_report - backend emails one report per supervised group."""
         resp = self._request(
@@ -309,3 +356,10 @@ class DiarisationClient:
 
 def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _query_body(question: str, since: Optional[date]) -> dict:
+    body: dict = {"question": question}
+    if since is not None:
+        body["since"] = since.isoformat()
+    return body

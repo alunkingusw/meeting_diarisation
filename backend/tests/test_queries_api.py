@@ -210,3 +210,18 @@ def test_group_rejects_non_github_repo_url(client, make_user, auth_header_for):
     )
 
     assert response.status_code == 422
+
+
+def test_stats_span_all_sources_and_use_group_name(
+    client, db_session, make_user, make_group, auth_header_for
+):
+    owner, group = _linked_group(db_session, make_user, make_group)
+    _seed_index(db_session, group)
+
+    response = client.get(f"/groups/{group.id}/stats", headers=auth_header_for(owner.id))
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["repo_name"] == "Team A"
+    assert body["first_activity_at"].startswith("2026-01-05")
+    assert body["last_activity_at"].startswith("2026-01-06")

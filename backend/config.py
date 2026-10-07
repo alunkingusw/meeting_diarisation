@@ -89,6 +89,8 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        # .env is shared with docker compose, which reads keys the backend doesn't (API_BASE_IMAGE etc.).
+        extra = "ignore"
 
 
 settings = Settings()

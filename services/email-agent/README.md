@@ -38,11 +38,11 @@ adjusted as follows:
 - **Mail access is provider-agnostic** via a `MailClient` interface (`app/mail/base.py`). The app
   supports Microsoft Graph and a generic IMAP/SMTP provider implementation (`app/mail/imap_client.py`)
   for dedicated project mailboxes such as `mailbox.org`.
-- **`assess_query` answers real questions from three sources**: past meeting transcripts
-  (meeting_diarisation's `/groups/{id}/transcripts/search`, synthesised into a cited prose answer
-  via a second, narrowly-scoped Ollama call — see `app/llm/transcript_synthesis.py`), and the
-  group's GitHub repo/Trello board (GitHub-RAGinator's `/query`, which returns its own
-  LLM-synthesised answer). The LLM only ever decides *which* sources are relevant
+- **`assess_query` answers real questions from three sources**, all through the backend's
+  query API: past meeting transcripts (`/groups/{id}/conversation/query`) and the group's GitHub
+  repo and Trello board (`/github/query`, `/trello/query`, or the unified `/query` when both are
+  asked for). The backend retrieves, answers and cites; the agent does no retrieval itself.
+  The LLM only ever decides *which* sources are relevant
   (`transcript_focus`/`github_focus`/`trello_focus`) — the queries themselves are deterministic
   API calls, same trust-boundary pattern as everything else in this codebase. Like
   `submit_transcript`, it's split into `accept()`/`execute()` so a slow or unreachable source
@@ -269,7 +269,7 @@ authorised owner, creates one idempotent `WEEKLY-YYYY-MM-DD-GROUP` report per pe
 LangGraph workflow that collects meeting, GitHub, and Trello evidence, persists that evidence in
 SQLite, synthesises a cited plain-text report, and sends it through the existing outbox.
 
-The current backend exposes transcript search and GitHub-RAGinator query endpoints rather than
+The backend exposes transcript search and per-source query endpoints rather than
 raw activity feeds. The source adapter therefore records the bounded query and its answer as
 evidence, while filtering transcript chunks by meeting date. When structured GitHub/Trello
 activity endpoints become available, they can replace `app/reports/sources.py` without changing

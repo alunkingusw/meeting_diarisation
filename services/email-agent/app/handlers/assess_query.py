@@ -1,5 +1,5 @@
 """Answers a sender's question by querying real sources - past meeting transcripts
-(meeting_diarisation) and/or the group's GitHub repo and Trello board (GitHub-RAGinator) - for
+and/or the group's GitHub repo and Trello board, all through the backend's query API - for
 whichever of transcript_focus/github_focus/trello_focus the LLM set. Split into accept()
 (local-only: create the job, done inline in the mail-polling pipeline) and execute() (all
 external HTTP + LLM calls, run by the job worker thread), mirroring submit_transcript.py's
@@ -16,7 +16,7 @@ from typing import Optional
 
 from app.admin.notifier import AdminCategory, AdminNotifier
 from app.commands.validator import ValidatedCommand
-from app.diarisation.client import DiarisationApiError, DiarisationClient
+from app.diarisation.client import DiarisationApiError, DiarisationClient, NotFoundError
 from app.diarisation.group_matching import Matched, group_clarification_question, match_group
 from app.email_templates.render import (
     render_assess_ack,
@@ -24,14 +24,17 @@ from app.email_templates.render import (
     render_clarification,
     render_failure,
 )
-from app.github_raginator.client import GithubRaginatorApiError, GithubRaginatorClient
 from app.handlers.base import HandlerOutcome
 from app.jobs.models import Job, JobState
 from app.jobs.store import JobStore, Outbox, PendingClarificationStore
-from app.llm.ollama_client import OllamaClient
-from app.llm.transcript_synthesis import synthesize_transcript_answer
 
 logger = logging.getLogger(__name__)
+
+_SOURCE_LABELS = {"github": "the GitHub repo", "trello": "the Trello board"}
+
+
+def _project_sources_label(sources: list[str]) -> str:
+    return " or ".join({"github": "a GitHub repo", "trello": "a Trello board"}[s] for s in sources)
 
 
 def accept(
@@ -72,8 +75,6 @@ def accept(
 def execute(
     job: Job,
     diarisation_client: DiarisationClient,
-    github_raginator_client: GithubRaginatorClient,
-    ollama_client: OllamaClient,
     job_store: JobStore,
     outbox: Outbox,
     admin_notifier: AdminNotifier,
@@ -109,23 +110,39 @@ def execute(
 
         if job.transcript_focus:
             try:
-                chunks = diarisation_client.search_transcripts(token, group.id, job.transcript_focus)
-                transcript_answer = synthesize_transcript_answer(ollama_client, job.transcript_focus, chunks)
+                transcript_answer = diarisation_client.query_source(
+                    token, group.id, "conversation", job.transcript_focus
+                ).answer
+            except NotFoundError:
+                transcript_answer = "I didn't find anything in past transcripts that speaks to this."
             except DiarisationApiError:
-                logger.exception("Transcript search failed for job %s", job.job_id)
+                logger.exception("Transcript query failed for job %s", job.job_id)
                 unavailable_notes.append("I couldn't check past meeting transcripts right now.")
 
-        if job.github_focus or job.trello_focus:
+        project_sources = [
+            name for name, focus in (("github", job.github_focus), ("trello", job.trello_focus)) if focus
+        ]
+        if project_sources:
+            question = " ".join(f for f in (job.github_focus, job.trello_focus) if f)
             try:
-                repo = github_raginator_client.find_repo_by_group_name(group.name)
-                if repo is None:
-                    unavailable_notes.append(
-                        "Your group doesn't have a GitHub repo linked yet, so I couldn't check it."
-                    )
+                if len(project_sources) == 1:
+                    result = diarisation_client.query_source(token, group.id, project_sources[0], question)
                 else:
-                    question = " ".join(f for f in (job.github_focus, job.trello_focus) if f)
-                    github_trello_answer = github_raginator_client.query(repo.id, question).answer
-            except GithubRaginatorApiError:
+                    result = diarisation_client.query_unified(
+                        token, group.id, question, sources=project_sources
+                    )
+                github_trello_answer = result.answer
+                unavailable_notes.extend(
+                    f"I couldn't check {_SOURCE_LABELS[name]} right now."
+                    for name in result.errors
+                    if name in _SOURCE_LABELS
+                )
+            except NotFoundError:
+                unavailable_notes.append(
+                    f"Your group doesn't have {_project_sources_label(project_sources)} linked yet, "
+                    "so I couldn't check it."
+                )
+            except DiarisationApiError:
                 logger.exception("GitHub/Trello query failed for job %s", job.job_id)
                 unavailable_notes.append("I couldn't check the GitHub repo/Trello board right now.")
 

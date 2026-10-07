@@ -344,3 +344,46 @@ def test_timeout_is_treated_as_transient(client):
     respx.get(f"{BASE_URL}/groups/").mock(side_effect=httpx.ConnectTimeout("boom"))
     with pytest.raises(TransientError):
         client.list_groups("tok")
+
+
+@respx.mock
+def test_query_source_posts_to_source_endpoint(client):
+    route = respx.post(f"{BASE_URL}/groups/3/github/query").mock(
+        return_value=httpx.Response(200, json={"answer": "Two open issues.", "source": "github"})
+    )
+
+    result = client.query_source("tok", 3, "github", "open issues?")
+
+    assert result.answer == "Two open issues."
+    assert result.sources_used == ["github"]
+    assert route.calls.last.request.headers["Authorization"] == "Bearer tok"
+    assert route.calls.last.request.read() == b'{"question":"open issues?"}'
+
+
+@respx.mock
+def test_query_unified_sends_sources_and_since(client):
+    from datetime import date
+
+    route = respx.post(f"{BASE_URL}/groups/3/query").mock(
+        return_value=httpx.Response(
+            200,
+            json={"answer": "Merged.", "sources_used": ["github", "trello"], "errors": {"trello": "x"}},
+        )
+    )
+
+    result = client.query_unified("tok", 3, "progress?", sources=["github", "trello"], since=date(2026, 9, 1))
+
+    assert result.sources_used == ["github", "trello"]
+    assert result.errors == {"trello": "x"}
+    assert route.calls.last.request.read() == (
+        b'{"question":"progress?","since":"2026-09-01","sources":["github","trello"]}'
+    )
+
+
+@respx.mock
+def test_query_source_not_linked_raises_not_found(client):
+    respx.post(f"{BASE_URL}/groups/3/trello/query").mock(
+        return_value=httpx.Response(404, json={"detail": "This group has no trello source linked"})
+    )
+    with pytest.raises(NotFoundError):
+        client.query_source("tok", 3, "trello", "blocked?")

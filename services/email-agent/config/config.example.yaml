@@ -34,15 +34,8 @@ backend:
   request_timeout_seconds: 10
   max_retry_attempts: 3
   retry_backoff_seconds: 1.0
-
-github_raginator:
-  # Used by assess_query for github_focus/trello_focus. Same networked-vs-host-run note as
-  # backend.base_url above - use http://repo_analysis_app:8000 on the shared project_net
-  # network, or http://localhost:8010 (its published host port) for a host run.
-  base_url: http://localhost:8010
-  request_timeout_seconds: 120
-  max_retry_attempts: 3
-  retry_backoff_seconds: 1.0
+  # Query endpoints run retrieval plus LLM generation, so they get their own longer timeout.
+  query_timeout_seconds: 240
 
 limits:
   max_attachment_size_mb: 20

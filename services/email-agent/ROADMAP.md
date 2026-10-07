@@ -6,10 +6,9 @@ a backlog of known next steps, ordered roughly by dependency.
 ## 1. ~~Real source clients for `assess_query`~~ — done
 
 `assess_query` now queries all three sources for real (see README "Design decisions"):
-meeting_diarisation's transcript search (chunked/indexed by a vendored copy of VTT-RAGinator,
-synthesised into a cited answer via Ollama) and GitHub-RAGinator's `/query` for GitHub/Trello
-(GitHub-RAGinator's own repo registration is kept in sync with meeting_diarisation's
-`Group.github_repo_url`/`trello_board_id` via `GitHub-RAGinator/scripts/sync_repos_from_diarisation.py`).
+the backend's per-source query endpoints (`/groups/{id}/conversation|github|trello/query`, plus the
+unified `/groups/{id}/query`). GitHub/Trello indexing now lives in the backend (`backend/project_rag`),
+so the standalone GitHub-RAGinator service is no longer used.
 Per-group repo/board configuration lives on meeting_diarisation's `Group` row, not in this
 project's `config.yaml`.
 
@@ -34,5 +33,5 @@ triggered by an inbound email. Requires:
 
 Implemented in `app/reports/` and exposed as `weekly-project-update`. The workflow uses LangGraph,
 SQLite report/evidence snapshots, the existing outbox/message-link model, and deterministic
-source adapters. Remaining work is to replace the current bounded GitHub-RAGinator queries with
+source adapters. Remaining work is to replace the current bounded per-source queries with
 structured date-bounded GitHub and Trello activity endpoints when those APIs are available.

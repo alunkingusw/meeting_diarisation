@@ -118,7 +118,7 @@ def group_stats(
     """Facts computed from ingested GitHub/Trello data, with no LLM involved."""
     group = _get_group(db, group_id)
     repo = group_service.get_or_create_repo(db, group)
-    return collect_project_stats(db, repo, weeks=weeks)
+    return collect_project_stats(db, repo, weeks=weeks, label=group.name)
 
 
 @router.post("/ingest", response_model=IngestSummary)

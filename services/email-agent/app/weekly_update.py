@@ -9,7 +9,6 @@ from zoneinfo import ZoneInfo
 
 from app.admin.notifier import AdminNotifier
 from app.diarisation.client import DiarisationClient
-from app.github_raginator.client import GithubRaginatorClient
 from app.jobs.store import Outbox
 from app.llm.ollama_client import OllamaClient
 from app.logging_config import configure_logging
@@ -57,17 +56,12 @@ def run_once(settings: Settings, now: datetime | None = None) -> int:
         settings.backend.max_retry_attempts,
         settings.backend.retry_backoff_seconds,
         settings.diarisation_service_api_key,
-    )
-    github = GithubRaginatorClient(
-        settings.github_raginator.base_url,
-        settings.github_raginator.request_timeout_seconds,
-        settings.github_raginator.max_retry_attempts,
-        settings.github_raginator.retry_backoff_seconds,
+        settings.backend.query_timeout_seconds,
     )
     ollama = OllamaClient(
         settings.llm.host, settings.llm.model, settings.llm.request_timeout_seconds
     )
-    workflow = WeeklyReportWorkflow(report_store, outbox, diarisation, github, ollama, admin)
+    workflow = WeeklyReportWorkflow(report_store, outbox, diarisation, ollama, admin)
     period_start, period_end = reporting_period(settings, now)
     generated = 0
 
@@ -91,7 +85,6 @@ def run_once(settings: Settings, now: datetime | None = None) -> int:
     finally:
         ollama.close()
         diarisation.close()
-        github.close()
 
 
 def _flush_report_outbox(mail_client, outbox: Outbox, report_store: ReportStore) -> None:

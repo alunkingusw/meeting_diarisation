@@ -331,6 +331,7 @@ def answer_question(
     question: str,
     since: date | None = None,
     sources: tuple[str, ...] = SOURCES,
+    label: str | None = None,
 ) -> QueryResult:
     """
     Answer a natural-language question about one repo's activity.
@@ -345,7 +346,7 @@ def answer_question(
     that actually means "you never ran /ingest".
     """
     since_dt = _since_to_datetime(since)
-    stats = collect_project_stats(db, repo, since=since_dt, sources=sources)
+    stats = collect_project_stats(db, repo, since=since_dt, sources=sources, label=label)
     if stats.is_empty:
         raise ValueError(
             f"No ingested {' or '.join(sources)} activity for this group"
@@ -385,7 +386,7 @@ def answer_question(
     return QueryResult(
         question=question,
         repo_id=repo.id,
-        repo_name=repo.name,
+        repo_name=label or repo.name,
         answer=generated.text,
         model=generated.model,
         stats=stats,
