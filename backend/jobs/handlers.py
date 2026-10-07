@@ -8,7 +8,7 @@ from typing import Any
 
 from backend.db import SessionLocal
 from backend.jobs.service import JobContext, handler
-from backend.models import Group, Meeting
+from backend.models import Group, Meeting, User, WeeklyReport, users_groups
 
 logger = logging.getLogger(__name__)
 
@@ -101,3 +101,97 @@ def report(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
             db, group, date.fromisoformat(params["period_start"]), date.fromisoformat(params["period_end"])
         )
     return result.model_dump(mode="json")
+
+
+@handler("weekly_reports")
+def weekly_reports(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
+    from backend.email_client import send_email
+    from backend.engine.report_graph import compose_weekly_report
+
+    period_start = date.fromisoformat(params["period_start"])
+    period_end = date.fromisoformat(params["period_end"])
+    with SessionLocal() as db:
+        owner_rows = (
+            db.query(Group.id, Group.name, User.email)
+            .join(users_groups, users_groups.c.group_id == Group.id)
+            .join(User, User.id == users_groups.c.user_id)
+            .filter(users_groups.c.role == "owner", User.email.isnot(None))
+            .order_by(Group.id, User.id)
+            .all()
+        )
+
+    owners_by_group: dict[int, tuple[str, list[str]]] = {}
+    for group_id, group_name, email in owner_rows:
+        address = email.strip().lower()
+        if not address:
+            continue
+        entry = owners_by_group.setdefault(group_id, (group_name or "", []))
+        if address not in entry[1]:
+            entry[1].append(address)
+
+    queued_count = 0
+    failed: list[dict[str, Any]] = []
+    for group_id, (group_name, recipients) in owners_by_group.items():
+        ctx.check_cancelled()
+        report_id = f"WEEKLY-{period_start.isoformat()}-{group_id:04d}"
+        try:
+            with SessionLocal() as db:
+                group = db.get(Group, group_id)
+                report = db.get(WeeklyReport, report_id)
+                if report is not None and report.status == "queued":
+                    continue
+                if report is None:
+                    report = WeeklyReport(
+                        report_id=report_id,
+                        group_id=group_id,
+                        group_name=group_name,
+                        period_start=period_start,
+                        period_end=period_end,
+                        recipients=recipients,
+                        queued_recipients=[],
+                        status="generating",
+                    )
+                    db.add(report)
+                    db.commit()
+                else:
+                    report.recipients = list(dict.fromkeys([*(report.recipients or []), *recipients]))
+                    report.status, report.error = "generating", None
+                    db.commit()
+
+                if report.report_text is None:
+                    result = compose_weekly_report(db, group, period_start, period_end)
+                    report.report_text = result.report_text
+                    report.model = result.model
+                    report.evidence = [item.model_dump(mode="json") for item in result.evidence]
+                    report.unavailable = result.unavailable
+                    db.commit()
+
+                subject = f"Weekly project update - {report.report_id}"
+                body = (
+                    f"Project: {report.group_name}\n"
+                    f"Period: {report.period_start} to {report.period_end}\n\n"
+                    f"{report.report_text}\n\n"
+                    "Reply to this email with a question about this update."
+                )
+                queued = set(report.queued_recipients or [])
+                for recipient in report.recipients:
+                    if recipient in queued:
+                        continue
+                    send_email(recipient, subject, body, job_id=report.report_id)
+                    queued.add(recipient)
+                    report.queued_recipients = sorted(queued)
+                    db.commit()
+
+                report.status, report.error = "queued", None
+                db.commit()
+                queued_count += 1
+        except Exception as exc:  # noqa: BLE001 - isolate failures to this group's report
+            logger.exception("Weekly report %s failed", report_id)
+            with SessionLocal() as db:
+                report = db.get(WeeklyReport, report_id)
+                if report is not None:
+                    report.status, report.error = "failed", str(exc) or exc.__class__.__name__
+                    db.commit()
+            failed.append({"group_id": group_id, "error": str(exc)})
+
+    return {"queued_groups": queued_count, "failed_groups": failed}

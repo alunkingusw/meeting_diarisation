@@ -60,19 +60,15 @@ internal_api:
   max_body_chars: 20000
 
 weekly_update:
-  enabled: false
-  weekday: 0              # Monday=0, Sunday=6
-  hour: 2
-  minute: 0
+  enabled: false          # Enables the one-shot weekly-project-update command
   lookback_days: 7
-  recipient_mode: group_owners
 
-# Runs the weekly project update (see weekly_update above) on a schedule inside the long-running
-# agent, instead of from cron. Uses weekly_update.lookback_days and group owners.
+# The agent's timer makes one authenticated API request; the backend discovers owner-linked
+# supervisors, composes/persists reports, and queues delivery back through the agent.
 meeting_report:
   enabled: false
   weekday: 0              # Monday=0, Sunday=6
-  hour: 01
+  hour: 8
   minute: 0
 
 logging:

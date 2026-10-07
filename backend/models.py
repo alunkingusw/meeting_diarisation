@@ -25,8 +25,9 @@ from backend.config import settings
 from enum import Enum
 
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, Index, func, text,
+    Column, Integer, String, Text, DateTime, Date, Boolean, ForeignKey, Table, JSON, Index, func, text,
     Enum as SQLEnum,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from backend.db import Base
@@ -185,6 +186,30 @@ class Job(Base):
     created_at = Column(DateTime, nullable=False, default=func.now())
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
+
+
+class WeeklyReport(Base):
+    """Backend-owned report snapshot used for scheduled delivery and email follow-ups."""
+
+    __tablename__ = "weekly_reports"
+    __table_args__ = (
+        UniqueConstraint("group_id", "period_start", "period_end", name="uq_weekly_report_period"),
+    )
+
+    report_id = Column(String(64), primary_key=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False, index=True)
+    group_name = Column(String(255), nullable=False)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    report_text = Column(Text, nullable=True)
+    model = Column(String(255), nullable=True)
+    evidence = Column(JSON, nullable=True)
+    unavailable = Column(JSON, nullable=False, default=list)
+    recipients = Column(JSON, nullable=False, default=list)
+    queued_recipients = Column(JSON, nullable=False, default=list)
+    status = Column(String(20), nullable=False, default="pending", server_default="pending")
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
 
 
 class GroupMemberOut(BaseModel):

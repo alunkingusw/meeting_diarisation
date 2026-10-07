@@ -462,6 +462,34 @@ class DiarisationClient:
         )
         return resp.json()["answer"]
 
+    def run_weekly_reports(self, period_start: date, period_end: date) -> dict:
+        """POST /admin/weekly-reports/run - ask the backend to process every owner-linked group."""
+        if not self._service_api_key:
+            raise AuthError("DIARISATION_SERVICE_API_KEY is not configured")
+        response = self._request(
+            "POST",
+            "/admin/weekly-reports/run",
+            headers={"X-Service-Key": self._service_api_key},
+            json={"period_start": period_start.isoformat(), "period_end": period_end.isoformat()},
+            timeout=self._query_timeout,
+        )
+        return response.json()
+
+    def answer_scheduled_report(
+        self, report_id: str, sender_email: str, question: str
+    ) -> str:
+        """POST a report follow-up to the backend, which verifies the recipient and saved evidence."""
+        if not self._service_api_key:
+            raise AuthError("DIARISATION_SERVICE_API_KEY is not configured")
+        response = self._request(
+            "POST",
+            f"/admin/weekly-reports/{report_id}/answer",
+            headers={"X-Service-Key": self._service_api_key},
+            json={"sender_email": sender_email, "question": question},
+            timeout=self._query_timeout,
+        )
+        return response.json()["answer"]
+
     # --- request plumbing --------------------------------------------------
 
     def _request(self, method: str, path: str, **kwargs) -> httpx.Response:

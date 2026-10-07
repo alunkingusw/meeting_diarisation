@@ -247,31 +247,45 @@ doesn't depend on how a real model happens to behave on a given day.
   meeting/attendees). Not a real gap in practice: the actual answer is always emailed
   automatically once the job completes, same as submit_transcript's completion email.
 
-See [ROADMAP.md](ROADMAP.md) for planned follow-on work, including wiring up real source clients
-and a scheduled weekly per-group update.
+See [ROADMAP.md](ROADMAP.md) for planned follow-on work, including wiring up real source clients.
 
 ## Weekly project updates
 
-The weekly update is a one-shot command intended to be invoked by cron or a system scheduler:
+The email agent includes an in-process scheduler, so no host cron is needed when the agent is
+running. Scheduled email is opt-in. Copy the example config if you have not already created the
+mounted config file:
 
 ```bash
-weekly-project-update --config config/config.yaml
+cp services/email-agent/config/config.example.yaml services/email-agent/config/config.yaml
 ```
 
-For example, a Monday 08:00 cron entry is:
+Set the timezone under `storage` and enable/configure the schedule under `meeting_report`:
 
-```cron
-0 8 * * 1 /path/to/.venv/bin/weekly-project-update --config /path/to/config/config.yaml
+```yaml
+storage:
+  default_timezone: Europe/London
+
+weekly_update:
+  lookback_days: 7
+
+meeting_report:
+  enabled: true
+  weekday: 0  # Monday=0, Sunday=6
+  hour: 8
+  minute: 0
 ```
 
-Enable it with `weekly_update.enabled: true`. The command discovers each active group for every
-authorised owner, creates one idempotent `WEEKLY-YYYY-MM-DD-GROUP` report per period, and runs a
-small LangGraph workflow that asks the backend to compose the report (`POST
-/groups/{id}/reports/weekly`), persists the returned evidence in SQLite, and sends the cited
-plain-text report through the existing outbox. The backend gathers the evidence itself: meeting
-summaries and comments, transcript chunks for meetings without a summary, and GitHub and Trello
-activity. The same run can instead be scheduled inside the long-running agent with
-`meeting_report.enabled: true`.
+Restart the agent after changing the config. On startup it schedules one API trigger for the
+configured weekday and time in `storage.default_timezone`. The backend selects projects with
+email-enabled `owner` users, composes and persists one report per project and period, then queues
+delivery through the agent's existing outbox. `weekly_update.lookback_days` controls the report
+window. Meeting summaries and comments, transcript chunks, and GitHub/Trello activity are gathered
+by the backend. Report evidence stays in the backend; the agent forwards authenticated replies to
+the backend, which checks that the sender received that report before answering.
+
+The schedule is disabled in `config.example.yaml` to prevent accidental email delivery. To run it
+manually instead, use `weekly-project-update --config config/config.yaml`; this one-shot command can
+also be invoked by a host cron or another system scheduler.
 
 Replies to a weekly report are matched by `In-Reply-To`/`References` or the report ID in the
 subject. They are answered by the backend (`POST /groups/{id}/reports/answer`) from the persisted evidence snapshot and remain in the same outbound

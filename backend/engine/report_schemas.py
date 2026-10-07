@@ -18,6 +18,16 @@ class WeeklyReportRequest(BaseModel):
     period_end: date = Field(description="Exclusive: meetings dated before this date.")
 
 
+class WeeklyReportsRunRequest(BaseModel):
+    period_start: date
+    period_end: date = Field(description="Exclusive: meetings dated before this date.")
+
+
+class WeeklyReportServiceAnswerRequest(BaseModel):
+    sender_email: str = Field(min_length=3, max_length=320)
+    question: str = Field(min_length=1, max_length=4000)
+
+
 class WeeklyReportResponse(BaseModel):
     group_id: int
     group_name: str

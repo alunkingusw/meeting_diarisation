@@ -75,11 +75,7 @@ class InternalApiSettings(BaseModel):
 
 class WeeklyUpdateSettings(BaseModel):
     enabled: bool = False
-    weekday: int = 0
-    hour: int = 8
-    minute: int = 0
     lookback_days: int = 7
-    recipient_mode: str = "group_owners"
 
 
 class MeetingReportSettings(BaseModel):

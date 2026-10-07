@@ -377,6 +377,22 @@ class Outbox:
         finally:
             conn.close()
 
+    def get_weekly_report_id_by_message_id(self, message_id: str, recipient: str) -> Optional[str]:
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                """SELECT outbox.job_id FROM message_links
+                   JOIN outbox ON outbox.id = message_links.outbox_id
+                   WHERE message_links.message_id = ?
+                     AND LOWER(outbox.to_email) = LOWER(?)
+                     AND outbox.job_id LIKE 'WEEKLY-%'
+                   ORDER BY message_links.created_at DESC LIMIT 1""",
+                (message_id, recipient),
+            ).fetchone()
+            return row["job_id"] if row else None
+        finally:
+            conn.close()
+
     def mark_sent(self, outbox_id: int, provider_message_id: Optional[str] = None) -> None:
         conn = self._conn()
         try:

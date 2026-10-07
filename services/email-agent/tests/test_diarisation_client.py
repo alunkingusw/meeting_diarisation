@@ -1,3 +1,5 @@
+from datetime import date
+
 import httpx
 import pytest
 import respx
@@ -54,6 +56,28 @@ def test_login_for_email_uses_service_key(client):
     assert token == "email-token"
     assert route.calls.last.request.headers["X-Service-Key"] == "service-secret"
     assert route.calls.last.request.read() == b'{"email":"Alice@Example.com"}'
+
+
+@respx.mock
+def test_weekly_report_operations_use_service_key(client):
+    run_route = respx.post(f"{BASE_URL}/admin/weekly-reports/run").mock(
+        return_value=httpx.Response(202, json={"job_id": "job-1", "state": "queued"})
+    )
+    answer_route = respx.post(
+        f"{BASE_URL}/admin/weekly-reports/WEEKLY-2026-10-05-0007/answer"
+    ).mock(return_value=httpx.Response(200, json={"answer": "The team agreed to ship."}))
+
+    accepted = client.run_weekly_reports(date(2026, 10, 5), date(2026, 10, 12))
+    answer = client.answer_scheduled_report(
+        "WEEKLY-2026-10-05-0007", "alice@example.com", "What was agreed?"
+    )
+
+    assert accepted["job_id"] == "job-1"
+    assert answer == "The team agreed to ship."
+    assert run_route.calls.last.request.headers["X-Service-Key"] == "service-secret"
+    assert answer_route.calls.last.request.headers["X-Service-Key"] == "service-secret"
+    assert run_route.calls.last.request.read() == b'{"period_start":"2026-10-05","period_end":"2026-10-12"}'
+    assert answer_route.calls.last.request.read() == b'{"sender_email":"alice@example.com","question":"What was agreed?"}'
 
 
 @respx.mock

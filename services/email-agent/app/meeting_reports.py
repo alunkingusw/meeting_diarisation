@@ -1,4 +1,4 @@
-"""In-process schedule for the weekly project update (the same run as `python -m app.weekly_update`)."""
+"""Small in-process timer that triggers the backend-owned weekly report workflow."""
 from __future__ import annotations
 
 import logging
@@ -20,7 +20,7 @@ def next_run(now: datetime, weekday: int, hour: int, minute: int) -> datetime:
 
 
 def run_scheduler(settings: Settings, stop_event: threading.Event) -> None:
-    from app.weekly_update import run_once  # imported late: weekly_update imports app.main
+    from app.weekly_update import run_once
 
     cfg = settings.meeting_report
     zone = ZoneInfo(settings.storage.default_timezone)
@@ -31,7 +31,7 @@ def run_scheduler(settings: Settings, stop_event: threading.Event) -> None:
         if stop_event.wait((target - now).total_seconds()):
             return
         try:
-            count = run_once(settings, datetime.now(zone))
-            logger.info("Weekly project updates generated: %s", count)
+            result = run_once(settings, datetime.now(zone))
+            logger.info("Weekly report batch accepted by backend: %s", result)
         except Exception:
             logger.exception("Weekly project update run failed")

@@ -46,11 +46,10 @@ from app.llm.command_parser import EmailCommandParser
 from app.mail.base import EmailMessage, MailClient
 from app.mail.thread_matcher import ThreadMatcher
 from app.reports.reply import WeeklyReportReplyService
-from app.reports.store import ReportStore
 from app.settings import LimitsSettings, StorageSettings
 
 logger = logging.getLogger(__name__)
-WEEKLY_REPORT_ID_RE = re.compile(r"WEEKLY-\d{4}-\d{2}-\d{2}-\d{4}")
+WEEKLY_REPORT_ID_RE = re.compile(r"WEEKLY-\d{4}-\d{2}-\d{2}-\d{4,}(?!\d)")
 
 
 class HasIsAvailable(Protocol):
@@ -88,8 +87,7 @@ class EmailProcessingPipeline:
         self._admin_email = admin_email
         self._diarisation_client = diarisation_client
         self._pending_clarifications = PendingClarificationStore(job_store._db_path)
-        self._report_store = ReportStore(job_store._db_path)
-        self._report_replies = WeeklyReportReplyService(self._report_store, outbox, diarisation_client)
+        self._report_replies = WeeklyReportReplyService(outbox, diarisation_client)
 
     # --- inbound: fetch, authorise, parse, validate, dispatch ---------------------------------
 
@@ -134,12 +132,9 @@ class EmailProcessingPipeline:
         is_group_member = auth_result.reason == AuthResultReason.GROUP_MEMBER
         report = None if is_group_member else self._match_report(msg, sender_email)
         if report is not None:
-            if not self._ollama.is_available():
-                logger.warning("Ollama unavailable - deferring weekly report reply %s", msg.message_id)
-                return
-            self._report_replies.reply(msg, report.report_id)
+            self._report_replies.reply(msg, report, sender_email)
             self._processed.finalize(
-                msg.message_id, outcome="weekly_report_reply", job_id=report.report_id,
+                msg.message_id, outcome="weekly_report_reply", job_id=report,
                 operation="weekly_report_reply",
             )
             self._mail.mark_processed(msg.provider_ref)
@@ -422,17 +417,14 @@ class EmailProcessingPipeline:
         self._mail.mark_processed(msg.provider_ref)
         return True
 
-    def _match_report(self, msg: EmailMessage, sender_email: str):
+    def _match_report(self, msg: EmailMessage, sender_email: str) -> Optional[str]:
         for message_id in (f"{msg.in_reply_to or ''} {msg.references or ''}").split():
-            report = self._report_store.get_by_message_id(message_id, sender_email)
-            if report is not None:
-                return report
-        for report_id in WEEKLY_REPORT_ID_RE.findall(
-            f"{msg.subject or ''} {msg.body_text or ''}"
-        ):
-            report = self._report_store.get(report_id)
-            if report and report.owner_email.casefold() == sender_email.casefold():
-                return report
+            report_id = self._outbox.get_weekly_report_id_by_message_id(message_id, sender_email)
+            if report_id is not None:
+                return report_id
+        report_ids = WEEKLY_REPORT_ID_RE.findall(f"{msg.subject or ''} {msg.body_text or ''}")
+        if report_ids:
+            return report_ids[0]
         return None
 
     def _reply_and_finalize(

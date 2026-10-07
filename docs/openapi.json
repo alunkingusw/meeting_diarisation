@@ -1873,6 +1873,49 @@
         ],
         "title": "WeeklyReportResponse",
         "type": "object"
+      },
+      "WeeklyReportServiceAnswerRequest": {
+        "properties": {
+          "question": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "sender_email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Sender Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sender_email",
+          "question"
+        ],
+        "title": "WeeklyReportServiceAnswerRequest",
+        "type": "object"
+      },
+      "WeeklyReportsRunRequest": {
+        "properties": {
+          "period_end": {
+            "description": "Exclusive: meetings dated before this date.",
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_start",
+          "period_end"
+        ],
+        "title": "WeeklyReportsRunRequest",
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1961,7 +2004,7 @@
     },
     "/admin/group-owners": {
       "get": {
-        "description": "email -> user_id for every User with an email on file. There is no separate\n\"owner\" role in this schema (users_groups is a plain many-to-many) - any User with an\nemail is authorised to act through GroupAssessmentAgent; per-group scoping happens\nseparately via that user's own group membership.",
+        "description": "email -> user_id for every User with an email on file, used for inbound mail\nauthorization. Scheduled report recipients are separately restricted to owner links.",
         "operationId": "group_owners_admin_group_owners_get",
         "parameters": [
           {
@@ -2099,6 +2142,120 @@
           }
         },
         "summary": "User Token",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/weekly-reports/run": {
+      "post": {
+        "description": "Queue reports for every project with an emailed supervisor (owner role).",
+        "operationId": "run_weekly_reports_admin_weekly_reports_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-service-key",
+            "required": false,
+            "schema": {
+              "title": "X-Service-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeeklyReportsRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "description": "Weekly report batch queued"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Weekly Reports",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/weekly-reports/{report_id}/answer": {
+      "post": {
+        "description": "Answer an email follow-up only when its sender received the saved report.",
+        "operationId": "answer_weekly_report_reply_admin_weekly_reports__report_id__answer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-service-key",
+            "required": false,
+            "schema": {
+              "title": "X-Service-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeeklyReportServiceAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Answer Weekly Report Reply",
         "tags": [
           "admin"
         ]
