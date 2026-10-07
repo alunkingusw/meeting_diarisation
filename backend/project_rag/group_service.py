@@ -18,8 +18,6 @@ from backend.project_rag.schemas import (
     QueryRequest,
     SourceName,
     SourceQueryResponse,
-    UnifiedQueryRequest,
-    UnifiedQueryResponse,
 )
 from backend.project_rag.services.ingest_service import (
     clone_and_count_commits,
@@ -303,90 +301,3 @@ def query_source(
     if source == "conversation":
         return _query_conversation(db, group, request)
     return _query_provider_source(db, group, source, request)
-
-
-ROUTER_SYSTEM_PROMPT = (
-    "Decide which data sources are needed to answer a question about a project group. "
-    "Sources: conversation (what was said in meetings), github (commits, issues, code review), "
-    "trello (task board cards and their movement). Reply with only the needed source names, "
-    "comma-separated. If unsure, include every listed source."
-)
-
-COMPOSE_SYSTEM_PROMPT = (
-    "You merge answers about one project group that were each produced from a different data "
-    "source. Write a single coherent answer. Keep source boundaries clear (say which source "
-    "supports each point), point out where sources agree or conflict, and do not add facts "
-    "that are not in the source answers."
-)
-
-
-def infer_sources(question: str, available: list[SourceName]) -> list[SourceName]:
-    """Ask the LLM which of the available sources the question needs, defaulting to all of them."""
-    if len(available) == 1:
-        return available
-    try:
-        with OllamaClient() as llm:
-            reply = llm.chat(
-                system_prompt=ROUTER_SYSTEM_PROMPT,
-                user_prompt=f"Available sources: {', '.join(available)}\nQuestion: {question}",
-            ).text.lower()
-    except OllamaError:
-        return available
-    chosen = [s for s in available if s in reply]
-    return chosen or available
-
-
-def query_unified(db: Session, group: Group, request: UnifiedQueryRequest) -> UnifiedQueryResponse:
-    available = available_sources(group)
-    if request.sources is not None:
-        unavailable = [s for s in request.sources if s not in available]
-        if unavailable:
-            raise ValueError(f"This group has no {', '.join(unavailable)} source linked")
-        sources = list(dict.fromkeys(request.sources))
-    else:
-        sources = infer_sources(request.question, available)
-
-    results: dict[str, SourceQueryResponse] = {}
-    errors: dict[str, str] = {}
-    llm_error: OllamaError | None = None
-    for source in sources:
-        # Release the read transaction so a connection idle through the previous LLM call can't go stale.
-        db.rollback()
-        try:
-            results[source] = query_source(db, group, source, request)
-        except OllamaError as exc:
-            llm_error = exc
-            errors[source] = str(exc)
-        except ValueError as exc:
-            errors[source] = str(exc)
-
-    if not results:
-        if llm_error is not None:
-            raise llm_error
-        raise ValueError("; ".join(f"{s}: {e}" for s, e in errors.items()))
-
-    if len(results) == 1:
-        only = next(iter(results.values()))
-        return UnifiedQueryResponse(
-            question=request.question,
-            answer=only.answer,
-            model=only.model,
-            sources_used=[only.source],
-            results=results,
-            errors=errors,
-        )
-
-    source_answers = "\n\n".join(f"SOURCE: {name}\n{r.answer}" for name, r in results.items())
-    with OllamaClient() as llm:
-        composed = llm.chat(
-            system_prompt=COMPOSE_SYSTEM_PROMPT,
-            user_prompt=f"{source_answers}\n\nQUESTION: {request.question}",
-        )
-    return UnifiedQueryResponse(
-        question=request.question,
-        answer=composed.text,
-        model=composed.model,
-        sources_used=[r.source for r in results.values()],
-        results=results,
-        errors=errors,
-    )

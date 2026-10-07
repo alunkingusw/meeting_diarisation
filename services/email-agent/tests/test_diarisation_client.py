@@ -416,3 +416,49 @@ def test_transcript_chunks_in_window_requests_retrieve_only(client):
     assert chunks[0].speaker == "Alice" and chunks[0].meeting_date == "2026-09-08"
     sent = route.calls.last.request.read()
     assert b'"retrieve_only":true' in sent and b'"until":"2026-09-14"' in sent and b'"since":"2026-09-07"' in sent
+
+
+@respx.mock
+def test_compose_weekly_report_posts_period_and_maps_evidence(client):
+    from datetime import date
+
+    route = respx.post(f"{BASE_URL}/groups/3/reports/weekly").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "report_text": "All good. [Meeting 1, 2026-09-08]",
+                "unavailable": ["github (nothing ingested yet)"],
+                "evidence": [{
+                    "source": "meetings", "evidence_id": "meeting-1-summary", "title": "Meeting",
+                    "event_date": "2026-09-08", "content": "Agreed.", "citation": "Meeting 1, 2026-09-08",
+                }],
+            },
+        )
+    )
+
+    result = client.compose_weekly_report("tok", 3, date(2026, 9, 7), date(2026, 9, 14))
+
+    assert result.report_text.startswith("All good")
+    assert result.unavailable == ["github (nothing ingested yet)"]
+    assert result.evidence[0].citation == "Meeting 1, 2026-09-08"
+    assert route.calls.last.request.read() == b'{"period_start":"2026-09-07","period_end":"2026-09-14"}'
+
+
+@respx.mock
+def test_answer_report_question_sends_saved_evidence(client):
+    from datetime import date
+
+    from app.reports.models import ReportEvidence
+
+    route = respx.post(f"{BASE_URL}/groups/3/reports/answer").mock(
+        return_value=httpx.Response(200, json={"answer": "Ship it.", "model": "m"})
+    )
+    evidence = [ReportEvidence("meetings", "m1", "Planning", "2026-09-08", "Agreed.", "Planning", "{}")]
+
+    answer = client.answer_report_question(
+        "tok", 3, "What was agreed?", evidence, date(2026, 9, 7), date(2026, 9, 14)
+    )
+
+    assert answer == "Ship it."
+    sent = route.calls.last.request.read()
+    assert b'"question":"What was agreed?"' in sent and b'"evidence_id":"m1"' in sent

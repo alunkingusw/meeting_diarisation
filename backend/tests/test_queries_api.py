@@ -129,7 +129,7 @@ def test_unified_query_merges_sources(
     owner, group = _linked_group(db_session, make_user, make_group)
     _seed_index(db_session, group)
     monkeypatch.setattr("backend.project_rag.services.query_service.OllamaClient", FakeLLM)
-    monkeypatch.setattr(group_service, "OllamaClient", FakeLLM)
+    monkeypatch.setattr("backend.engine.query_graph.OllamaClient", FakeLLM)
 
     response = client.post(
         f"/groups/{group.id}/query",
@@ -161,7 +161,7 @@ def test_unified_query_reports_partial_failure(
     )
     db_session.commit()
     monkeypatch.setattr("backend.project_rag.services.query_service.OllamaClient", FakeLLM)
-    monkeypatch.setattr(group_service, "OllamaClient", FakeLLM)
+    monkeypatch.setattr("backend.engine.query_graph.OllamaClient", FakeLLM)
 
     response = client.post(
         f"/groups/{group.id}/query",

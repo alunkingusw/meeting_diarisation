@@ -9,12 +9,15 @@ endpoints don't exist.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Optional
 
 import httpx
 from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+from app.reports.models import ReportEvidence
 
 
 class DiarisationApiError(Exception):
@@ -104,6 +107,13 @@ class TranscriptChunk:
 
     def citation(self) -> str:
         return f"[{self.meeting_title}, {self.meeting_date}, {self.start_ts}-{self.end_ts}, {self.speaker}]"
+
+
+@dataclass
+class WeeklyReportResult:
+    report_text: str
+    evidence: list[ReportEvidence]
+    unavailable: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -346,15 +356,54 @@ class DiarisationClient:
             for item in resp.json()["evidence"]
         ]
 
-    def generate_report(self, token: str, start_date: date, end_date: date) -> list[dict]:
-        """POST /reports/generate_report - backend emails one report per supervised group."""
+    def compose_weekly_report(
+        self, token: str, group_id: int, period_start: date, period_end: date
+    ) -> WeeklyReportResult:
+        """POST /groups/{id}/reports/weekly - the backend gathers cited evidence from meetings,
+        GitHub and Trello and writes the report; nothing is stored or sent."""
         resp = self._request(
             "POST",
-            "/reports/generate_report",
+            f"/groups/{group_id}/reports/weekly",
             headers=_auth(token),
-            json={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+            json={"period_start": period_start.isoformat(), "period_end": period_end.isoformat()},
+            timeout=self._query_timeout,
         )
-        return resp.json()
+        data = resp.json()
+        return WeeklyReportResult(
+            report_text=data["report_text"],
+            evidence=[_evidence_from_api(item) for item in data["evidence"]],
+            unavailable=data.get("unavailable", []),
+        )
+
+    def answer_report_question(
+        self,
+        token: str,
+        group_id: int,
+        question: str,
+        evidence: list[ReportEvidence],
+        period_start: date,
+        period_end: date,
+    ) -> str:
+        """POST /groups/{id}/reports/answer - answers from the saved evidence only."""
+        resp = self._request(
+            "POST",
+            f"/groups/{group_id}/reports/answer",
+            headers=_auth(token),
+            json={
+                "question": question,
+                "period_start": period_start.isoformat(),
+                "period_end": period_end.isoformat(),
+                "evidence": [
+                    {
+                        "source": e.source, "evidence_id": e.evidence_id, "title": e.title,
+                        "event_date": e.event_date, "content": e.content, "citation": e.citation,
+                    }
+                    for e in evidence
+                ],
+            },
+            timeout=self._query_timeout,
+        )
+        return resp.json()["answer"]
 
     # --- request plumbing --------------------------------------------------
 
@@ -391,3 +440,15 @@ def _query_body(question: str, since: Optional[date]) -> dict:
     if since is not None:
         body["since"] = since.isoformat()
     return body
+
+
+def _evidence_from_api(item: dict) -> ReportEvidence:
+    return ReportEvidence(
+        source=item["source"],
+        evidence_id=item["evidence_id"],
+        title=item["title"],
+        event_date=item.get("event_date"),
+        content=item["content"],
+        citation=item["citation"],
+        raw_json=json.dumps(item, sort_keys=True),
+    )

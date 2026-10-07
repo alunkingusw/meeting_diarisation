@@ -522,39 +522,6 @@
         "title": "GroupProjectInfo",
         "type": "object"
       },
-      "GroupReportResult": {
-        "properties": {
-          "detail": {
-            "title": "Detail",
-            "type": "string"
-          },
-          "emailed": {
-            "title": "Emailed",
-            "type": "boolean"
-          },
-          "group_id": {
-            "title": "Group Id",
-            "type": "integer"
-          },
-          "group_name": {
-            "title": "Group Name",
-            "type": "string"
-          },
-          "meeting_count": {
-            "title": "Meeting Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "group_id",
-          "group_name",
-          "meeting_count",
-          "emailed",
-          "detail"
-        ],
-        "title": "GroupReportResult",
-        "type": "object"
-      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -1156,24 +1123,102 @@
         "title": "RawFileType",
         "type": "string"
       },
-      "ReportRequest": {
+      "ReportAnswerRequest": {
         "properties": {
-          "end_date": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/ReportEvidenceItem"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "period_end": {
             "format": "date",
-            "title": "End Date",
+            "title": "Period End",
             "type": "string"
           },
-          "start_date": {
+          "period_start": {
             "format": "date",
-            "title": "Start Date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Question",
             "type": "string"
           }
         },
         "required": [
-          "start_date",
-          "end_date"
+          "question",
+          "period_start",
+          "period_end",
+          "evidence"
         ],
-        "title": "ReportRequest",
+        "title": "ReportAnswerRequest",
+        "type": "object"
+      },
+      "ReportAnswerResponse": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "answer",
+          "model"
+        ],
+        "title": "ReportAnswerResponse",
+        "type": "object"
+      },
+      "ReportEvidenceItem": {
+        "properties": {
+          "citation": {
+            "title": "Citation",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "event_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Date"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "source": {
+            "description": "meetings, github or trello",
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "evidence_id",
+          "title",
+          "content",
+          "citation"
+        ],
+        "title": "ReportEvidenceItem",
         "type": "object"
       },
       "ServiceUserTokenRequest": {
@@ -1594,6 +1639,83 @@
           "authors"
         ],
         "title": "WeeklyActivityResponse",
+        "type": "object"
+      },
+      "WeeklyReportRequest": {
+        "properties": {
+          "period_end": {
+            "description": "Exclusive: meetings dated before this date.",
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_start",
+          "period_end"
+        ],
+        "title": "WeeklyReportRequest",
+        "type": "object"
+      },
+      "WeeklyReportResponse": {
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/ReportEvidenceItem"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "group_id": {
+            "title": "Group Id",
+            "type": "integer"
+          },
+          "group_name": {
+            "title": "Group Name",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "period_end": {
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "report_text": {
+            "title": "Report Text",
+            "type": "string"
+          },
+          "unavailable": {
+            "description": "Linked sources that could not be read for this report.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unavailable",
+            "type": "array"
+          }
+        },
+        "required": [
+          "group_id",
+          "group_name",
+          "period_start",
+          "period_end",
+          "report_text",
+          "model",
+          "evidence"
+        ],
+        "title": "WeeklyReportResponse",
         "type": "object"
       }
     },
@@ -3555,6 +3677,122 @@
         ]
       }
     },
+    "/groups/{group_id}/reports/answer": {
+      "post": {
+        "description": "Answer a follow-up question using only the evidence from a previously composed report.",
+        "operationId": "answer_question_groups__group_id__reports_answer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportAnswerResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Answer Question",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/groups/{group_id}/reports/weekly": {
+      "post": {
+        "description": "Compose a cited report for meetings dated in [period_start, period_end) plus GitHub and\nTrello activity. Stateless: nothing is stored or emailed; the caller owns delivery.",
+        "operationId": "weekly_report_groups__group_id__reports_weekly_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeeklyReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Weekly Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
     "/groups/{group_id}/stats": {
       "get": {
         "description": "Facts computed from ingested GitHub/Trello data, with no LLM involved.",
@@ -3727,57 +3965,6 @@
         "summary": "Query Trello",
         "tags": [
           "query"
-        ]
-      }
-    },
-    "/reports/generate_report": {
-      "post": {
-        "description": "Email the current user one report per group they supervise, built from stored\nmeeting summaries for meetings dated between start_date and end_date inclusive.",
-        "operationId": "generate_report_reports_generate_report_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReportRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/GroupReportResult"
-                  },
-                  "title": "Response Generate Report Reports Generate Report Post",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Generate Report",
-        "tags": [
-          "reports"
         ]
       }
     },

@@ -29,6 +29,7 @@ numpy
 chromadb==1.5.9
 langchain-core==1.6.3
 langchain-chroma==0.2.6
+langgraph==1.2.11
 sentence-transformers==3.1.1
 
 # Meeting summarisation (backend/summarization) - local Ollama server client

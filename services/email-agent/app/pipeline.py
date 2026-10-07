@@ -89,7 +89,7 @@ class EmailProcessingPipeline:
         self._diarisation_client = diarisation_client
         self._pending_clarifications = PendingClarificationStore(job_store._db_path)
         self._report_store = ReportStore(job_store._db_path)
-        self._report_replies = WeeklyReportReplyService(self._report_store, outbox, ollama_client)
+        self._report_replies = WeeklyReportReplyService(self._report_store, outbox, diarisation_client)
 
     # --- inbound: fetch, authorise, parse, validate, dispatch ---------------------------------
 

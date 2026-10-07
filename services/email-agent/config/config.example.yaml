@@ -67,8 +67,8 @@ weekly_update:
   lookback_days: 7
   recipient_mode: group_owners
 
-# Emails each supervisor a per-group summary of meetings from the last weekly_update.lookback_days
-# days, via the backend's POST /reports/generate_report. Runs inside the long-running agent.
+# Runs the weekly project update (see weekly_update above) on a schedule inside the long-running
+# agent, instead of from cron. Uses weekly_update.lookback_days and group owners.
 meeting_report:
   enabled: false
   weekday: 0              # Monday=0, Sunday=6

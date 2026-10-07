@@ -21,6 +21,7 @@ from backend.auth import is_group_member, is_group_owner
 from backend.db_dependency import get_db
 from backend.llm.ollama_client import OllamaError
 from backend.models import Group
+from backend.engine.query_graph import run_unified_query
 from backend.project_rag import group_service
 from backend.project_rag.models import Repo
 from backend.project_rag.schemas import (
@@ -106,7 +107,7 @@ def query_unified(
     and, if several are used, their answers are merged into one."""
     group = _get_group(db, group_id)
     try:
-        return group_service.query_unified(db, group, payload)
+        return run_unified_query(db, group, payload)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except OllamaError as exc:

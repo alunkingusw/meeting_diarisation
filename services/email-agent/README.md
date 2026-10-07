@@ -65,7 +65,7 @@ app/
   vtt/           WEBVTT parser (Teams voice tags, speaker labels + NOTE meeting-date convention)
   diarisation/   HTTP client for the real backend (one method per endpoint used)
   jobs/          SQLite job store, inbound-message dedup, outbound mail queue, background worker
-  reports/       LangGraph weekly reports, persisted source evidence, and report replies
+  reports/       weekly report delivery: backend composes (LangGraph), agent persists evidence and queues email
   handlers/      One handler per operation (submit_transcript, status, results, cancel, help)
   email_templates/  Jinja2 templates for every outbound email
   admin/         Rate-limited admin alerting
@@ -266,15 +266,13 @@ For example, a Monday 08:00 cron entry is:
 
 Enable it with `weekly_update.enabled: true`. The command discovers each active group for every
 authorised owner, creates one idempotent `WEEKLY-YYYY-MM-DD-GROUP` report per period, and runs a
-LangGraph workflow that collects meeting, GitHub, and Trello evidence, persists that evidence in
-SQLite, synthesises a cited plain-text report, and sends it through the existing outbox.
-
-The backend exposes transcript search and per-source query endpoints rather than
-raw activity feeds. The source adapter therefore records the bounded query and its answer as
-evidence, while filtering transcript chunks by meeting date. When structured GitHub/Trello
-activity endpoints become available, they can replace `app/reports/sources.py` without changing
-the scheduler, report store, graph, or email workflow.
+small LangGraph workflow that asks the backend to compose the report (`POST
+/groups/{id}/reports/weekly`), persists the returned evidence in SQLite, and sends the cited
+plain-text report through the existing outbox. The backend gathers the evidence itself: meeting
+summaries and comments, transcript chunks for meetings without a summary, and GitHub and Trello
+activity. The same run can instead be scheduled inside the long-running agent with
+`meeting_report.enabled: true`.
 
 Replies to a weekly report are matched by `In-Reply-To`/`References` or the report ID in the
-subject. They are answered from the persisted evidence snapshot and remain in the same outbound
+subject. They are answered by the backend (`POST /groups/{id}/reports/answer`) from the persisted evidence snapshot and remain in the same outbound
 message-link history; the normal command parser is not used for report questions.

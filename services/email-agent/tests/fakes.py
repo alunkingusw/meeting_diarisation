@@ -35,6 +35,7 @@ from app.diarisation.client import (
     NotFoundError,
     QueryAnswer,
     RawFileSummary,
+    WeeklyReportResult,
     TranscriptChunk,
     TransientError,
 )
@@ -54,6 +55,11 @@ class FakeDiarisationClient:
         unlinked_sources: Optional[set[str]] = None,
     ):
         # source -> canned answer; a source in `unlinked_sources` raises NotFoundError like the backend's 404.
+        self.composed_reports: list = []
+        self.report_questions: list = []
+        self.report_text = "The team agreed to ship. [Planning]"
+        self.report_evidence: list = []
+        self.report_answer = "The team agreed to ship. [Planning]"
         self.source_answers = source_answers or {}
         self.unlinked_sources = unlinked_sources or set()
         self.queries: list[tuple[str, str]] = []
@@ -125,6 +131,16 @@ class FakeDiarisationClient:
     ) -> list[TranscriptChunk]:
         self._maybe_fail("search_transcripts")
         return self.transcript_chunks
+
+    def compose_weekly_report(self, token: str, group_id: int, period_start, period_end) -> WeeklyReportResult:
+        self._maybe_fail("compose_weekly_report")
+        self.composed_reports.append((group_id, period_start, period_end))
+        return WeeklyReportResult(report_text=self.report_text, evidence=list(self.report_evidence))
+
+    def answer_report_question(self, token, group_id, question, evidence, period_start, period_end) -> str:
+        self._maybe_fail("answer_report_question")
+        self.report_questions.append((group_id, question, list(evidence)))
+        return self.report_answer
 
     def transcript_chunks_in_window(self, token: str, group_id: int, since, until) -> list[TranscriptChunk]:
         self._maybe_fail("transcript_chunks_in_window")

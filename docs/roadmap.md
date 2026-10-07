@@ -67,13 +67,15 @@ GitHub-RAGinator was ported into `backend/project_rag/` (migrated, not proxied).
   - Move GitHub/Trello indexing into the backend and ChromaDB (preferred long-term, removes the unauthenticated service).
 - Regenerate `docs/openapi.json` and the agent's generated client.
 
-### Phase 2: Unified query
+### Phase 2: Unified query (done)
 
 - Implement `POST /groups/{group_id}/query` as a LangGraph router + composer in the backend.
 - Move the agent's assess logic (`handlers/assess_query.py`) and source collection (`reports/sources.py`) into this engine.
 - Reduce the agent's assess handler to a single call to the unified endpoint.
 
-### Phase 3: Consolidate the engine
+### Phase 3: Consolidate the engine (mostly done)
+
+Done: the unified query (`backend/engine/query_graph.py`) and weekly report (`backend/engine/report_graph.py`) are LangGraph graphs in the backend. `POST /groups/{id}/reports/weekly` composes a cited report (meeting summaries and comments, transcript chunks for unsummarised meetings, GitHub and Trello activity) and `POST /groups/{id}/reports/answer` answers follow-ups from saved evidence; both are stateless. The old `/reports/generate_report` is removed. The agent keeps only delivery state (SQLite report store, outbox, email threading) and the scheduler now runs the weekly update. Remaining: the agent's LangGraph workflows for submit/comment/log-meeting still orchestrate multi-step API calls agent-side; they move with the Phase 4 parity work and Phase 5 jobs API.
 
 - Make LangChain/LangGraph the single orchestration layer in the backend.
 - Remove duplicated report generation: keep one implementation in the backend (`routes/reports.py`), and have the agent's `reports/` call it.

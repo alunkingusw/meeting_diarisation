@@ -221,7 +221,7 @@ def run(settings: Settings) -> None:
     if settings.meeting_report.enabled:
         report_thread = threading.Thread(
             target=run_scheduler,
-            args=(settings, diarisation_client, load_group_owners, stop_event),
+            args=(settings, stop_event),
             name="meeting-report",
             daemon=True,
         )

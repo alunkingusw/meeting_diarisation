@@ -10,7 +10,6 @@ from zoneinfo import ZoneInfo
 from app.admin.notifier import AdminNotifier
 from app.diarisation.client import DiarisationClient
 from app.jobs.store import Outbox
-from app.llm.ollama_client import OllamaClient
 from app.logging_config import configure_logging
 from app.main import build_mail_client, load_group_owners
 from app.reports.store import ReportStore
@@ -58,10 +57,7 @@ def run_once(settings: Settings, now: datetime | None = None) -> int:
         settings.diarisation_service_api_key,
         settings.backend.query_timeout_seconds,
     )
-    ollama = OllamaClient(
-        settings.llm.host, settings.llm.model, settings.llm.request_timeout_seconds
-    )
-    workflow = WeeklyReportWorkflow(report_store, outbox, diarisation, ollama, admin)
+    workflow = WeeklyReportWorkflow(report_store, outbox, diarisation, admin)
     period_start, period_end = reporting_period(settings, now)
     generated = 0
 
@@ -83,7 +79,6 @@ def run_once(settings: Settings, now: datetime | None = None) -> int:
         _flush_report_outbox(mail_client, outbox, report_store)
         return generated
     finally:
-        ollama.close()
         diarisation.close()
 
 
