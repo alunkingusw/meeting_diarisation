@@ -11,11 +11,16 @@ def test_weekly_batch_persists_one_report_and_sends_only_to_group_owners(
     owner = make_user(username="supervisor")
     owner.email = "Supervisor@example.com"
     group = make_group(name="Team A", owner=owner)
+    group.project_expiry = date(2026, 10, 5)
     member = make_user(username="student")
     member.email = "student@example.com"
     db_session.execute(
         users_groups.insert().values(user_id=member.id, group_id=group.id, role="member")
     )
+    expired_owner = make_user(username="expired-supervisor")
+    expired_owner.email = "expired@example.com"
+    expired_group = make_group(name="Expired team", owner=expired_owner)
+    expired_group.project_expiry = date(2026, 10, 4)
     db_session.commit()
 
     sent = []
@@ -62,6 +67,7 @@ def test_weekly_batch_persists_one_report_and_sends_only_to_group_owners(
     assert report.recipients == ["supervisor@example.com"]
     assert report.queued_recipients == ["supervisor@example.com"]
     assert report.evidence == []
+    assert db_session.query(WeeklyReport).filter_by(group_id=expired_group.id).count() == 0
 
 
 def test_group_nudger_only_queues_for_opted_in_groups_without_meetings_and_deduplicates(
@@ -74,6 +80,7 @@ def test_group_nudger_only_queues_for_opted_in_groups_without_meetings_and_dedup
     eligible_owner.email = "eligible-owner@example.com"
     eligible = make_group(name="Eligible", owner=eligible_owner)
     eligible.notify = True
+    eligible.project_expiry = date(2026, 10, 8)
     recipient = make_member(name="Member", group=eligible)
     recipient.email = "member@example.com"
 
@@ -90,6 +97,14 @@ def test_group_nudger_only_queues_for_opted_in_groups_without_meetings_and_dedup
     opted_out = make_group(name="Opted out", owner=opted_out_owner)
     opted_out_member = make_member(name="Opted out member", group=opted_out)
     opted_out_member.email = "opted-out-member@example.com"
+
+    expired_owner = make_user(username="expired-owner")
+    expired_owner.email = "expired-owner@example.com"
+    expired = make_group(name="Expired", owner=expired_owner)
+    expired.notify = True
+    expired.project_expiry = date(2026, 10, 7)
+    expired_member = make_member(name="Expired member", group=expired)
+    expired_member.email = "expired-member@example.com"
     db_session.commit()
 
     sent = []

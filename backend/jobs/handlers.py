@@ -6,6 +6,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import or_
+
 from backend.db import SessionLocal
 from backend.jobs.service import JobContext, handler
 from backend.models import Group, GroupNudge, Meeting, User, WeeklyReport, users_groups
@@ -115,7 +117,11 @@ def weekly_reports(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
             db.query(Group.id, Group.name, User.email)
             .join(users_groups, users_groups.c.group_id == Group.id)
             .join(User, User.id == users_groups.c.user_id)
-            .filter(users_groups.c.role == "owner", User.email.isnot(None))
+            .filter(
+                users_groups.c.role == "owner",
+                User.email.isnot(None),
+                or_(Group.project_expiry.is_(None), Group.project_expiry >= period_end),
+            )
             .order_by(Group.id, User.id)
             .all()
         )
@@ -137,6 +143,8 @@ def weekly_reports(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
         try:
             with SessionLocal() as db:
                 group = db.get(Group, group_id)
+                if group is None or (group.project_expiry is not None and group.project_expiry < period_end):
+                    continue
                 report = db.get(WeeklyReport, report_id)
                 if report is not None and report.status == "queued":
                     continue
@@ -216,6 +224,7 @@ def group_nudger(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
                 users_groups.c.role == "owner",
                 User.email.isnot(None),
                 Group.notify.is_(True),
+                or_(Group.project_expiry.is_(None), Group.project_expiry >= period_end),
             )
             .distinct()
             .order_by(Group.id)
@@ -230,7 +239,11 @@ def group_nudger(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
         try:
             with SessionLocal() as db:
                 group = db.get(Group, group_id)
-                if group is None or not group.notify:
+                if (
+                    group is None
+                    or not group.notify
+                    or (group.project_expiry is not None and group.project_expiry < period_end)
+                ):
                     continue
                 has_meeting = db.query(Meeting.id).filter(
                     Meeting.group_id == group_id,

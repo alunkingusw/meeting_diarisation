@@ -287,6 +287,8 @@ the backend, which checks that the sender received that report before answering.
 The same weekly trigger also calls the backend's group nudger. It emails members with saved email
 addresses only when the group has `notify: true` and no meeting is recorded in the lookback window.
 The reminder invites them to send a transcript or email the meeting details if the group did meet.
+Groups with `project_expiry` earlier than the batch's `period_end` are skipped by both scheduled
+reports and nudges; the expiry date itself is inclusive.
 
 The schedule is disabled in `config.example.yaml` to prevent accidental email delivery. To run it
 manually instead, use `weekly-project-update --config config/config.yaml`; this one-shot command can

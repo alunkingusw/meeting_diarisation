@@ -17,7 +17,7 @@
 # python -m alembic revision --autogenerate -m "Describe your changes here"
 # then apply to the database using the following command
 # python -m alembic upgrade head
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 from datetime import date, datetime
 from backend.config import settings
@@ -253,7 +253,10 @@ class GroupOut(BaseModel):
     github_connected: bool = False
     trello_connected: bool = False
     notify: bool = False
-    project_expiry: Optional[date] = None
+    project_expiry: Optional[date] = Field(
+        default=None,
+        description="Last active day, inclusive; scheduled batches skip the group when period_end is later.",
+    )
     members: List[GroupMemberOut]  # Include related members
     class Config:
         from_attributes = True

@@ -18,7 +18,7 @@ short-lived user or group-scoped member tokens, but do not receive a generic bac
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from typing import Dict, List, Optional
 from backend.db_dependency import get_db
@@ -167,7 +167,9 @@ def run_weekly_reports(
     owners_exist = db.query(users_groups.c.group_id).join(
         User, User.id == users_groups.c.user_id
     ).filter(
-        users_groups.c.role == "owner", User.email.isnot(None)
+        users_groups.c.role == "owner",
+        User.email.isnot(None),
+        or_(Group.project_expiry.is_(None), Group.project_expiry >= request.period_end),
     ).first()
     if owners_exist is None:
         return {"state": "completed", "queued_groups": 0}
@@ -211,6 +213,7 @@ def run_group_nudger(
         users_groups.c.role == "owner",
         User.email.isnot(None),
         Group.notify.is_(True),
+        or_(Group.project_expiry.is_(None), Group.project_expiry >= request.period_end),
     ).first()
     if eligible_group is None:
         return {"state": "completed", "nudged_groups": 0, "queued_recipients": 0}

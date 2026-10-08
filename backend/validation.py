@@ -33,7 +33,10 @@ class GroupCreateEdit(BaseModel):
     github_repo_url: Optional[str] = None
     trello_board_id: Optional[str] = None
     notify: bool = False
-    project_expiry: Optional[date] = None
+    project_expiry: Optional[date] = Field(
+        default=None,
+        description="Last active day, inclusive; scheduled batches skip the group when period_end is later.",
+    )
     # Only honoured for administrators (backend/routes/groups.py) - lets an admin create a
     # group owned by another user instead of themselves. Ignored/rejected for everyone else.
     owner_user_id: Optional[int] = None

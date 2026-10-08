@@ -352,6 +352,7 @@
                 "type": "null"
               }
             ],
+            "description": "Last active day, inclusive; scheduled batches skip the group when period_end is later.",
             "title": "Project Expiry"
           },
           "trello_board_id": {
@@ -496,6 +497,7 @@
                 "type": "null"
               }
             ],
+            "description": "Last active day, inclusive; scheduled batches skip the group when period_end is later.",
             "title": "Project Expiry"
           },
           "trello_board_id": {
