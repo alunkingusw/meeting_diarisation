@@ -23,6 +23,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   agent:
     build:
