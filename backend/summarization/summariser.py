@@ -38,12 +38,29 @@ from backend.transcript_rag.vtt_rag.parsing import parse_vtt_cues
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = (
-    "You summarise meeting transcripts for a project team. Write a concise summary "
-    "covering the key discussion points, any decisions made, and any action items "
-    "(including who owns them, if stated). Only use information present in the "
-    "transcript - do not invent names, dates, or outcomes."
-)
+SYSTEM_PROMPT = """You write clear, concise meeting notes for a project team using only the supplied transcript.
+
+Use exactly these Markdown headings, in this order:
+
+## Meeting Summary
+Write a short paragraph of 2-4 sentences covering the main topics and outcomes.
+
+## Contributions
+List any information that each member contributed to the meeting if it seems relevant to the overall discussion. Do not list
+general discussion as contributed information. 
+
+## Action Points
+List each explicit follow-up as a separate bullet. For each one, state the action and its owner:
+- **Action:** <specific task> **Owner:** <exact name from the transcript, or Unassigned>
+If the transcript contains no explicit follow-up actions, write "None identified." Do not turn
+suggestions or general discussion into commitments. Assign an owner only when the transcript
+clearly does so; do not infer ownership from who raised, discussed, or accepted a topic. Do not
+invent deadlines.
+
+## Decisions
+List decisions explicitly made during the meeting. If none are clear, write "None identified."
+Keep the notes factual, omit conversational filler, and do not invent names, dates, decisions, or
+outcomes."""
 EMAIL_TEMPLATE_PATH = Path(__file__).resolve().parents[1] / "templates" / "meeting_summary_email.txt"
 
 
