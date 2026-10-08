@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 
 def test_weekly_batch_persists_one_report_and_sends_only_to_group_owners(
@@ -62,3 +62,55 @@ def test_weekly_batch_persists_one_report_and_sends_only_to_group_owners(
     assert report.recipients == ["supervisor@example.com"]
     assert report.queued_recipients == ["supervisor@example.com"]
     assert report.evidence == []
+
+
+def test_group_nudger_only_queues_for_opted_in_groups_without_meetings_and_deduplicates(
+    db_session, make_user, make_group, make_member, make_meeting, monkeypatch
+):
+    from backend.jobs.handlers import group_nudger
+    from backend.models import GroupNudge
+
+    eligible_owner = make_user(username="eligible-owner")
+    eligible_owner.email = "eligible-owner@example.com"
+    eligible = make_group(name="Eligible", owner=eligible_owner)
+    eligible.notify = True
+    recipient = make_member(name="Member", group=eligible)
+    recipient.email = "member@example.com"
+
+    active_owner = make_user(username="active-owner")
+    active_owner.email = "active-owner@example.com"
+    active = make_group(name="Already met", owner=active_owner)
+    active.notify = True
+    active_member = make_member(name="Active member", group=active)
+    active_member.email = "active-member@example.com"
+    make_meeting(active, datetime(2026, 10, 3, 12))
+
+    opted_out_owner = make_user(username="opted-out-owner")
+    opted_out_owner.email = "opted-out-owner@example.com"
+    opted_out = make_group(name="Opted out", owner=opted_out_owner)
+    opted_out_member = make_member(name="Opted out member", group=opted_out)
+    opted_out_member.email = "opted-out-member@example.com"
+    db_session.commit()
+
+    sent = []
+    monkeypatch.setattr(
+        "backend.email_client.send_email",
+        lambda **kwargs: sent.append(kwargs),
+    )
+
+    class Context:
+        def check_cancelled(self):
+            pass
+
+    params = {"period_start": "2026-10-01", "period_end": "2026-10-08"}
+    first = group_nudger(Context(), params)
+    second = group_nudger(Context(), params)
+
+    nudges = db_session.query(GroupNudge).all()
+    assert first == {"nudged_groups": 1, "queued_recipients": 1, "failed_recipients": []}
+    assert second == {"nudged_groups": 0, "queued_recipients": 0, "failed_recipients": []}
+    assert len(sent) == 1
+    assert sent[0]["to"] == "member@example.com"
+    assert "no meeting is recorded for Eligible" in sent[0]["body"]
+    assert "send the transcript or email the meeting details" in sent[0]["body"]
+    assert len(nudges) == 1 and nudges[0].status == "queued"

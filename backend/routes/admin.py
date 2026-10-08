@@ -26,8 +26,8 @@ from backend.auth import EMAIL_CHANNEL, create_token_for_group_members, create_t
 from backend.engine.report_graph import answer_report_question
 from backend.engine.report_schemas import (
     ReportAnswerRequest,
+    ReportPeriodRequest,
     WeeklyReportServiceAnswerRequest,
-    WeeklyReportsRunRequest,
 )
 from backend.jobs.schemas import accepted_response
 from backend.jobs.service import submit_job
@@ -146,7 +146,7 @@ def groups(
 
 @router.post("/weekly-reports/run", responses={202: {"description": "Weekly report batch queued"}})
 def run_weekly_reports(
-    request: WeeklyReportsRunRequest,
+    request: ReportPeriodRequest,
     db: Session = Depends(get_db),
     _=Depends(get_service_caller),
 ):
@@ -175,6 +175,49 @@ def run_weekly_reports(
     job = submit_job(
         db,
         "weekly_reports",
+        {
+            "period_start": request.period_start.isoformat(),
+            "period_end": request.period_end.isoformat(),
+        },
+    )
+    return accepted_response(job.id)
+
+
+@router.post("/group-nudger/run", responses={202: {"description": "Group nudger batch queued"}})
+def run_group_nudger(
+    request: ReportPeriodRequest,
+    db: Session = Depends(get_db),
+    _=Depends(get_service_caller),
+):
+    """Queue reminders for opted-in owner groups without a meeting in the requested window."""
+    if request.period_end <= request.period_start:
+        raise HTTPException(status_code=422, detail="period_end must be after period_start")
+
+    for active_job in db.query(Job).filter(
+        Job.kind == "group_nudger", Job.state.in_(["queued", "running"])
+    ):
+        params = active_job.params or {}
+        if (
+            params.get("period_start") == request.period_start.isoformat()
+            and params.get("period_end") == request.period_end.isoformat()
+        ):
+            return accepted_response(active_job.id)
+
+    eligible_group = db.query(Group.id).join(
+        users_groups, users_groups.c.group_id == Group.id
+    ).join(
+        User, User.id == users_groups.c.user_id
+    ).filter(
+        users_groups.c.role == "owner",
+        User.email.isnot(None),
+        Group.notify.is_(True),
+    ).first()
+    if eligible_group is None:
+        return {"state": "completed", "nudged_groups": 0, "queued_recipients": 0}
+
+    job = submit_job(
+        db,
+        "group_nudger",
         {
             "period_start": request.period_start.isoformat(),
             "period_end": request.period_end.isoformat(),

@@ -61,6 +61,7 @@ def create_group(
         github_repo_url=group_data.github_repo_url,
         trello_board_id=group_data.trello_board_id,
         notify=group_data.notify,
+        project_expiry=group_data.project_expiry,
     )
     new_group.users.append(owner)  # Associate this group with the owner
     db.add(new_group)
@@ -116,6 +117,7 @@ def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depen
     group.github_repo_url = group_data.github_repo_url
     group.trello_board_id = group_data.trello_board_id
     group.notify = group_data.notify
+    group.project_expiry = group_data.project_expiry
     db.commit()
     db.refresh(group)
     return group

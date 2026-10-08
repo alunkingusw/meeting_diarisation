@@ -18,7 +18,7 @@ class WeeklyReportRequest(BaseModel):
     period_end: date = Field(description="Exclusive: meetings dated before this date.")
 
 
-class WeeklyReportsRunRequest(BaseModel):
+class ReportPeriodRequest(BaseModel):
     period_start: date
     period_end: date = Field(description="Exclusive: meetings dated before this date.")
 

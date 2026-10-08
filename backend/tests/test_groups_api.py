@@ -10,9 +10,14 @@ def test_create_and_list_group(client, make_user, auth_header_for):
     user = make_user()
     headers = auth_header_for(user.id)
 
-    create_response = client.post("/groups/", json={"name": "Team A"}, headers=headers)
+    create_response = client.post(
+        "/groups/",
+        json={"name": "Team A", "project_expiry": "2027-06-30"},
+        headers=headers,
+    )
     assert create_response.status_code == 200
     assert create_response.json()["name"] == "Team A"
+    assert create_response.json()["project_expiry"] == "2027-06-30"
 
     list_response = client.get("/groups/", headers=headers)
     assert list_response.status_code == 200
@@ -106,12 +111,15 @@ def test_update_group(client, make_user, make_group, auth_header_for):
     response = client.put(
         f"/groups/{group.id}",
         params={"name": "Team B"},
-        json={"name": "Team B"},
+        json={"name": "Team B", "project_expiry": "2027-06-30"},
         headers=headers,
     )
     assert response.status_code == 200
     assert response.json()["name"] == "Team B"
-    assert client.get(f"/groups/{group.id}", headers=headers).json()["name"] == "Team B"
+    assert response.json()["project_expiry"] == "2027-06-30"
+    details = client.get(f"/groups/{group.id}", headers=headers).json()
+    assert details["name"] == "Team B"
+    assert details["project_expiry"] == "2027-06-30"
 
 
 def test_delete_group(client, make_user, make_group, auth_header_for):

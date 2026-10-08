@@ -19,7 +19,7 @@
 # python -m alembic upgrade head
 from pydantic import BaseModel, field_validator
 from typing import List, Optional
-from datetime import datetime
+from datetime import date, datetime
 from backend.config import settings
 
 from enum import Enum
@@ -91,6 +91,7 @@ class Group(Base):
     github_repo_url = Column(String(512), nullable=True)
     trello_board_id = Column(String(24), nullable=True)
     notify = Column(Boolean, nullable=False, default=False)
+    project_expiry = Column(Date, nullable=True)
     created = Column(DateTime, nullable=False, default=func.now())
 
     users = relationship("User", secondary=users_groups, back_populates="groups")
@@ -212,6 +213,27 @@ class WeeklyReport(Base):
     created_at = Column(DateTime, nullable=False, default=func.now())
 
 
+class GroupNudge(Base):
+    """Tracks reminder delivery per member and reporting period for retry-safe weekly runs."""
+
+    __tablename__ = "group_nudges"
+    __table_args__ = (
+        UniqueConstraint(
+            "group_id", "period_start", "period_end", "recipient_email",
+            name="uq_group_nudge_recipient_period",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False, index=True)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    recipient_email = Column(String(320), nullable=False)
+    status = Column(String(16), nullable=False, default="pending", server_default="pending")
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+
+
 class GroupMemberOut(BaseModel):
     id: int
     name: str
@@ -231,6 +253,7 @@ class GroupOut(BaseModel):
     github_connected: bool = False
     trello_connected: bool = False
     notify: bool = False
+    project_expiry: Optional[date] = None
     members: List[GroupMemberOut]  # Include related members
     class Config:
         from_attributes = True

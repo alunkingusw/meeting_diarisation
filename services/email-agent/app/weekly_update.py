@@ -37,7 +37,10 @@ def run_once(settings: Settings, now: datetime | None = None) -> dict:
     )
     try:
         period_start, period_end = reporting_period(settings, now)
-        return diarisation.run_weekly_reports(period_start, period_end)
+        return {
+            "reports": diarisation.run_weekly_reports(period_start, period_end),
+            "nudges": diarisation.run_group_nudger(period_start, period_end),
+        }
     finally:
         diarisation.close()
 
@@ -49,7 +52,7 @@ def main() -> None:
     settings = load_settings(args.config)
     configure_logging(settings)
     result = run_once(settings)
-    logger.info("Weekly report batch accepted by backend: %s", result)
+    logger.info("Weekly report and nudger jobs accepted by backend: %s", result)
 
 
 if __name__ == "__main__":

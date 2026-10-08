@@ -284,6 +284,10 @@ enable flag. Meeting summaries and comments, transcript chunks, and GitHub/Trell
 by the backend. Report evidence stays in the backend; the agent forwards authenticated replies to
 the backend, which checks that the sender received that report before answering.
 
+The same weekly trigger also calls the backend's group nudger. It emails members with saved email
+addresses only when the group has `notify: true` and no meeting is recorded in the lookback window.
+The reminder invites them to send a transcript or email the meeting details if the group did meet.
+
 The schedule is disabled in `config.example.yaml` to prevent accidental email delivery. To run it
 manually instead, use `weekly-project-update --config config/config.yaml`; this one-shot command can
 also be invoked by a host cron or another system scheduler.

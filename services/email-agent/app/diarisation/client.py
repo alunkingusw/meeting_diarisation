@@ -475,6 +475,19 @@ class DiarisationClient:
         )
         return response.json()
 
+    def run_group_nudger(self, period_start: date, period_end: date) -> dict:
+        """POST /admin/group-nudger/run - ask the backend to nudge opted-in inactive groups."""
+        if not self._service_api_key:
+            raise AuthError("DIARISATION_SERVICE_API_KEY is not configured")
+        response = self._request(
+            "POST",
+            "/admin/group-nudger/run",
+            headers={"X-Service-Key": self._service_api_key},
+            json={"period_start": period_start.isoformat(), "period_end": period_end.isoformat()},
+            timeout=self._query_timeout,
+        )
+        return response.json()
+
     def answer_scheduled_report(
         self, report_id: str, sender_email: str, question: str
     ) -> str:

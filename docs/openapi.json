@@ -342,6 +342,18 @@
             ],
             "title": "Owner User Id"
           },
+          "project_expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Expiry"
+          },
           "trello_board_id": {
             "anyOf": [
               {
@@ -473,6 +485,18 @@
             "default": false,
             "title": "Notify",
             "type": "boolean"
+          },
+          "project_expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Expiry"
           },
           "trello_board_id": {
             "anyOf": [
@@ -1401,6 +1425,27 @@
         "title": "ReportEvidenceItem",
         "type": "object"
       },
+      "ReportPeriodRequest": {
+        "properties": {
+          "period_end": {
+            "description": "Exclusive: meetings dated before this date.",
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_start",
+          "period_end"
+        ],
+        "title": "ReportPeriodRequest",
+        "type": "object"
+      },
       "ServiceUserTokenRequest": {
         "properties": {
           "email": {
@@ -1895,27 +1940,6 @@
         ],
         "title": "WeeklyReportServiceAnswerRequest",
         "type": "object"
-      },
-      "WeeklyReportsRunRequest": {
-        "properties": {
-          "period_end": {
-            "description": "Exclusive: meetings dated before this date.",
-            "format": "date",
-            "title": "Period End",
-            "type": "string"
-          },
-          "period_start": {
-            "format": "date",
-            "title": "Period Start",
-            "type": "string"
-          }
-        },
-        "required": [
-          "period_start",
-          "period_end"
-        ],
-        "title": "WeeklyReportsRunRequest",
-        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1997,6 +2021,60 @@
           }
         },
         "summary": "Group Members",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/group-nudger/run": {
+      "post": {
+        "description": "Queue reminders for opted-in owner groups without a meeting in the requested window.",
+        "operationId": "run_group_nudger_admin_group_nudger_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-service-key",
+            "required": false,
+            "schema": {
+              "title": "X-Service-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPeriodRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "description": "Group nudger batch queued"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Group Nudger",
         "tags": [
           "admin"
         ]
@@ -2166,7 +2244,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/WeeklyReportsRunRequest"
+                "$ref": "#/components/schemas/ReportPeriodRequest"
               }
             }
           },

@@ -32,6 +32,6 @@ def run_scheduler(settings: Settings, stop_event: threading.Event) -> None:
             return
         try:
             result = run_once(settings, datetime.now(zone))
-            logger.info("Weekly report batch accepted by backend: %s", result)
+            logger.info("Weekly report and nudger jobs accepted by backend: %s", result)
         except Exception:
             logger.exception("Weekly project update run failed")

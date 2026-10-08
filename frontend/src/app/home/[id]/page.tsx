@@ -26,16 +26,24 @@ import GroupLoadState from '@/components/GroupLoadState';
 
 export default function GroupPage() {
   const { id } = useParams(); // Extract the group ID from the URL (/home/[id])
-  const {loading, getGroup, updateGroupNotify, group, error} = useGroupManager();
+  const {loading, getGroup, updateGroupNotify, updateGroupProjectExpiry, group, error} = useGroupManager();
   const [savingNotify, setSavingNotify] = useState(false);
   const [notifyError, setNotifyError] = useState<string | null>(null);
   const [notifySaved, setNotifySaved] = useState(false);
+  const [projectExpiry, setProjectExpiry] = useState('');
+  const [savingExpiry, setSavingExpiry] = useState(false);
+  const [expiryError, setExpiryError] = useState<string | null>(null);
+  const [expirySaved, setExpirySaved] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
     getGroup(Number(id), controller.signal);
     return () => controller.abort();
   }, [id, getGroup]);
+
+  useEffect(() => {
+    setProjectExpiry(group?.project_expiry ?? '');
+  }, [group?.id, group?.project_expiry]);
 
   if (loading || error || !group) return <GroupLoadState loading={loading} error={error} />;
 
@@ -50,6 +58,21 @@ export default function GroupPage() {
       setNotifyError(err instanceof Error ? err.message : 'Unable to update notification settings.');
     } finally {
       setSavingNotify(false);
+    }
+  };
+
+  const saveProjectExpiry = async (expiry: string | null) => {
+    setSavingExpiry(true);
+    setExpiryError(null);
+    setExpirySaved(false);
+    try {
+      await updateGroupProjectExpiry(expiry);
+      setProjectExpiry(expiry ?? '');
+      setExpirySaved(true);
+    } catch (err) {
+      setExpiryError(err instanceof Error ? err.message : 'Unable to update project expiry.');
+    } finally {
+      setSavingExpiry(false);
     }
   };
 
@@ -86,6 +109,53 @@ export default function GroupPage() {
               <dd className="text-gray-900">{group.members?.length ?? 0}</dd>
             </div>
           </dl>
+
+          <div className="border-t border-gray-200 py-4">
+            <label htmlFor="project-expiry" className="block text-sm font-medium text-gray-900">
+              Project expiry
+            </label>
+            <p className="mt-1 text-xs text-gray-500">
+              Optional. Leave blank when the project has no planned end date.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                id="project-expiry"
+                type="date"
+                value={projectExpiry}
+                disabled={savingExpiry}
+                onChange={event => {
+                  setProjectExpiry(event.currentTarget.value);
+                  setExpirySaved(false);
+                  setExpiryError(null);
+                }}
+                aria-describedby="expiry-status"
+                className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100"
+              />
+              <button
+                type="button"
+                onClick={() => void saveProjectExpiry(projectExpiry || null)}
+                disabled={savingExpiry || projectExpiry === (group.project_expiry ?? '')}
+                className="rounded bg-blue-700 px-3 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {savingExpiry ? 'Saving…' : 'Save date'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveProjectExpiry(null)}
+                disabled={savingExpiry || !group.project_expiry}
+                className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Clear
+              </button>
+            </div>
+            <p id="expiry-status" className="mt-2 min-h-5 text-xs" aria-live="polite">
+              {savingExpiry ? 'Saving…' : expiryError ? (
+                <span role="alert" className="text-red-700">{expiryError}</span>
+              ) : expirySaved ? (
+                <span className="text-green-700">Project expiry saved.</span>
+              ) : null}
+            </p>
+          </div>
 
           <div className="mt-5 border-t border-gray-200 pt-4">
             <label htmlFor="group-notify" className="flex cursor-pointer items-center justify-between gap-4">

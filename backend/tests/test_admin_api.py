@@ -1,6 +1,7 @@
 from jose import jwt
 from datetime import date
 from types import SimpleNamespace
+import pytest
 
 
 def test_service_user_token_resolves_email(client, make_user, db_session):
@@ -172,3 +173,44 @@ def test_weekly_report_answer_is_limited_to_recorded_recipients(
     assert accepted.status_code == 200
     assert accepted.json()["answer"] == "fake answer"
     assert "We agreed to ship." in fake_llm.prompts[-1]
+
+
+def test_group_nudger_trigger_requires_service_key_and_deduplicates_active_job(
+    client, make_user, make_group, db_session, monkeypatch
+):
+    from backend.models import Job
+    from backend.jobs.service import QUEUED
+
+    owner = make_user(username="supervisor")
+    owner.email = "supervisor@example.com"
+    group = make_group(name="Team A", owner=owner)
+    group.notify = True
+    db_session.commit()
+    body = {"period_start": "2026-09-28", "period_end": "2026-10-05"}
+    url = "/admin/group-nudger/run"
+    headers = {"X-Service-Key": "test-service-key"}
+
+    assert client.post(url, json=body).status_code == 401
+    assert client.post(
+        url,
+        json={"period_start": "2026-10-05", "period_end": "2026-10-05"},
+        headers=headers,
+    ).status_code == 422
+
+    active = Job(
+        id="group-nudger-job",
+        kind="group_nudger",
+        state=QUEUED,
+        params={"period_start": body["period_start"], "period_end": body["period_end"]},
+    )
+    db_session.add(active)
+    db_session.commit()
+    monkeypatch.setattr(
+        "backend.routes.admin.submit_job",
+        lambda *args, **kwargs: pytest.fail("duplicate active batch should be reused"),
+    )
+
+    accepted = client.post(url, json=body, headers=headers)
+
+    assert accepted.status_code == 202
+    assert accepted.json() == {"job_id": active.id, "state": "queued"}

@@ -77,14 +77,24 @@ def test_weekly_update_triggers_backend_for_configured_period(monkeypatch):
             calls.append((start, end))
             return {"job_id": "weekly-job", "state": "queued"}
 
+        def run_group_nudger(self, start, end):
+            calls.append((start, end))
+            return {"job_id": "nudger-job", "state": "queued"}
+
         def close(self):
             pass
 
     monkeypatch.setattr("app.weekly_update.DiarisationClient", Backend)
     result = run_once(settings, datetime(2026, 9, 14, 8, tzinfo=timezone.utc))
 
-    assert result == {"job_id": "weekly-job", "state": "queued"}
-    assert calls == [(date(2026, 9, 7), date(2026, 9, 14))]
+    assert result == {
+        "reports": {"job_id": "weekly-job", "state": "queued"},
+        "nudges": {"job_id": "nudger-job", "state": "queued"},
+    }
+    assert calls == [
+        (date(2026, 9, 7), date(2026, 9, 14)),
+        (date(2026, 9, 7), date(2026, 9, 14)),
+    ]
 
 
 def test_explicit_weekly_update_command_runs_without_enable_flag(monkeypatch):
