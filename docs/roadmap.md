@@ -61,6 +61,12 @@ flowchart TD
 
 ### 1. Define contracts and evaluation baseline
 
+Initial Phase 1 artifacts: the additive Pydantic contract in
+[`backend/engine/query_agent_schemas.py`](../backend/engine/query_agent_schemas.py) and the starter
+case set/reproducibility protocol in [Query Agent Contracts And Evaluation](query-agent-evaluation.md).
+Live answer/evidence baseline capture remains pending a seeded PostgreSQL/Chroma dataset and
+reachable Ollama model; do not replace it with synthetic outputs.
+
 - Specify common specialist input/output schemas: authorized group context, question, source
   filters, answer, quantitative facts, evidence IDs/metadata, errors, and model/retrieval metadata.
   Quantitative facts must retain their scope, units, provenance, and completeness so the parent can

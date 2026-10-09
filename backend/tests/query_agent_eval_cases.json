@@ -1,0 +1,93 @@
+[
+  {
+    "id": "conversation_qualitative",
+    "category": "single_source_qualitative",
+    "question": "What decision did the team make about the API redesign?",
+    "expected_sources": ["conversation"],
+    "expected_facts": [],
+    "requires_clarification": false,
+    "checks": ["claims cite transcript evidence", "no unsupported decision is invented"]
+  },
+  {
+    "id": "conversation_speaker_metrics",
+    "category": "single_source_quantitative",
+    "question": "Who spoke most in meeting 12, and how much of the meeting did they speak?",
+    "expected_sources": ["conversation"],
+    "expected_facts": ["speaker_talk_time", "meeting_time_share"],
+    "requires_clarification": false,
+    "checks": ["values come from complete meeting statistics", "units and meeting scope are present"]
+  },
+  {
+    "id": "conversation_mixed",
+    "category": "mixed_qualitative_quantitative",
+    "question": "What did the most active speaker recommend, and how many turns did they take?",
+    "expected_sources": ["conversation"],
+    "expected_facts": ["speaker_turn_count"],
+    "requires_clarification": false,
+    "checks": ["recommendation cites transcript evidence", "turn count is not estimated from retrieved chunks"]
+  },
+  {
+    "id": "github_activity_counts",
+    "category": "single_source_quantitative",
+    "question": "How many commits did each contributor make in September?",
+    "expected_sources": ["github"],
+    "expected_facts": ["contributor_commit_count"],
+    "requires_clarification": false,
+    "checks": ["counts use complete SQL aggregates", "time scope is reported"]
+  },
+  {
+    "id": "trello_activity_counts",
+    "category": "single_source_quantitative",
+    "question": "How many Trello card actions happened in September?",
+    "expected_sources": ["trello"],
+    "expected_facts": ["trello_action_count"],
+    "requires_clarification": false,
+    "checks": ["count uses complete SQL aggregate", "time scope is reported"]
+  },
+  {
+    "id": "cross_source_mixed",
+    "category": "cross_source_mixed",
+    "question": "What did meeting discussions say about the release, and how many commits did each contributor make in September?",
+    "expected_sources": ["conversation", "github"],
+    "expected_facts": ["contributor_commit_count"],
+    "requires_clarification": false,
+    "checks": ["meeting and GitHub claims retain source attribution", "count comes from structured project facts"]
+  },
+  {
+    "id": "ambiguous_group",
+    "category": "authorization_ambiguity",
+    "question": "What did we decide last week?",
+    "expected_sources": [],
+    "expected_facts": [],
+    "requires_clarification": true,
+    "preconditions": "The authenticated sender can access multiple groups and no group was selected by trusted application context.",
+    "checks": ["no group is selected by the model", "no retrieval runs before application authorization"]
+  },
+  {
+    "id": "unsupported_question",
+    "category": "unsupported",
+    "question": "What will the weather be tomorrow?",
+    "expected_sources": [],
+    "expected_facts": [],
+    "requires_clarification": true,
+    "checks": ["no source tool is invoked", "system states that the request is unsupported"]
+  },
+  {
+    "id": "empty_evidence",
+    "category": "empty_evidence",
+    "question": "What deployment decision was recorded on 1 January 2020?",
+    "expected_sources": ["conversation"],
+    "expected_facts": [],
+    "requires_clarification": false,
+    "checks": ["answer states that evidence is absent", "no factual claim is invented"]
+  },
+  {
+    "id": "partial_source_failure",
+    "category": "unavailable_source",
+    "question": "What was discussed about the launch, and what related Trello work was completed?",
+    "expected_sources": ["conversation", "trello"],
+    "expected_facts": [],
+    "requires_clarification": false,
+    "checks": ["available-source evidence is returned", "unavailable source is named without fabricated findings"]
+  }
+]
