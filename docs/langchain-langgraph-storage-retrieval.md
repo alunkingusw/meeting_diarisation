@@ -1,54 +1,32 @@
 # LangChain, LangGraph, Storage, and Retrieval Map
 
-This is a code-reading guide to the current implementation. It distinguishes LangChain tools from
-LangGraph nodes: a node is a step in a workflow, while a tool is a callable adapter with a schema.
-Most graphs in this repository call ordinary Python functions or the manager API directly; they do
-not expose every step as a LangChain tool.
+This guide describes the current implementation. The planned three-specialist query-agent design
+is in the [NLP agent roadmap](roadmap.md); it is not yet implemented. A LangGraph node is a step
+in a workflow, while a LangChain tool is a typed callable an agent may invoke. Today, the Python
+source has no `@tool`/`BaseTool` definitions.
 
 ## At A Glance
 
 | Concern | Main implementation | Storage / model boundary |
 | --- | --- | --- |
-| Email-agent manager tools | [`manager_tools.py`](../services/email-agent/app/llm/manager_tools.py) | Thin `@tool` wrappers around `DiarisationClient` |
+| LangChain integrations | [`backend/transcript_rag`](../backend/transcript_rag) and [`backend/project_rag`](../backend/project_rag) | `Document`, `Embeddings`, and Chroma vector-store adapter; no manager API tools |
 | Email-agent workflows | [`app/llm`](../services/email-agent/app/llm) | LangGraph `StateGraph`; mostly deterministic API calls |
 | Project RAG (GitHub/Trello) | [`query_service.py`](../backend/project_rag/services/query_service.py) | Postgres records plus Chroma embeddings |
 | Meeting transcript RAG | [`indexer.py`](../backend/transcript_rag/indexer.py) | Chroma via LangChain `Chroma` and local SentenceTransformer embeddings |
 | Backend LangGraph workflows | [`backend/engine`](../backend/engine) | Source routing/report orchestration; Ollama calls use the local client |
 
 The backend's generation calls go through [`ollama_client.py`](../backend/llm/ollama_client.py), not a
-LangChain chat model. LangChain is used for `BaseTool`/`@tool`, `Document`, `Embeddings`, and the
-Chroma vector-store adapter. LangGraph supplies workflow state and graph execution.
+LangChain chat model. LangChain is currently used for `Document`, `Embeddings`, and the Chroma
+vector-store adapter. Email workflows call the client through explicit, validated application
+paths. LangGraph supplies workflow state and graph execution.
 
-## LangChain Tool Inventory
+## LangChain Usage
 
-All eight `@tool` definitions currently found in the repository are created by
-`build_manager_tools(client)` in [`manager_tools.py`](../services/email-agent/app/llm/manager_tools.py).
-They are wrappers around existing client methods, not independent business logic.
-
-| Tool | Inputs | What it calls / returns |
-| --- | --- | --- |
-| `list_groups` | `token` | Lists groups available to the user. |
-| `get_group` | `token`, `group_id` | Returns group details and members. |
-| `list_meetings` | `token`, `group_id`, optional `from_date`, `to_date` | Lists meetings, optionally within a date range. |
-| `get_meeting` | `token`, `group_id`, `meeting_id` | Fetches one meeting. |
-| `add_comment` | `token`, `group_id`, `meeting_id`, `comment` | Adds a comment to a meeting. This mutates backend state. |
-| `resolve_aliases` | `token`, `group_id`, `names`, optional `source` | Resolves transcript speaker labels to member IDs. |
-| `search_transcripts` | `token`, `group_id`, `query`, optional `meeting_id` | Requests semantically relevant indexed transcript chunks. |
-| `login_for_email` | `email` | Exchanges a verified email for a user JWT through the client. |
-
-`_serialise` converts dataclasses and nested collections to JSON-like Python values for tool results.
-The `token` argument is a user credential and should be treated as transient sensitive state.
-
-### Where Those Tools Run
-
-[`manager_graph.py`](../services/email-agent/app/llm/manager_graph.py) builds a name-to-tool map,
-then runs one `execute_manager_tool` node. The caller supplies `tool_name` and `arguments`; the
-node calls `tool.invoke(payload)` and records start/result audit events. This is **not** an LLM
-agent loop: there is no model choosing tools, and there are no conditional tool-call rounds.
-
-The current call-site search finds `build_manager_graph` in its unit test, but not in an
-email-agent handler. The tool layer is therefore implemented and tested, but the manager graph is
-not currently wired into the normal handler path.
+There are currently no model-callable tools. The email-agent keeps its finite command schema,
+validation boundary, and explicit manager-client calls; model output cannot directly select backend
+operations. The planned query specialists may receive narrowly scoped, read-only source tools after
+the application binds the authenticated user and authorized group. CRUD and transcript-submission
+actions remain explicit application workflows.
 
 ## LangGraph Workflows
 
@@ -64,9 +42,9 @@ flowchart LR
     C --> E[END]
 ```
 
-The `retrieve` node calls the project/conversation query services directly. It does not call the
-email-agent `search_transcripts` tool. The per-source API endpoints can also call those services
-without entering this unified graph; see [`queries.py`](../backend/routes/queries.py).
+The `retrieve` node calls the project/conversation query services directly, not a model-callable
+tool. The per-source API endpoints can also call those services without entering this unified
+graph; see [`queries.py`](../backend/routes/queries.py).
 
 [`report_graph.py`](../backend/engine/report_graph.py) has two nodes: `collect` and `synthesise`.
 `collect` reads meeting summaries/comments from Postgres, uses transcript chunks for meetings
@@ -76,27 +54,29 @@ handlers.
 
 ### Email-agent
 
-These graphs are separate from the `@tool` inventory above:
+These current workflows call the `DiarisationClient` directly:
 
 | Graph | Flow | Current entry point / note |
 | --- | --- | --- |
-| [`submit_transcript_graph.py`](../services/email-agent/app/llm/submit_transcript_graph.py) | Validate file -> resolve date -> login -> list groups -> resolve group -> create meeting -> upload VTT -> resolve/add attendees | Invoked by the submit-transcript handler. Calls `DiarisationClient` directly; it does not invoke the `BaseTool` wrappers. |
+| [`submit_transcript_graph.py`](../services/email-agent/app/llm/submit_transcript_graph.py) | Validate file -> resolve date -> login -> list groups -> resolve group -> create meeting -> upload VTT -> resolve/add attendees | Invoked by the submit-transcript handler. The graph does not itself send the completion email; the handler persists job state and queues the reply. |
 | [`log_meeting_graph.py`](../services/email-agent/app/llm/log_meeting_graph.py) | Login -> list groups -> resolve group -> create meeting -> save notes | Invoked by the log-meeting handler. Uses direct client calls. |
 | [`comment_graph.py`](../services/email-agent/app/llm/comment_graph.py) | Login -> add comment | Exposed through `CommandGraphDispatcher`; direct client calls, not the tool wrappers. |
-| [`manager_graph.py`](../services/email-agent/app/llm/manager_graph.py) | Execute one explicitly selected manager tool | Tool execution wrapper; currently no production handler call site found. |
 
-The submit-transcript design note describes intended boundaries, but the implementation file is
-the source of truth for exactly which nodes and calls currently run.
+The graph files are the source of truth for their nodes and transitions; surrounding handlers own
+job persistence and email delivery.
 
 ## Storage And Retrieval
 
-There are two RAG paths with different data and retrieval rules. Both return evidence to the API,
-but only the transcript path is exposed as the `search_transcripts` manager tool.
+There are two RAG paths with different data and retrieval rules. Both return evidence to their
+callers; retrieval is invoked by application services rather than model-selected manager tools.
 
 ### Meeting transcripts
 
 1. Upload or transcription reaches [`indexer.py`](../backend/transcript_rag/indexer.py), which sends
    the VTT through `vtt_rag`: verification, cue parsing, speaker-turn grouping, and chunking.
+   The live provided-VTT path is `routes/upload.py` -> `transcript_processing` job ->
+   `backend/jobs/handlers.py`; the server-generated-VTT path calls `index_transcript` from
+   `backend/processing/transcribe.py`. Both call the same indexer.
 2. Chunks retain provenance such as meeting ID/title/date, speaker, time range, and chunk ID.
    `LocalEmbeddings` in [`embeddings.py`](../backend/transcript_rag/embeddings.py) adapts the
    configured local SentenceTransformer model to LangChain's `Embeddings` interface.
@@ -111,6 +91,8 @@ but only the transcript path is exposed as the `search_transcripts` manager tool
    configured limit, it falls back to semantic search. `retrieve_only=true` returns chunks and
    evidence without an Ollama answer; otherwise the selected transcript extracts are bounded by
    the prompt context limit and passed to Ollama with citation instructions.
+
+The live application uses `process_vtt_file` through `index_transcript`.
 
 ### GitHub and Trello project data
 
@@ -164,9 +146,9 @@ flowchart LR
    [`chunking/types.py`](../backend/project_rag/chunking/types.py),
    [`vectorstore.py`](../backend/project_rag/vectorstore.py), and
    [`query_service.py`](../backend/project_rag/services/query_service.py).
-4. Compare the manager tool wrappers in `manager_tools.py` with their single-node caller in
-   `manager_graph.py`; then compare those with the direct-client email-agent graphs above.
+4. Compare the explicit direct-client email-agent graphs above with the backend query/report
+   graphs. For the planned query-agent architecture and implementation order, see the
+   [NLP agent roadmap](roadmap.md).
 
 Useful tests include `backend/tests/test_transcript_windows.py` for transcript retrieval behavior,
-and `services/email-agent/tests/test_langchain_tools.py` plus
-`services/email-agent/tests/test_manager_graph.py` for tool construction and graph invocation.
+and the backend query/report tests for source selection, evidence retrieval, and synthesis.

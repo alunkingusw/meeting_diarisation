@@ -38,13 +38,13 @@ adjusted as follows:
 - **Mail access is provider-agnostic** via a `MailClient` interface (`app/mail/base.py`). The app
   supports Microsoft Graph and a generic IMAP/SMTP provider implementation (`app/mail/imap_client.py`)
   for dedicated project mailboxes such as `mailbox.org`.
-- **`assess_query` answers real questions from three sources**, all through the backend's
+- **Current `assess_query` answers real questions from three sources**, all through the backend's
   query API: past meeting transcripts (`/groups/{id}/conversation/query`) and the group's GitHub
   repo and Trello board (`/github/query`, `/trello/query`, or the unified `/query` when both are
   asked for). The backend retrieves, answers and cites; the agent does no retrieval itself.
-  The LLM only ever decides *which* sources are relevant
-  (`transcript_focus`/`github_focus`/`trello_focus`) — the queries themselves are deterministic
-  API calls, same trust-boundary pattern as everything else in this codebase. Like
+  Today, the email parser produces source-focus fields and the handler makes deterministic API
+  calls. The planned parent query agent and three read-only specialists are not implemented yet;
+  see the [central roadmap](../../docs/roadmap.md). Like
   `submit_transcript`, it's split into `accept()`/`execute()` so a slow or unreachable source
   never blocks mail polling; a source being unreachable degrades the reply with a note rather
   than failing the whole request, as long as at least one requested source answered. See the
@@ -247,7 +247,7 @@ doesn't depend on how a real model happens to behave on a given day.
   meeting/attendees). Not a real gap in practice: the actual answer is always emailed
   automatically once the job completes, same as submit_transcript's completion email.
 
-See [ROADMAP.md](ROADMAP.md) for planned follow-on work, including wiring up real source clients.
+See the [central roadmap](../../docs/roadmap.md) for planned query-agent and email-intent work.
 
 ## Weekly project updates
 

@@ -27,8 +27,9 @@ Additionally, the application aims to allow a group to reference a repository wh
 - **Containerisation:** Docker + Docker Compose
 - **Environment Management:** `python-dotenv`
 
-For a source-linked map of the LangChain tools, LangGraph workflows, and RAG storage/retrieval
-paths, see [the LangChain/LangGraph implementation guide](docs/langchain-langgraph-storage-retrieval.md).
+For the current LangGraph and RAG implementation, see the
+[implementation guide](docs/langchain-langgraph-storage-retrieval.md). The planned three-agent
+query architecture is tracked in the [NLP agent roadmap](docs/roadmap.md).
 
 ---
 
