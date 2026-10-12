@@ -66,8 +66,12 @@ Initial Phase 1 artifacts: the additive Pydantic contract in
 case set, validated synthetic dataset, and reproducibility protocol in
 [Query Agent Contracts And Evaluation](query-agent-evaluation.md) and
 [`backend/tests/fixtures/query_agent_synthetic`](../backend/tests/fixtures/query_agent_synthetic/manifest.json).
-Live answer/evidence baseline capture remains pending loading this dataset into PostgreSQL/Chroma
-and a reachable Ollama model; do not present synthetic gold as observed model output.
+An initial live API answer/evidence capture now exists at
+[`baseline_outputs.json`](../backend/tests/fixtures/query_agent_synthetic/baseline_outputs.json).
+It is exploratory: it ran on a dirty worktree and omits email-intent and partial-source cases.
+The capture exposed the current API's missing project `until` filter and missing transcript speaker
+stats; see the evaluation note before closing this phase. Rerun on a clean revision with all cases
+before treating the baseline as final.
 
 - Specify common specialist input/output schemas: authorized group context, question, source
   filters, answer, quantitative facts, evidence IDs/metadata, errors, and model/retrieval metadata.

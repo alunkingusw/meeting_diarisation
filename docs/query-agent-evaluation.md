@@ -44,6 +44,25 @@ The fixture validation runs the production VTT parser/chunker/statistics code an
 structured GitHub/Trello counts from the manifest. It does not yet seed PostgreSQL/Chroma or capture
 model answers.
 
+## Live Current-System Capture
+
+An opt-in integration test seeds a disposable PostgreSQL test database and temporary Chroma
+collection, calls the existing conversation, GitHub, Trello, and unified query APIs using the real
+Ollama client, and writes observed responses to an explicit output path. The transcript cases use
+date-bounded complete-window retrieval; this first baseline does not measure vector similarity
+ranking. Three email-intent/partial-failure cases are not captured by this API-only run.
+
+```bash
+OLLAMA_BASE_URL=http://192.168.68.115:11434 \
+RUN_QUERY_AGENT_LIVE_BASELINE=1 \
+QUERY_AGENT_BASELINE_OUTPUT=backend/tests/fixtures/query_agent_synthetic/baseline_outputs.json \
+python -m pytest backend/tests/test_query_agent_live_baseline.py -q -s
+```
+
+The output contains actual observed model responses and evidence; keep it distinct from the
+synthetic expected claims in `manifest.json`. Review the artifact before treating it as a paper
+baseline. The test requires a working Docker daemon and does not alter persistent application data.
+
 For each executed case, record:
 
 - case ID, code revision, timestamp, and effective configuration;
@@ -83,9 +102,27 @@ before claiming exact reproducibility.
 
 ## Baseline Status
 
-The synthetic cases and their deterministic gold facts are validated, but current model
-answer/evidence snapshots have not been captured. That requires seeding the records and VTTs into
-an isolated PostgreSQL/Chroma instance and a reachable Ollama model. Record actual generated answers
-and retrieved evidence separately from the gold fixture; never substitute synthetic expected
-answers for observed model output. Capture the baseline before Phase 2 changes per-source query
-behavior.
+An initial live API capture is stored at
+[`baseline_outputs.json`](../backend/tests/fixtures/query_agent_synthetic/baseline_outputs.json).
+It contains seven observed API cases from `llama3.1:8b` digest
+`46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e` and its retrieved evidence.
+The capture ran against code revision `d0d98244fa2c1beb99064956594b4aa5ef87f58c` with a dirty
+working tree, so treat it as an exploratory baseline, not the final reproducible paper result.
+Authorization ambiguity, unsupported email intent, and partial-source failure remain uncaptured.
+
+### Initial Findings
+
+- Project query inputs carry an `until` bound in the evaluation case, but current
+  [`QueryRequest`](../backend/project_rag/schemas.py) only defines `since`. The extra bound is
+  ignored, so the September questions include October records: the live response reports 5 commits
+  (expected 4) and 5 Trello actions (expected 4). The unified query repeats the commit mismatch.
+- The transcript response has `stats: null`; it does not expose the deterministic speaker metrics
+  in [`stats.py`](../backend/transcript_rag/vtt_rag/stats.py). The model also fails the mixed case's
+  exact turn count (answers 2; fixture truth is 3).
+- The current conversation prompt does not identify “meeting 12” in its formatted extract heading;
+  the speaker-metric answer says that meeting 12 was not provided, despite the evidence belonging
+  to that meeting.
+
+These are findings about the current implementation, not reasons to adjust the gold values. Close
+the remaining cases and rerun on a clean, identified code revision before treating this capture as
+the final Phase 1 baseline. Keep subsequent agent results as separate artifacts for comparison.
