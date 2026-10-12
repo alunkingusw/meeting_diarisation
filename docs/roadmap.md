@@ -63,9 +63,11 @@ flowchart TD
 
 Initial Phase 1 artifacts: the additive Pydantic contract in
 [`backend/engine/query_agent_schemas.py`](../backend/engine/query_agent_schemas.py) and the starter
-case set/reproducibility protocol in [Query Agent Contracts And Evaluation](query-agent-evaluation.md).
-Live answer/evidence baseline capture remains pending a seeded PostgreSQL/Chroma dataset and
-reachable Ollama model; do not replace it with synthetic outputs.
+case set, validated synthetic dataset, and reproducibility protocol in
+[Query Agent Contracts And Evaluation](query-agent-evaluation.md) and
+[`backend/tests/fixtures/query_agent_synthetic`](../backend/tests/fixtures/query_agent_synthetic/manifest.json).
+Live answer/evidence baseline capture remains pending loading this dataset into PostgreSQL/Chroma
+and a reachable Ollama model; do not present synthetic gold as observed model output.
 
 - Specify common specialist input/output schemas: authorized group context, question, source
   filters, answer, quantitative facts, evidence IDs/metadata, errors, and model/retrieval metadata.

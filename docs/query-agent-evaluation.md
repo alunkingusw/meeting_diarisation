@@ -29,7 +29,20 @@ The machine-readable starter set is
 [`query_agent_eval_cases.json`](../backend/tests/query_agent_eval_cases.json). It covers qualitative
 and quantitative single-source queries, a mixed transcript question, cross-source composition,
 authorization ambiguity, unsupported requests, empty evidence, and partial source failure.
-Expected metrics and behavioral checks are specified, but no answers or evidence are fabricated.
+The synthetic source records, VTT files, known speaker metrics, project aggregates, and gold claim
+evidence IDs are in [`fixtures/query_agent_synthetic`](../backend/tests/fixtures/query_agent_synthetic/manifest.json).
+Gold data is explicitly synthetic; no model-generated outputs are pre-filled or presented as
+observed results.
+
+Validate the fixtures without Ollama or vector embeddings:
+
+```bash
+python -m pytest backend/tests/test_query_agent_synthetic_dataset.py -q
+```
+
+The fixture validation runs the production VTT parser/chunker/statistics code and checks the
+structured GitHub/Trello counts from the manifest. It does not yet seed PostgreSQL/Chroma or capture
+model answers.
 
 For each executed case, record:
 
@@ -70,8 +83,9 @@ before claiming exact reproducibility.
 
 ## Baseline Status
 
-The cases and capture format are ready, but current answer/evidence snapshots have not been
-captured. That requires a seeded PostgreSQL/Chroma dataset and reachable Ollama model. The local
-backend test fixture currently requires Docker for PostgreSQL; if that runtime is unavailable,
-record the blocker and do not substitute invented answers. Capture the baseline before Phase 2
-changes per-source query behavior.
+The synthetic cases and their deterministic gold facts are validated, but current model
+answer/evidence snapshots have not been captured. That requires seeding the records and VTTs into
+an isolated PostgreSQL/Chroma instance and a reachable Ollama model. Record actual generated answers
+and retrieved evidence separately from the gold fixture; never substitute synthetic expected
+answers for observed model output. Capture the baseline before Phase 2 changes per-source query
+behavior.

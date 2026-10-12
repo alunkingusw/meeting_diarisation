@@ -1,0 +1,13 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:20.000
+Ada: Shipping the API after the rollback check reduced release risk.
+
+2
+00:00:20.000 --> 00:00:45.000
+Ben: The monitoring dashboard showed a delayed worker, not an API failure.
+
+3
+00:00:45.000 --> 00:01:00.000
+Ada: We should document the alert threshold before the next launch.
