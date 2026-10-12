@@ -102,27 +102,40 @@ before claiming exact reproducibility.
 
 ## Baseline Status
 
-An initial live API capture is stored at
+The pre-fix capture is retained at
 [`baseline_outputs.json`](../backend/tests/fixtures/query_agent_synthetic/baseline_outputs.json).
-It contains seven observed API cases from `llama3.1:8b` digest
-`46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e` and its retrieved evidence.
-The capture ran against code revision `d0d98244fa2c1beb99064956594b4aa5ef87f58c` with a dirty
-working tree, so treat it as an exploratory baseline, not the final reproducible paper result.
+The post-fix capture is
+[`after_scope_stats_fixes.json`](../backend/tests/fixtures/query_agent_synthetic/after_scope_stats_fixes.json).
+Both use `llama3.1:8b` digest
+`46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e`. The post-fix capture records
+the request payloads, prompt hashes, retrieved evidence, and gold comparisons. It ran on a dirty
+working tree, so it validates behavior changes but is not the final clean-revision paper baseline.
 Authorization ambiguity, unsupported email intent, and partial-source failure remain uncaptured.
 
-### Initial Findings
+### Gap Status
 
-- Project query inputs carry an `until` bound in the evaluation case, but current
-  [`QueryRequest`](../backend/project_rag/schemas.py) only defines `since`. The extra bound is
-  ignored, so the September questions include October records: the live response reports 5 commits
-  (expected 4) and 5 Trello actions (expected 4). The unified query repeats the commit mismatch.
-- The transcript response has `stats: null`; it does not expose the deterministic speaker metrics
-  in [`stats.py`](../backend/transcript_rag/vtt_rag/stats.py). The model also fails the mixed case's
-  exact turn count (answers 2; fixture truth is 3).
-- The current conversation prompt does not identify “meeting 12” in its formatted extract heading;
-  the speaker-metric answer says that meeting 12 was not provided, despite the evidence belonging
-  to that meeting.
+- **Project date bounds: fixed.** `until` is exclusive and scopes SQL facts, complete-window
+  retrieval, and Chroma filters. The live September GitHub and Trello counts and unified per-source
+  stats now match gold (4 records each; Ada 2, Ben 1, Cy 1).
+- **Transcript quantitative facts: fixed.** The conversation API returns persisted speaker stats
+  separately from transcript evidence and includes them in the prompt. Ada's 150 seconds, 62.5%
+  meeting share, and 3 turns match fixture truth.
+- **Meeting references: fixed in prompt/context.** Extract headings expose meeting IDs for
+  resolving questions, while citation instructions require actual title/date/time/speaker values.
+  The refreshed answer identifies the real meeting title and contains no placeholder citations.
+- **Numeric answer grounding: improved and observed.** The refreshed single-source GitHub answer
+  copies Ada 2, Ben 1, Cy 1, and the unified answer also matches those values. All four structured
+  gold comparisons pass. The captured transcript answers use the correct meeting title and no
+  placeholder citation strings.
+- **Cross-source synthesis/citation quality: still needs evaluation.** The unified answer gives
+  correct contributor counts and identifies the two source domains, but redundantly explains source
+  boundaries and refers to retrieved items by ordinal indices rather than stable evidence IDs.
+  Track this for parent-agent synthesis and citation-quality work, not as a retrieval/statistics
+  failure.
+- **Still uncaptured:** authorization ambiguity, unsupported email intent, and partial-source
+  failure. The current agent workflows are not implemented in this baseline harness.
 
-These are findings about the current implementation, not reasons to adjust the gold values. Close
-the remaining cases and rerun on a clean, identified code revision before treating this capture as
-the final Phase 1 baseline. Keep subsequent agent results as separate artifacts for comparison.
+The transcript fixture uses a complete date-bounded Chroma read; its zero vectors are not used for
+similarity ranking. A separate evaluation is required for semantic retrieval quality. Capture all
+remaining cases on a clean, identified revision before claiming a final academic baseline; keep the
+pre-fix and post-fix snapshots separate.

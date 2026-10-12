@@ -51,7 +51,8 @@ flowchart TD
 - The email agent parses a constrained command and validates it. `assess_query` calls the
   backend query API using its `DiarisationClient`; it does not yet use a parent LangChain agent.
 - Transcript upload and transcription already have deterministic processing paths. Provided and
-  generated VTTs are chunked and indexed into persistent Chroma; see the
+  generated VTTs are chunked and indexed into persistent Chroma. Conversation queries now expose
+  persisted speaker statistics as structured data alongside transcript evidence; see the
   [retrieval implementation guide](langchain-langgraph-storage-retrieval.md).
 - Weekly reports already use a backend LangGraph and persist report evidence. Their flow is
   separate from conversational query-agent state.
@@ -68,10 +69,13 @@ case set, validated synthetic dataset, and reproducibility protocol in
 [`backend/tests/fixtures/query_agent_synthetic`](../backend/tests/fixtures/query_agent_synthetic/manifest.json).
 An initial live API answer/evidence capture now exists at
 [`baseline_outputs.json`](../backend/tests/fixtures/query_agent_synthetic/baseline_outputs.json).
-It is exploratory: it ran on a dirty worktree and omits email-intent and partial-source cases.
-The capture exposed the current API's missing project `until` filter and missing transcript speaker
-stats; see the evaluation note before closing this phase. Rerun on a clean revision with all cases
-before treating the baseline as final.
+The post-fix capture is at
+[`after_scope_stats_fixes.json`](../backend/tests/fixtures/query_agent_synthetic/after_scope_stats_fixes.json).
+The exclusive project date bound and transcript stats now match synthetic gold in live API checks.
+All four captured numeric comparisons pass, and transcript citations no longer use placeholders.
+The post-fix run is still exploratory because it used a dirty worktree, omits email-intent and
+partial-source cases, and shows residual evidence-index citation quality in cross-source prose; see
+the evaluation note before closing this phase.
 
 - Specify common specialist input/output schemas: authorized group context, question, source
   filters, answer, quantitative facts, evidence IDs/metadata, errors, and model/retrieval metadata.
@@ -95,11 +99,9 @@ introduced.
 - Define each specialist's LangChain tools here: narrow, typed, read-only wrappers around its
   existing retrieval/query service. These tools give the specialist agent the ability to inspect
   its source; they are not CRUD endpoints and are not exposed directly to email users.
-- Make transcript speaker statistics available to the conversation specialist as structured,
-  deterministic data alongside transcript RAG evidence. Support authorized group/meeting/date
-  scope for speaker duration, share of meeting time, word count, and turn count. The existing
-  `stats.json` is generated but currently has no query/API reader; add a durable/readable path and
-  a read-only statistics tool rather than asking the model to count retrieved chunks.
+- Expose the conversation response's existing `transcript_stats` as a read-only specialist tool.
+  The API now loads persisted stats with authorized group/meeting/date scope for speaker duration,
+  share of meeting time, word count, and turn count; never ask the model to count retrieved chunks.
 - Reuse current backend retrieval: transcript Chroma and bounded complete-window reads; project
   Chroma plus Postgres facts/complete-window reads. Preserve GitHub/Trello aggregates from SQL as
   structured specialist output as well as prompt context.

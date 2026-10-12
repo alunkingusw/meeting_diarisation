@@ -388,35 +388,63 @@ def test_timeout_is_treated_as_transient(client):
 
 @respx.mock
 def test_query_source_posts_to_source_endpoint(client):
+    stats = {"total_commits": 4, "contributors": [{"name": "Ada", "commits": 2}]}
+    transcript_stats = {"complete": True, "speakers": [{"speaker": "Ada", "turn_count": 3}]}
+    evidence = [{"id": "chunk-1", "text": "Release decision"}]
     route = respx.post(f"{BASE_URL}/groups/3/github/query").mock(
-        return_value=httpx.Response(200, json={"answer": "Two open issues.", "source": "github"})
+        return_value=httpx.Response(
+            200,
+            json={
+                "answer": "Two open issues.",
+                "source": "github",
+                "stats": stats,
+                "transcript_stats": transcript_stats,
+                "evidence": evidence,
+                "model": "test-model",
+            },
+        )
     )
 
     result = client.query_source("tok", 3, "github", "open issues?")
 
     assert result.answer == "Two open issues."
     assert result.sources_used == ["github"]
+    assert result.stats == stats
+    assert result.transcript_stats == transcript_stats
+    assert result.evidence == evidence
+    assert result.model == "test-model"
     assert route.calls.last.request.headers["Authorization"] == "Bearer tok"
     assert route.calls.last.request.read() == b'{"question":"open issues?"}'
 
 
 @respx.mock
-def test_query_unified_sends_sources_and_since(client):
+def test_query_unified_sends_sources_and_date_window(client):
     from datetime import date
 
     route = respx.post(f"{BASE_URL}/groups/3/query").mock(
         return_value=httpx.Response(
             200,
-            json={"answer": "Merged.", "sources_used": ["github", "trello"], "errors": {"trello": "x"}},
+            json={
+                "answer": "Merged.",
+                "sources_used": ["github", "trello"],
+                "errors": {"trello": "x"},
+                "results": {"github": {"stats": {"total_commits": 4}}},
+                "model": "test-model",
+            },
         )
     )
 
-    result = client.query_unified("tok", 3, "progress?", sources=["github", "trello"], since=date(2026, 9, 1))
+    result = client.query_unified(
+        "tok", 3, "progress?", sources=["github", "trello"],
+        since=date(2026, 9, 1), until=date(2026, 10, 1),
+    )
 
     assert result.sources_used == ["github", "trello"]
     assert result.errors == {"trello": "x"}
+    assert result.results == {"github": {"stats": {"total_commits": 4}}}
+    assert result.model == "test-model"
     assert route.calls.last.request.read() == (
-        b'{"question":"progress?","since":"2026-09-01","sources":["github","trello"]}'
+        b'{"question":"progress?","since":"2026-09-01","until":"2026-10-01","sources":["github","trello"]}'
     )
 
 

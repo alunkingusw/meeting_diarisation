@@ -86,11 +86,17 @@ callers; retrieval is invoked by application services rather than model-selected
    each document.
 4. `search_transcripts` in `indexer.py` calls `search_chunks`; Chroma performs similarity search
    and applies optional meeting/date filters. Lower Chroma distance means a closer match.
-5. In [`group_service.py`](../backend/project_rag/group_service.py), a bounded date-window request
-   first tries to fetch every matching chunk in chronological order. If the window exceeds the
-   configured limit, it falls back to semantic search. `retrieve_only=true` returns chunks and
-   evidence without an Ollama answer; otherwise the selected transcript extracts are bounded by
-   the prompt context limit and passed to Ollama with citation instructions.
+5. `process_vtt_file` writes a separate `stats.json` with deterministic per-speaker duration,
+   word, turn, and meeting-share metrics. For a conversation query,
+   [`group_service.py`](../backend/project_rag/group_service.py) scopes transcript-bearing meetings
+   by authorized group, optional meeting ID, and the half-open date range `[since, until)`, then
+   loads those artifacts. The API returns them as `transcript_stats`, including completeness and
+   any missing meeting IDs; the prompt tells Ollama to use them for numeric claims and use Chroma
+   extracts for qualitative claims.
+6. A bounded date-window request first tries to fetch every matching chunk in chronological order.
+   If the window exceeds the configured limit, it falls back to semantic search. `retrieve_only=true`
+   returns chunks and stats without an Ollama answer; otherwise extracts are bounded by the prompt
+   context limit and sent with explicit citation instructions.
 
 The live application uses `process_vtt_file` through `index_transcript`.
 
@@ -104,13 +110,13 @@ The live application uses `process_vtt_file` through `index_transcript`.
    batched for upserts. Postgres keeps the structured record; its `chroma_id` references the
    corresponding vector chunk.
 3. Collections are namespaced by group/repository and content type: `commits`, `discussions`,
-   and `trello`. The query layer scopes vector search by `repo_name`, applies a `since` timestamp
-   filter when requested, combines results from the relevant collections, and returns a
+   and `trello`. The query layer scopes vector search by `repo_name`, applies the requested
+   `[since, until)` timestamp filters, combines results from relevant collections, and returns a
    relevance-selected sample ordered newest-first.
-4. For a small enough time window, [`query_service.py`](../backend/project_rag/services/query_service.py)
-   can instead read every matching row from Postgres and rebuild equivalent chunks. Larger
-   windows fall back to Chroma sampling. Project statistics are computed from Postgres separately,
-   so complete counts are not inferred from a small semantic sample.
+4. For a date-bounded query, [`query_service.py`](../backend/project_rag/services/query_service.py)
+   first reads every matching row from Postgres when within the configured row limit and rebuilds
+   equivalent chunks; otherwise it falls back to filtered Chroma sampling. Project SQL facts use
+   the same half-open date interval, so structured totals and retrieved evidence share a scope.
 5. The service formats bounded extracts, asks Ollama to answer using the facts and evidence, then
    returns the answer, source metadata, Chroma distances, completeness/truncation information,
    and statistics through [`group_service.py`](../backend/project_rag/group_service.py).

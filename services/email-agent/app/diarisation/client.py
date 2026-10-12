@@ -147,6 +147,11 @@ class QueryAnswer:
     sources_used: list[str]
     # Per-source failures the backend tolerated because another source still answered.
     errors: dict[str, str] = field(default_factory=dict)
+    evidence: list[dict] = field(default_factory=list)
+    stats: Optional[dict] = None
+    transcript_stats: Optional[dict] = None
+    results: dict[str, dict] = field(default_factory=dict)
+    model: Optional[str] = None
 
 
 class DiarisationClient:
@@ -339,13 +344,26 @@ class DiarisationClient:
         question: str,
         since: Optional[date] = None,
         on_job: Optional[Callable[[str], None]] = None,
+        until: Optional[date] = None,
     ) -> QueryAnswer:
         """POST /groups/{id}/{conversation|github|trello}/query - an answer from one source.
 
         With `on_job` the query runs as a backend job (so it can be cancelled and inspected); the
         callback receives the job id as soon as it exists, and this call waits for the result."""
-        data = self._query(token, f"/groups/{group_id}/{source}/query", _query_body(question, since), on_job)
-        return QueryAnswer(answer=data["answer"], sources_used=[source])
+        data = self._query(
+            token,
+            f"/groups/{group_id}/{source}/query",
+            _query_body(question, since, until),
+            on_job,
+        )
+        return QueryAnswer(
+            answer=data["answer"],
+            sources_used=[source],
+            evidence=data.get("evidence", []),
+            stats=data.get("stats"),
+            transcript_stats=data.get("transcript_stats"),
+            model=data.get("model"),
+        )
 
     def query_unified(
         self,
@@ -355,14 +373,19 @@ class DiarisationClient:
         sources: Optional[list[str]] = None,
         since: Optional[date] = None,
         on_job: Optional[Callable[[str], None]] = None,
+        until: Optional[date] = None,
     ) -> QueryAnswer:
         """POST /groups/{id}/query - the backend routes the question and merges source answers."""
-        body = _query_body(question, since)
+        body = _query_body(question, since, until)
         if sources is not None:
             body["sources"] = sources
         data = self._query(token, f"/groups/{group_id}/query", body, on_job)
         return QueryAnswer(
-            answer=data["answer"], sources_used=data["sources_used"], errors=data.get("errors", {})
+            answer=data["answer"],
+            sources_used=data["sources_used"],
+            errors=data.get("errors", {}),
+            results=data.get("results", {}),
+            model=data.get("model"),
         )
 
     def _query(self, token: str, path: str, body: dict, on_job: Optional[Callable[[str], None]]) -> dict:
@@ -540,10 +563,12 @@ def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _query_body(question: str, since: Optional[date]) -> dict:
+def _query_body(question: str, since: Optional[date], until: Optional[date] = None) -> dict:
     body: dict = {"question": question}
     if since is not None:
         body["since"] = since.isoformat()
+    if until is not None:
+        body["until"] = until.isoformat()
     return body
 
 

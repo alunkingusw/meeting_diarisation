@@ -15,7 +15,7 @@ part. Every number the model reports should come from here.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import DateTime, func, select
 from sqlalchemy.orm import Session
@@ -90,6 +90,7 @@ def collect_project_stats(
     db: Session,
     repo: Repo,
     since: datetime | None = None,
+    until: datetime | None = None,
     weeks: int = 12,
     sources: tuple[str, ...] = SOURCES,
     label: str | None = None,
@@ -101,10 +102,8 @@ def collect_project_stats(
     the point is to be correct over the *whole* dataset, cheaply, however
     large it is.
 
-    `since`, if given, restricts every count to activity on or after that
-    date - so the facts given to the LLM stay consistent with a retrieval
-    window like "what happened last week" instead of always reporting
-    all-time totals.
+    `since` and `until`, when given, restrict counts to the half-open interval
+    [since, until), matching the query's evidence window.
     """
     stats = ProjectStats(
         repo_id=repo.id, repo_name=label or repo.name, last_synced_at=repo.last_synced_at
@@ -115,10 +114,15 @@ def collect_project_stats(
     def contributor(name: str) -> ContributorStats:
         return contributors.setdefault(name, ContributorStats(name=name))
 
-    def since_filter(column):
-        return (column >= since,) if since else ()
+    def time_filter(column):
+        conditions = []
+        if since is not None:
+            conditions.append(column >= since)
+        if until is not None:
+            conditions.append(column < until)
+        return tuple(conditions)
 
-    commit_since = since_filter(Commit.committed_at)
+    commit_window = time_filter(Commit.committed_at)
     use_github = "github" in sources
     use_trello = "trello" in sources
 
@@ -132,7 +136,7 @@ def collect_project_stats(
             func.min(Commit.committed_at),
             func.max(Commit.committed_at),
         )
-        .where(Commit.repo_id == repo.id, *commit_since)
+        .where(Commit.repo_id == repo.id, *commit_window)
         .group_by(Commit.author_name)
     ).all()
 
@@ -148,7 +152,7 @@ def collect_project_stats(
     # --- Issues, grouped by GitHub author login ---
     issue_rows = [] if not use_github else db.execute(
         select(Issue.author, Issue.state, func.count(Issue.id))
-        .where(Issue.repo_id == repo.id, *since_filter(Issue.created_at))
+        .where(Issue.repo_id == repo.id, *time_filter(Issue.created_at))
         .group_by(Issue.author, Issue.state)
     ).all()
 
@@ -164,7 +168,7 @@ def collect_project_stats(
     comment_rows = [] if not use_github else db.execute(
         select(IssueComment.author, func.count(IssueComment.id))
         .join(Issue, IssueComment.issue_id == Issue.id)
-        .where(Issue.repo_id == repo.id, *since_filter(IssueComment.created_at))
+        .where(Issue.repo_id == repo.id, *time_filter(IssueComment.created_at))
         .group_by(IssueComment.author)
     ).all()
 
@@ -175,7 +179,7 @@ def collect_project_stats(
     # --- PR review comments ---
     review_rows = [] if not use_github else db.execute(
         select(ReviewComment.author, func.count(ReviewComment.id))
-        .where(ReviewComment.repo_id == repo.id, *since_filter(ReviewComment.created_at))
+        .where(ReviewComment.repo_id == repo.id, *time_filter(ReviewComment.created_at))
         .group_by(ReviewComment.author)
     ).all()
 
@@ -186,7 +190,7 @@ def collect_project_stats(
     # --- Trello board activity (only present when the repo has a linked board) ---
     trello_rows = [] if not use_trello else db.execute(
         select(TrelloAction.member_creator, func.count(TrelloAction.id))
-        .where(TrelloAction.repo_id == repo.id, *since_filter(TrelloAction.created_at))
+        .where(TrelloAction.repo_id == repo.id, *time_filter(TrelloAction.created_at))
         .group_by(TrelloAction.member_creator)
     ).all()
 
@@ -200,14 +204,14 @@ def collect_project_stats(
         ranges.append(
             db.execute(
                 select(func.min(Commit.committed_at), func.max(Commit.committed_at)).where(
-                    Commit.repo_id == repo.id, *commit_since
+                    Commit.repo_id == repo.id, *commit_window
                 )
             ).one()
         )
         ranges.append(
             db.execute(
                 select(func.min(Issue.created_at), func.max(Issue.created_at)).where(
-                    Issue.repo_id == repo.id, *since_filter(Issue.created_at)
+                    Issue.repo_id == repo.id, *time_filter(Issue.created_at)
                 )
             ).one()
         )
@@ -215,13 +219,13 @@ def collect_project_stats(
             db.execute(
                 select(func.min(IssueComment.created_at), func.max(IssueComment.created_at))
                 .join(Issue, IssueComment.issue_id == Issue.id)
-                .where(Issue.repo_id == repo.id, *since_filter(IssueComment.created_at))
+                .where(Issue.repo_id == repo.id, *time_filter(IssueComment.created_at))
             ).one()
         )
         ranges.append(
             db.execute(
                 select(func.min(ReviewComment.created_at), func.max(ReviewComment.created_at)).where(
-                    ReviewComment.repo_id == repo.id, *since_filter(ReviewComment.created_at)
+                    ReviewComment.repo_id == repo.id, *time_filter(ReviewComment.created_at)
                 )
             ).one()
         )
@@ -229,7 +233,7 @@ def collect_project_stats(
         ranges.append(
             db.execute(
                 select(func.min(TrelloAction.created_at), func.max(TrelloAction.created_at)).where(
-                    TrelloAction.repo_id == repo.id, *since_filter(TrelloAction.created_at)
+                    TrelloAction.repo_id == repo.id, *time_filter(TrelloAction.created_at)
                 )
             ).one()
         )
@@ -244,7 +248,7 @@ def collect_project_stats(
     week_bucket = func.date_trunc("week", Commit.committed_at, type_=DateTime(timezone=True))
     week_rows = [] if not use_github else db.execute(
         select(week_bucket, func.count(Commit.id), func.count(func.distinct(Commit.author_name)))
-        .where(Commit.repo_id == repo.id, *commit_since)
+        .where(Commit.repo_id == repo.id, *commit_window)
         .group_by(week_bucket)
         .order_by(week_bucket.desc())
         .limit(weeks)
@@ -265,7 +269,12 @@ def _fmt_date(value: datetime | None) -> str:
     return value.date().isoformat() if value else "n/a"
 
 
-def format_stats_for_prompt(stats: ProjectStats, sources: tuple[str, ...] = SOURCES) -> str:
+def format_stats_for_prompt(
+    stats: ProjectStats,
+    sources: tuple[str, ...] = SOURCES,
+    since: date | None = None,
+    until: date | None = None,
+) -> str:
     """
     Render `ProjectStats` as compact text for the LLM prompt.
 
@@ -288,13 +297,16 @@ def format_stats_for_prompt(stats: ProjectStats, sources: tuple[str, ...] = SOUR
     if use_trello:
         totals.append(f"{stats.total_trello_actions} Trello card actions")
 
+    requested_since = since.isoformat() if since is not None else "unbounded"
+    requested_until = until.isoformat() if until is not None else "unbounded"
     lines = [
         f"Project: {stats.repo_name}",
-        f"Activity window: {_fmt_date(stats.first_activity_at)} to {_fmt_date(stats.last_activity_at)}",
+        f"Requested activity window: [{requested_since}, {requested_until}) (until is exclusive)",
+        f"Observed activity timestamps: {_fmt_date(stats.first_activity_at)} to {_fmt_date(stats.last_activity_at)}",
         f"Last ingested: {_fmt_date(stats.last_synced_at)}",
-        f"Totals: {', '.join(totals)}",
+        f"AUTHORITATIVE TOTALS FOR THE REQUESTED WINDOW: {', '.join(totals)}",
         "",
-        "Per-contributor totals (complete, not a sample):",
+        "AUTHORITATIVE PER-CONTRIBUTOR COUNTS (complete SQL aggregates; copy these values, do not recount extracts):",
     ]
 
     for contrib in stats.contributors:

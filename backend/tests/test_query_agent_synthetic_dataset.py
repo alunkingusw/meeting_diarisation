@@ -42,6 +42,30 @@ def test_synthetic_vtt_files_produce_declared_speaker_statistics(tmp_path):
             assert set(claim["evidence"]) <= chunk_ids
 
 
+def test_transcript_stats_loader_reports_missing_artifacts(tmp_path, monkeypatch):
+    from types import SimpleNamespace
+
+    from backend.transcript_rag import indexer
+
+    group_id = 44
+    meeting = _read_manifest()["meetings"][0]
+    stats_root = tmp_path / "transcripts" / str(group_id)
+    process_vtt_file(
+        file_path=str(FIXTURE_DIR / meeting["vtt_file"]),
+        meeting_title=meeting["title"],
+        meeting_date=meeting["date"],
+        output_dir=str(stats_root),
+        meeting_id=str(meeting["id"]),
+    )
+    monkeypatch.setattr(indexer, "settings", SimpleNamespace(EMBEDDING_DIR=tmp_path))
+
+    records, missing = indexer.load_transcript_stats(group_id, [12, 13])
+
+    assert [record["meeting_id"] for record in records] == ["12"]
+    assert missing == [13]
+    assert records[0]["speakers"][0]["speaker"] == "Ada"
+
+
 def test_synthetic_project_activity_matches_declared_september_facts():
     manifest = _read_manifest()
     commits = [

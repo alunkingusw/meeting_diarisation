@@ -3,7 +3,7 @@
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 SourceName = Literal["conversation", "github", "trello"]
 
@@ -85,14 +85,18 @@ class ProjectStatsResponse(BaseModel):
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=3, max_length=2000)
     since: date | None = Field(
-        default=None, description="Only consider activity on or after this date."
+        default=None, description="Inclusive start date for activity."
     )
+    until: date | None = Field(default=None, description="Exclusive end date for activity.")
+
+    @model_validator(mode="after")
+    def validate_date_window(self) -> "QueryRequest":
+        if self.since is not None and self.until is not None and self.since >= self.until:
+            raise ValueError("until must be later than since")
+        return self
 
 
 class ConversationQueryRequest(QueryRequest):
-    until: date | None = Field(
-        default=None, description="Only meetings dated before this date (exclusive)."
-    )
     meeting_id: int | None = Field(default=None, description="Only this meeting's transcript.")
     retrieve_only: bool = Field(
         default=False,
@@ -117,6 +121,35 @@ class EvidenceItem(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class TranscriptSpeakerStatsResponse(BaseModel):
+    speaker: str
+    total_duration_sec: float
+    total_words: int
+    turn_count: int
+    avg_words_per_turn: float
+    meeting_time_share_pct: float
+    meetings_spoken: int
+
+
+class TranscriptMeetingStatsResponse(BaseModel):
+    meeting_id: int
+    meeting_title: str
+    meeting_date: date
+    total_duration_sec: float
+    speakers: list[TranscriptSpeakerStatsResponse]
+
+
+class TranscriptStatsResponse(BaseModel):
+    """Deterministic speaker metrics loaded from indexed transcript stats artifacts."""
+
+    complete: bool
+    total_meetings: int
+    total_duration_sec: float
+    missing_meeting_ids: list[int] = Field(default_factory=list)
+    speakers: list[TranscriptSpeakerStatsResponse]
+    meetings: list[TranscriptMeetingStatsResponse]
+
+
 class SourceQueryResponse(BaseModel):
     """An answer plus the evidence it was built from."""
 
@@ -128,9 +161,10 @@ class SourceQueryResponse(BaseModel):
     truncated_evidence: int = 0
     complete_window: bool = Field(
         default=False,
-        description="True if `evidence` is every record in the `since` window, not a relevance sample.",
+        description="True if `evidence` is every record in the requested date window, not a relevance sample.",
     )
     stats: ProjectStatsResponse | None = None
+    transcript_stats: TranscriptStatsResponse | None = None
 
 
 class UnifiedQueryResponse(BaseModel):

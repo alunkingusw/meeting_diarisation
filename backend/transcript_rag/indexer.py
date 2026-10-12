@@ -119,3 +119,28 @@ def transcripts_in_window(
     return get_chunks_in_window(
         transcripts_collection_name(group_name), date_to_ts(since), date_to_ts(until), limit
     )
+
+
+def load_transcript_stats(
+    group_id: int, meeting_ids: list[int]
+) -> tuple[list[dict[str, Any]], list[int]]:
+    """Load persisted deterministic statistics for expected transcript meetings.
+
+    Missing or unreadable artifacts are reported explicitly so callers never present partial
+    aggregates as complete.
+    """
+    stats_dir = settings.EMBEDDING_DIR / "transcripts" / str(group_id)
+    records: list[dict[str, Any]] = []
+    missing: list[int] = []
+    for meeting_id in meeting_ids:
+        stats_path = stats_dir / str(meeting_id) / "stats.json"
+        try:
+            record = json.loads(stats_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            missing.append(meeting_id)
+            continue
+        if str(record.get("meeting_id")) != str(meeting_id):
+            missing.append(meeting_id)
+            continue
+        records.append(record)
+    return records, missing

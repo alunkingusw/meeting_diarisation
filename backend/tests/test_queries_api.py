@@ -74,6 +74,109 @@ def test_trello_query_is_scoped_to_trello(
     assert body["stats"]["total_commits"] == 0
 
 
+def test_project_query_until_is_exclusive_for_evidence_and_stats(
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
+):
+    from backend.project_rag import group_service
+    from backend.project_rag.models import Commit, TrelloAction
+
+    owner, group = _linked_group(db_session, make_user, make_group)
+    repo = group_service.get_or_create_repo(db_session, group)
+    db_session.add_all(
+        [
+            Commit(
+                repo_id=repo.id,
+                sha="s" * 40,
+                author_name="September",
+                author_email="sep@example.invalid",
+                committed_at=datetime(2026, 9, 30, tzinfo=timezone.utc),
+                message="September release work",
+                files_changed=1,
+                additions=2,
+                deletions=0,
+                diff_text="",
+            ),
+            Commit(
+                repo_id=repo.id,
+                sha="o" * 40,
+                author_name="October",
+                author_email="oct@example.invalid",
+                committed_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+                message="October follow-up",
+                files_changed=1,
+                additions=3,
+                deletions=0,
+                diff_text="",
+            ),
+            TrelloAction(
+                repo_id=repo.id,
+                trello_action_id="sep-action",
+                action_type="commentCard",
+                card_id="sep-card",
+                card_name="September card",
+                member_creator="September",
+                text="September work",
+                created_at=datetime(2026, 9, 30, tzinfo=timezone.utc),
+            ),
+            TrelloAction(
+                repo_id=repo.id,
+                trello_action_id="oct-action",
+                action_type="commentCard",
+                card_id="oct-card",
+                card_name="October card",
+                member_creator="October",
+                text="October work",
+                created_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    for source, expected_text, excluded_text, total_key in (
+        ("github", "September release work", "October follow-up", "total_commits"),
+        ("trello", "September work", "October work", "total_trello_actions"),
+    ):
+        response = client.post(
+            f"/groups/{group.id}/{source}/query",
+            json={
+                "question": "Summarize September work",
+                "since": "2026-09-01",
+                "until": "2026-10-01",
+            },
+            headers=auth_header_for(owner.id),
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["stats"][total_key] == 1
+        assert any(expected_text in item["text"] for item in body["evidence"])
+        assert all(excluded_text not in item["text"] for item in body["evidence"])
+        assert "Requested activity window: [2026-09-01, 2026-10-01)" in fake_llm.prompts[-1]
+        assert "AUTHORITATIVE PER-CONTRIBUTOR COUNTS" in fake_llm.prompts[-1]
+        assert expected_text.split()[0] in fake_llm.prompts[-1]
+
+    unified = client.post(
+        f"/groups/{group.id}/query",
+        json={
+            "question": "Summarize September release work",
+            "sources": ["github", "trello"],
+            "since": "2026-09-01",
+            "until": "2026-10-01",
+        },
+        headers=auth_header_for(owner.id),
+    )
+
+    assert unified.status_code == 200
+    results = unified.json()["results"]
+    assert results["github"]["stats"]["total_commits"] == 1
+    assert results["trello"]["stats"]["total_trello_actions"] == 1
+    assert all(
+        "October" not in item["text"]
+        for result in results.values()
+        for item in result["evidence"]
+    )
+
+
 def test_query_on_unlinked_source_is_404(
     client, db_session, make_user, make_group, auth_header_for
 ):

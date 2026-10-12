@@ -113,3 +113,98 @@ def test_conversation_window_over_limit_falls_back_to_ranked_search(
     assert response.status_code == 200
     assert response.json()["complete_window"] is False
     assert calls == {"since": date(2026, 9, 7), "until": None}
+
+
+def test_conversation_query_returns_transcript_stats_and_includes_them_in_prompt(
+    client, db_session, make_user, make_group, make_meeting, auth_header_for, monkeypatch, fake_llm
+):
+    from datetime import datetime
+
+    from backend.models import RawFile, RawFileType
+    from backend.project_rag import group_service
+    from backend.project_rag.group_service import CONVERSATION_SYSTEM_PROMPT
+
+    owner, group = _group_with_owner(db_session, make_user, make_group)
+    meeting = make_meeting(group, datetime(2026, 9, 14))
+    db_session.add(
+        RawFile(
+            meeting_id=meeting.id,
+            file_name="meeting.vtt",
+            type=RawFileType.TRANSCRIPT_PROVIDED,
+        )
+    )
+    db_session.commit()
+    hit = _chunk(meeting.id, "2026-09-14", 0, "Ada recommends adding a rollback switch.")
+    hit.update(meeting_title="Release Planning", meeting_id=str(meeting.id))
+    monkeypatch.setattr(group_service, "transcripts_in_window", lambda *args: [hit])
+    seen = {}
+
+    def load_stats(group_id, meeting_ids):
+        seen.update(group_id=group_id, meeting_ids=meeting_ids)
+        return [
+            {
+                "meeting_id": str(meeting.id),
+                "meeting_title": "Release Planning",
+                "meeting_date": "2026-09-14",
+                "total_duration_sec": 240.0,
+                "speakers": [
+                    {
+                        "speaker": "Ada",
+                        "total_duration_sec": 150.0,
+                        "total_words": 35,
+                        "turn_count": 3,
+                        "avg_words_per_turn": 11.7,
+                        "pct_of_meeting_time": 62.5,
+                    }
+                ],
+            }
+        ], []
+
+    monkeypatch.setattr(group_service, "load_transcript_stats", load_stats)
+
+    response = client.post(
+        f"/groups/{group.id}/conversation/query",
+        json={
+            "question": f"Who spoke most in meeting {meeting.id}, and how many turns did they take?",
+            "meeting_id": meeting.id,
+            "since": "2026-09-14",
+            "until": "2026-09-15",
+        },
+        headers=auth_header_for(owner.id),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["transcript_stats"]["complete"] is True
+    assert body["transcript_stats"]["speakers"][0]["speaker"] == "Ada"
+    assert body["transcript_stats"]["speakers"][0]["turn_count"] == 3
+    assert seen == {"group_id": group.id, "meeting_ids": [meeting.id]}
+    assert f"meeting_id={meeting.id}" in fake_llm.prompts[-1]
+    assert '"turn_count": 3' in fake_llm.prompts[-1]
+    assert "do not include the heading index or meeting ID in citations" in CONVERSATION_SYSTEM_PROMPT
+
+    monkeypatch.setattr(
+        group_service,
+        "load_transcript_stats",
+        lambda group_id, meeting_ids: ([{
+            "meeting_id": str(meeting.id),
+            "meeting_title": "Release Planning",
+            "meeting_date": "2026-09-14",
+            "total_duration_sec": 240.0,
+            "speakers": [],
+        }], [meeting.id]),
+    )
+    incomplete = client.post(
+        f"/groups/{group.id}/conversation/query",
+        json={
+            "question": f"How long was meeting {meeting.id}?",
+            "meeting_id": meeting.id,
+            "since": "2026-09-14",
+            "until": "2026-09-15",
+        },
+        headers=auth_header_for(owner.id),
+    )
+    assert incomplete.status_code == 200
+    incomplete_stats = incomplete.json()["transcript_stats"]
+    assert incomplete_stats["complete"] is False
+    assert incomplete_stats["missing_meeting_ids"] == [meeting.id]

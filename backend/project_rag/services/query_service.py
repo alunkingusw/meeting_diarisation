@@ -60,9 +60,13 @@ the evidence spans more than one contributor, break the answer down by \
 person rather than describing the team as a single unit.
 
 Rules:
-1. For any number - commit counts, totals, dates, who contributed how much - \
-use the PROJECT FACTS. They are computed over every record and are complete.
-2. Use the RETRIEVED EXTRACTS for qualitative detail: what was built, what \
+1. For any number - commit counts, totals, dates, who contributed how much - \\
+copy the matching value from PROJECT FACTS exactly. They are computed over \\
+every eligible database row for the stated query window and are authoritative. \\
+Never recount retrieved excerpts, infer additional records, or substitute \\
+all-time totals for the scoped facts. If facts and extracts appear to conflict, \\
+trust PROJECT FACTS for numbers and state the discrepancy only if relevant.
+2. Use the RETRIEVED EXTRACTS only for qualitative detail: what was built, what \\
 was discussed, what problems came up, and the substance/quality of each \
 contributor's work. Check its heading: if it says "a relevant sample", never \
 count them or treat their absence as proof something did not happen. If it \
@@ -165,6 +169,7 @@ def retrieve_chunks(
     repo: Repo,
     question: str,
     since: datetime | None = None,
+    until: datetime | None = None,
     sources: tuple[str, ...] = SOURCES,
 ) -> list[RetrievedChunk]:
     """
@@ -176,8 +181,8 @@ def retrieve_chunks(
 
     The repo's Chroma collections may be shared with other repos in the same
     group, so results are always scoped to this repo's own chunks via a
-    metadata filter. `since`, if given, additionally restricts results to
-    chunks timestamped on or after that instant.
+    metadata filter. `since` and `until`, if given, restrict timestamps to
+    the half-open interval [since, until).
 
     Which chunks make it into the sample is still decided by relevance
     (Chroma distance); only the order they're returned in is changed. Once
@@ -193,6 +198,8 @@ def retrieve_chunks(
     conditions: list[dict] = [{"repo_name": repo.name}]
     if since is not None:
         conditions.append({"timestamp": {"$gte": since.isoformat()}})
+    if until is not None:
+        conditions.append({"timestamp": {"$lt": until.isoformat()}})
     where = conditions[0] if len(conditions) == 1 else {"$and": conditions}
 
     content_types = [c for s in sources for c in SOURCE_CONTENT_TYPES[s]]
@@ -216,10 +223,14 @@ def retrieve_chunks(
 
 
 def _fetch_complete_window(
-    db: Session, repo: Repo, since: datetime, sources: tuple[str, ...] = SOURCES
+    db: Session,
+    repo: Repo,
+    since: datetime | None,
+    until: datetime | None,
+    sources: tuple[str, ...] = SOURCES,
 ) -> list[RetrievedChunk] | None:
     """
-    Read every commit/issue/comment in [since, now) for this repo directly
+    Read every commit/issue/comment in [since, until) for this repo directly
     from Postgres, formatted exactly as ingestion would have chunked it -
     see the README's "Future work" section for the motivation.
 
@@ -240,11 +251,19 @@ def _fetch_complete_window(
     """
     use_github = "github" in sources
     use_trello = "trello" in sources
+    def window(column):
+        conditions = []
+        if since is not None:
+            conditions.append(column >= since)
+        if until is not None:
+            conditions.append(column < until)
+        return conditions
+
     commits = db.scalars(
-        select(Commit).where(Commit.repo_id == repo.id, Commit.committed_at >= since)
+        select(Commit).where(Commit.repo_id == repo.id, *window(Commit.committed_at))
     ).all() if use_github else []
     issues = db.scalars(
-        select(Issue).where(Issue.repo_id == repo.id, Issue.created_at >= since)
+        select(Issue).where(Issue.repo_id == repo.id, *window(Issue.created_at))
     ).all() if use_github else []
     # IssueComment has no repo_id of its own - join to Issue for both the
     # repo scope and the GitHub issue number `chunk_issue_comment` needs,
@@ -252,13 +271,13 @@ def _fetch_complete_window(
     comment_rows = db.execute(
         select(IssueComment, Issue.github_issue_number)
         .join(Issue, IssueComment.issue_id == Issue.id)
-        .where(Issue.repo_id == repo.id, IssueComment.created_at >= since)
+        .where(Issue.repo_id == repo.id, *window(IssueComment.created_at))
     ).all() if use_github else []
     review_comments = db.scalars(
-        select(ReviewComment).where(ReviewComment.repo_id == repo.id, ReviewComment.created_at >= since)
+        select(ReviewComment).where(ReviewComment.repo_id == repo.id, *window(ReviewComment.created_at))
     ).all() if use_github else []
     trello_actions = db.scalars(
-        select(TrelloAction).where(TrelloAction.repo_id == repo.id, TrelloAction.created_at >= since)
+        select(TrelloAction).where(TrelloAction.repo_id == repo.id, *window(TrelloAction.created_at))
     ).all() if use_trello else []
 
     total = (
@@ -330,37 +349,42 @@ def answer_question(
     repo: Repo,
     question: str,
     since: date | None = None,
+    until: date | None = None,
     sources: tuple[str, ...] = SOURCES,
     label: str | None = None,
 ) -> QueryResult:
     """
     Answer a natural-language question about one repo's activity.
 
-    `since`, if given, scopes both the PROJECT FACTS and the RETRIEVED
-    EXTRACTS to activity on or after that date, so e.g. "what happened last
-    week" gets consistent facts and extracts rather than all-time totals
-    alongside a recent-only sample.
+    `since` and `until`, if given, scope both PROJECT FACTS and RETRIEVED
+    EXTRACTS to the half-open interval [since, until).
 
     Raises ValueError if nothing has been ingested for the repo yet -
     answering from an empty index would produce a confident "no activity"
     that actually means "you never ran /ingest".
     """
     since_dt = _since_to_datetime(since)
-    stats = collect_project_stats(db, repo, since=since_dt, sources=sources, label=label)
+    until_dt = _since_to_datetime(until)
+    stats = collect_project_stats(
+        db, repo, since=since_dt, until=until_dt, sources=sources, label=label
+    )
     if stats.is_empty:
         raise ValueError(
             f"No ingested {' or '.join(sources)} activity for this group"
-            + (" in that window" if since else "")
+            + (" in that window" if since or until else "")
             + ". Ingest it first."
         )
 
-    chunks = _fetch_complete_window(db, repo, since_dt, sources) if since_dt is not None else None
+    chunks = (
+        _fetch_complete_window(db, repo, since_dt, until_dt, sources)
+        if since_dt is not None or until_dt is not None else None
+    )
     used_complete_window = chunks is not None
     if chunks is None:
-        chunks = retrieve_chunks(repo, question, since=since_dt, sources=sources)
+        chunks = retrieve_chunks(repo, question, since=since_dt, until=until_dt, sources=sources)
 
     context, dropped = _build_context(chunks, settings.max_context_chars)
-    facts = format_stats_for_prompt(stats, sources)
+    facts = format_stats_for_prompt(stats, sources, since=since, until=until)
 
     # The budget can still trim a complete window (a large window near the
     # row limit can still overflow MAX_CONTEXT_CHARS) - only claim

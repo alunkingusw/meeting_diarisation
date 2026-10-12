@@ -1,14 +1,16 @@
 """Group-level orchestration: index sync, ingestion, and the per-source and unified query flows."""
 
+import json
 import logging
 from pathlib import Path
+from datetime import date, datetime, time
 
 from sqlalchemy.orm import Session
 
 from backend.config import settings
 from backend.jobs.service import submit_job
 from backend.llm.ollama_client import OllamaError, generate
-from backend.models import Group
+from backend.models import Group, Meeting, RawFile, RawFileType
 from backend.project_rag.models import Repo
 from backend.project_rag.schemas import (
     EvidenceItem,
@@ -17,6 +19,9 @@ from backend.project_rag.schemas import (
     QueryRequest,
     SourceName,
     SourceQueryResponse,
+    TranscriptMeetingStatsResponse,
+    TranscriptSpeakerStatsResponse,
+    TranscriptStatsResponse,
 )
 from backend.project_rag.services.ingest_service import (
     clone_and_count_commits,
@@ -25,7 +30,11 @@ from backend.project_rag.services.ingest_service import (
 )
 from backend.project_rag.services.query_service import answer_question
 from backend.project_rag.vectorstore import RetrievedChunk, collection_name, delete_repo_chunks
-from backend.transcript_rag.indexer import search_transcripts, transcripts_in_window
+from backend.transcript_rag.indexer import (
+    load_transcript_stats,
+    search_transcripts,
+    transcripts_in_window,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -176,7 +185,8 @@ def _query_provider_source(
 ) -> SourceQueryResponse:
     repo = get_or_create_repo(db, group)
     result = answer_question(
-        db, repo, request.question, since=request.since, sources=(source,), label=group.name
+        db, repo, request.question, since=request.since, until=request.until,
+        sources=(source,), label=group.name
     )
     return SourceQueryResponse(
         source=source,
@@ -192,18 +202,118 @@ def _query_provider_source(
 
 CONVERSATION_SYSTEM_PROMPT = (
     "You answer questions about a group's recorded meetings using ONLY the transcript "
-    "extracts provided, never a fact an extract does not directly support. Cite every factual "
-    "claim as [Meeting Title, YYYY-MM-DD, start time, Speaker] exactly as labelled on the "
-    "extract, and attribute statements to the speaker who made them. If the extracts do not "
-    "answer the question, say so plainly rather than guessing. Keep it to a few sentences."
+    "extracts provided for qualitative claims, and use the supplied TRANSCRIPT STATISTICS for "
+    "quantitative claims. Never estimate counts, durations, or percentages from retrieved chunks. "
+    "Only state a quantitative fact when statistics are marked complete for its scope; otherwise "
+    "say that the metric is unavailable or incomplete. Extract headings include the meeting ID; "
+    "use it to resolve meeting-specific questions, but do not include the heading index or meeting "
+    "ID in citations. Cite narrative claims using only the actual title, date, time, and speaker "
+    "values, for example [Release Planning, 2026-09-14, 00:00:00.000, Ada]. Never copy placeholders "
+    "such as 'Meeting Title' or 'YYYY-MM-DD'. Attribute statements to the speaker who made them. "
+    "If evidence does not answer the question, say so plainly rather than guessing. Keep it concise."
 )
+
+
+def _transcript_stats(
+    db: Session,
+    group: Group,
+    since: date | None,
+    until: date | None,
+    meeting_id: int | None,
+) -> TranscriptStatsResponse:
+    query = (
+        db.query(Meeting.id)
+        .join(RawFile, RawFile.meeting_id == Meeting.id)
+        .filter(
+            Meeting.group_id == group.id,
+            RawFile.type.in_([RawFileType.TRANSCRIPT_PROVIDED, RawFileType.TRANSCRIPT_GENERATED]),
+        )
+        .distinct()
+    )
+    if since is not None:
+        query = query.filter(Meeting.date >= datetime.combine(since, time.min))
+    if until is not None:
+        query = query.filter(Meeting.date < datetime.combine(until, time.min))
+    if meeting_id is not None:
+        query = query.filter(Meeting.id == meeting_id)
+    meeting_ids = sorted(row[0] for row in query.all())
+    records, missing_ids = load_transcript_stats(group.id, meeting_ids)
+
+    total_duration = sum(float(record.get("total_duration_sec", 0.0)) for record in records)
+    aggregate: dict[str, dict[str, float | int]] = {}
+    meeting_results: list[TranscriptMeetingStatsResponse] = []
+    for record in records:
+        meeting_duration = float(record.get("total_duration_sec", 0.0))
+        meeting_speakers: list[TranscriptSpeakerStatsResponse] = []
+        for speaker in record.get("speakers", []):
+            name = str(speaker["speaker"])
+            duration = float(speaker.get("total_duration_sec", 0.0))
+            words = int(speaker.get("total_words", 0))
+            turns = int(speaker.get("turn_count", 0))
+            meeting_speakers.append(
+                TranscriptSpeakerStatsResponse(
+                    speaker=name,
+                    total_duration_sec=duration,
+                    total_words=words,
+                    turn_count=turns,
+                    avg_words_per_turn=float(speaker.get("avg_words_per_turn", 0.0)),
+                    meeting_time_share_pct=float(speaker.get("pct_of_meeting_time", 0.0)),
+                    meetings_spoken=1,
+                )
+            )
+            totals = aggregate.setdefault(
+                name, {"duration": 0.0, "words": 0, "turns": 0, "meetings": 0}
+            )
+            totals["duration"] += duration
+            totals["words"] += words
+            totals["turns"] += turns
+            totals["meetings"] += 1
+
+        meeting_results.append(
+            TranscriptMeetingStatsResponse(
+                meeting_id=int(record["meeting_id"]),
+                meeting_title=str(record.get("meeting_title", "")),
+                meeting_date=date.fromisoformat(str(record["meeting_date"])[:10]),
+                total_duration_sec=meeting_duration,
+                speakers=meeting_speakers,
+            )
+        )
+
+    speaker_results = [
+        TranscriptSpeakerStatsResponse(
+            speaker=name,
+            total_duration_sec=float(values["duration"]),
+            total_words=int(values["words"]),
+            turn_count=int(values["turns"]),
+            avg_words_per_turn=(
+                round(int(values["words"]) / int(values["turns"]), 1)
+                if int(values["turns"]) else 0.0
+            ),
+            meeting_time_share_pct=(
+                round(float(values["duration"]) / total_duration * 100, 1)
+                if total_duration else 0.0
+            ),
+            meetings_spoken=int(values["meetings"]),
+        )
+        for name, values in sorted(
+            aggregate.items(), key=lambda item: float(item[1]["duration"]), reverse=True
+        )
+    ]
+    return TranscriptStatsResponse(
+        complete=bool(meeting_ids) and not missing_ids,
+        total_meetings=len(records),
+        total_duration_sec=total_duration,
+        missing_meeting_ids=missing_ids,
+        speakers=speaker_results,
+        meetings=meeting_results,
+    )
 
 
 def _format_transcript_hit(index: int, hit: dict) -> str:
     title = hit.get("meeting_title") or f"meeting {hit.get('meeting_id')}"
     date_part = str(hit.get("meeting_date") or "")[:10]
     return (
-        f"[{index}] {title}, {date_part}, {hit.get('start_ts', '?')}, "
+        f"[{index}] meeting_id={hit.get('meeting_id', '?')} | {title}, {date_part}, {hit.get('start_ts', '?')}, "
         f"{hit.get('speaker', 'unknown')}\n{hit.get('text', '')}"
     )
 
@@ -242,6 +352,8 @@ def _query_conversation(db: Session, group: Group, request: QueryRequest) -> Sou
     if not hits:
         raise ValueError("No indexed meeting transcripts match this question")
 
+    transcript_stats = _transcript_stats(db, group, since, until, meeting_id)
+
     if retrieve_only:
         return SourceQueryResponse(
             source="conversation",
@@ -250,6 +362,7 @@ def _query_conversation(db: Session, group: Group, request: QueryRequest) -> Sou
             model=None,
             evidence=[_evidence_from_transcript_hit(h) for h in hits],
             complete_window=complete,
+            transcript_stats=transcript_stats,
         )
 
     parts: list[str] = []
@@ -263,7 +376,11 @@ def _query_conversation(db: Session, group: Group, request: QueryRequest) -> Sou
 
     generated = generate(
         CONVERSATION_SYSTEM_PROMPT,
-        "TRANSCRIPT EXTRACTS:\n" + "\n\n".join(parts) + f"\n\nQUESTION: {request.question}",
+        "TRANSCRIPT STATISTICS (deterministic; scope and completeness are explicit):\n"
+        + json.dumps(transcript_stats.model_dump(mode="json"), ensure_ascii=False)
+        + "\n\nTRANSCRIPT EXTRACTS:\n"
+        + "\n\n".join(parts)
+        + f"\n\nQUESTION: {request.question}",
     )
 
     kept = hits[: len(parts)]
@@ -275,6 +392,7 @@ def _query_conversation(db: Session, group: Group, request: QueryRequest) -> Sou
         evidence=[_evidence_from_transcript_hit(h) for h in kept],
         truncated_evidence=len(hits) - len(kept),
         complete_window=complete and len(kept) == len(hits),
+        transcript_stats=transcript_stats,
     )
 
 

@@ -66,6 +66,7 @@ def _seed_project_rows(db_session, group, manifest):
 def _seed_transcript_chunks(monkeypatch, tmp_path, group, manifest):
     import chromadb
 
+    from backend.config import settings
     from backend.transcript_rag import vectorstore
     from backend.transcript_rag.indexer import meeting_date_ts
     from backend.transcript_rag.vtt_rag import process_vtt_file
@@ -80,7 +81,7 @@ def _seed_transcript_chunks(monkeypatch, tmp_path, group, manifest):
             file_path=str(FIXTURE_DIR / meeting["vtt_file"]),
             meeting_title=meeting["title"],
             meeting_date=meeting["date"],
-            output_dir=str(tmp_path / "processed_vtt"),
+            output_dir=str(settings.EMBEDDING_DIR / "transcripts" / str(group.id)),
             meeting_id=str(meeting["id"]),
         )
         chunks = [
@@ -152,6 +153,25 @@ def _compare_project_facts(case, capture, source):
     return {"expected": expected, "observed": observed, "matches": expected == observed}
 
 
+def _compare_transcript_facts(case, capture):
+    expected = case["expected_fact_values"]
+    stats = capture["body"].get("transcript_stats")
+    if not stats or not stats.get("complete"):
+        return {"expected": expected, "observed": None, "matches": False}
+    speaker = next(
+        (item for item in stats["speakers"] if item["speaker"] == expected["speaker"]),
+        None,
+    )
+    if speaker is None:
+        return {"expected": expected, "observed": None, "matches": False}
+    observed = {
+        "speaker": speaker["speaker"],
+        "talk_time_seconds": speaker["total_duration_sec"],
+        "meeting_time_percent": speaker["meeting_time_share_pct"],
+    }
+    return {"expected": expected, "observed": observed, "matches": expected == observed}
+
+
 def test_capture_live_query_baseline(
     client,
     db_session,
@@ -167,7 +187,7 @@ def test_capture_live_query_baseline(
     if not ollama_url:
         pytest.fail("Set OLLAMA_BASE_URL to the reachable Ollama host.")
 
-    from backend.models import Group, Meeting
+    from backend.models import Group, Meeting, RawFile, RawFileType
     from backend.project_rag.models import Repo
 
     manifest, cases = _load_fixture_data()
@@ -184,14 +204,24 @@ def test_capture_live_query_baseline(
         empty_group = Group(id=other_group["id"], name=other_group["name"])
         empty_group.users.append(owner)
         db_session.add(empty_group)
-    db_session.add_all(
-        [
-            Meeting(
+    meetings = [
+        Meeting(
                 id=meeting["id"],
                 group_id=group.id,
                 date=datetime.fromisoformat(f"{meeting['date']}T10:00:00"),
             )
             for meeting in manifest["meetings"]
+    ]
+    db_session.add_all(meetings)
+    db_session.flush()
+    db_session.add_all(
+        [
+            RawFile(
+                meeting_id=meeting.id,
+                file_name=f"meeting-{meeting.id}.vtt",
+                type=RawFileType.TRANSCRIPT_PROVIDED,
+            )
+            for meeting in meetings
         ]
     )
     db_session.commit()
@@ -240,6 +270,7 @@ def test_capture_live_query_baseline(
         {
             "question": cross_case["question"],
             "since": since_september,
+            "until": until_october,
             "sources": cross_case["expected_sources"],
         },
         auth_header,
@@ -314,11 +345,9 @@ def test_capture_live_query_baseline(
             "cross_source_mixed_github_stats": _compare_project_facts(
                 cross_case, captures["cross_source_mixed"], "unified"
             ),
-            "conversation_speaker_metrics": {
-                "expected": cases["conversation_speaker_metrics"]["expected_fact_values"],
-                "observed_structured_stats": captures["conversation_speaker_metrics"]["body"].get("stats"),
-                "matches": False,
-            },
+            "conversation_speaker_metrics": _compare_transcript_facts(
+                cases["conversation_speaker_metrics"], captures["conversation_speaker_metrics"]
+            ),
         },
         "not_captured": ["authorization_ambiguity", "unsupported", "partial_source_failure"],
     }
