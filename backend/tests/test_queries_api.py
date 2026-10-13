@@ -231,11 +231,8 @@ def test_unified_query_merges_sources(
     assert body["sources_used"] == ["github", "trello"]
     assert set(body["results"]) == {"github", "trello"}
     assert body["errors"] == {}
-    assert '"name": "commits"' in fake_llm.prompts[-1]
-    assert '"name": "trello_actions"' in fake_llm.prompts[-1]
-    assert "project_stats:repo=" in fake_llm.prompts[-1]
-    assert "SOURCE-SPECIFIC QUESTIONS" in fake_llm.prompts[-1]
-    assert "What did Alice commit?" in fake_llm.prompts[-1]
+    assert "GitHub findings:" in body["answer"]
+    assert "Trello findings:" in body["answer"]
     assert any("What did Alice commit?" in prompt for prompt in fake_llm.agent_prompts)
     assert any("What remains blocked?" in prompt for prompt in fake_llm.agent_prompts)
 
@@ -267,8 +264,8 @@ def test_unified_query_reports_partial_failure(
     body = response.json()
     assert body["sources_used"] == ["trello"]
     assert "github" in body["errors"]
-    assert "SOURCE FAILURES" in fake_llm.prompts[-1]
-    assert "github" in fake_llm.prompts[-1]
+    assert "Trello findings:" in body["answer"]
+    assert "Unavailable sources:\n- github: unavailable" in body["answer"]
 
 
 def test_unified_query_keeps_available_source_when_another_is_unlinked(
@@ -287,6 +284,7 @@ def test_unified_query_keeps_available_source_when_another_is_unlinked(
     body = response.json()
     assert body["sources_used"] == ["github"]
     assert "trello" in body["errors"]
+    assert "Unavailable sources:\n- trello: unavailable" in body["answer"]
 
 
 def test_unified_query_returns_service_unavailable_when_all_specialists_fail(

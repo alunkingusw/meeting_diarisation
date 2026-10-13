@@ -136,7 +136,7 @@ def test_transcript_specialist_keeps_scope_and_structured_results(monkeypatch):
     assert duration_fact.completeness == "complete"
     assert result.retrieval_metadata["transcript_stats_complete"] is True
     assert db.group_lookups[0][1] == 8
-    assert db.rollbacks == 2
+    assert db.rollbacks == 1
     assert captured["tool"].args_schema.model_fields == {}
 
 
@@ -151,6 +151,45 @@ def test_transcript_specialist_rejects_untrusted_source_scope(monkeypatch):
         specialists.run_transcript_specialist(db, context, request)
 
     assert db.group_lookups == []
+
+
+def test_parent_composition_context_preserves_evidence_ids_facts_and_failures():
+    from backend.engine.query_agent_schemas import QuantitativeFact, SpecialistQueryResult
+    from backend.engine.query_graph import _compose_source_answers
+
+    result = SpecialistQueryResult(
+        source="github",
+        question="How many September commits?",
+        answer="Ada made four commits.",
+        evidence=[
+            EvidenceItem(
+                id="group-8:commit-a1",
+                source_type="github",
+                author="Ada",
+                timestamp="2026-09-12T10:00:00Z",
+                text="Add release checklist",
+            )
+        ],
+        quantitative_facts=[
+            QuantitativeFact(
+                name="commits",
+                value=1,
+                unit="count",
+                scope={"group_id": 8, "since": "2026-09-01", "until": "2026-10-01"},
+                provenance=["sql:commits:repo=8"],
+                completeness="complete",
+            )
+        ],
+    )
+
+    answer = _compose_source_answers(
+        {"github": result}, {"trello": "source is not linked"}
+    )
+
+    assert "GitHub findings:" in answer
+    assert "Ada made four commits." in answer
+    assert "Evidence IDs: [group-8:commit-a1]" in answer
+    assert "Unavailable sources:\n- trello: unavailable" in answer
 
 
 @pytest.mark.parametrize(

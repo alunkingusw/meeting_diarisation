@@ -108,34 +108,44 @@ The post-fix capture is
 [`after_scope_stats_fixes.json`](../backend/tests/fixtures/query_agent_synthetic/after_scope_stats_fixes.json).
 Both use `llama3.1:8b` digest
 `46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e`. The post-fix capture records
-the request payloads, prompt hashes, retrieved evidence, and gold comparisons. It ran on a dirty
-working tree, so it validates behavior changes but is not the final clean-revision paper baseline.
-Authorization ambiguity, unsupported email intent, and partial-source failure remain uncaptured.
+the request payloads, prompt hashes, retrieved evidence, and gold comparisons. It was captured
+cleanly at revision `139770001ff505b0ecf16f8c357f155137e9320c`, before the specialist and parent
+query-agent commits. It is a valid pre-parent baseline, but not a live evaluation of the current
+parent workflow.
+
+The current-parent capture is
+[`current_parent_reviewed.json`](../backend/tests/fixtures/query_agent_synthetic/current_parent_reviewed.json).
+It was captured on 2026-10-13 against revision `ce37959ca6c8b8f2985e2c714bc7d5eae09265a5` using
+`llama3.1:8b` digest
+`46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e` (`Q4_K_M`). The capture
+includes Python/dependency versions, effective retrieval settings, prompt hashes, and the
+`deterministic_source_sections_v1` composition strategy. It is marked `working_tree_dirty: true`
+because the evaluated fixes and evaluation assertions were not committed. Treat it as a reviewed
+working-tree evaluation, not the final clean-revision paper baseline.
 
 ### Gap Status
 
-- **Project date bounds: fixed.** `until` is exclusive and scopes SQL facts, complete-window
-  retrieval, and Chroma filters. The live September GitHub and Trello counts and unified per-source
-  stats now match gold (4 records each; Ada 2, Ben 1, Cy 1).
-- **Transcript quantitative facts: fixed.** The conversation API returns persisted speaker stats
-  separately from transcript evidence and includes them in the prompt. Ada's 150 seconds, 62.5%
-  meeting share, and 3 turns match fixture truth.
-- **Meeting references: fixed in prompt/context.** Extract headings expose meeting IDs for
-  resolving questions, while citation instructions require actual title/date/time/speaker values.
-  The refreshed answer identifies the real meeting title and contains no placeholder citations.
-- **Numeric answer grounding: improved and observed.** The refreshed single-source GitHub answer
-  copies Ada 2, Ben 1, Cy 1, and the unified answer also matches those values. All four structured
-  gold comparisons pass. The captured transcript answers use the correct meeting title and no
-  placeholder citation strings.
-- **Cross-source synthesis/citation quality: still needs evaluation.** The unified answer gives
-  correct contributor counts and identifies the two source domains, but redundantly explains source
-  boundaries and refers to retrieved items by ordinal indices rather than stable evidence IDs.
-  Track this for parent-agent synthesis and citation-quality work, not as a retrieval/statistics
-  failure.
-- **Still uncaptured:** authorization ambiguity, unsupported email intent, and partial-source
-  failure. The current agent workflows are not implemented in this baseline harness.
+- **Fixture truth and numeric comparisons: pass.** Offline fixture tests validate VTT statistics
+  and project aggregates. All four current-parent gold comparisons pass: September GitHub/Trello
+  totals and contributors, unified GitHub totals, and transcript speaker duration/share.
+- **Source selection, attribution, and citations: pass on the synthetic current-parent run.** The
+  cross-source request selected conversation and GitHub, returned the expected evidence set, and
+  included every expected stable evidence ID. Multi-source answers now preserve the specialists'
+  answers in deterministic source sections instead of asking another model to rewrite their facts.
+- **Partial-source behavior: pass live.** With Trello deliberately unlinked, the API returned the
+  transcript findings and an explicit Trello-unavailable notice; the failing source was not treated
+  as evidence of absence.
+- **Email trust boundaries: pass offline; email intent is intentionally not evaluated live.** The
+  sender chose not to include live email-intent model scoring. Deterministic authentication,
+  validation, prompt-injection, cancellation, and API-parity tests remain the gate for that path.
+- **Not captured live:** authorization ambiguity and unsupported email intent. These are application
+  authorization/parser concerns, have offline coverage, and are intentionally outside this live
+  model evaluation.
+- **Still open:** repeat the reviewed capture from a clean committed revision before treating it as
+  the reproducible baseline. The transcript fixture uses date-bounded complete-window retrieval;
+  its zero vectors are not used for similarity ranking, so semantic retrieval quality, latency, and
+  resource use need separate evaluation.
 
-The transcript fixture uses a complete date-bounded Chroma read; its zero vectors are not used for
-similarity ranking. A separate evaluation is required for semantic retrieval quality. Capture all
-remaining cases on a clean, identified revision before claiming a final academic baseline; keep the
-pre-fix and post-fix snapshots separate.
+Keep the pre-fix, pre-parent, and current-parent snapshots separate. The current live test is
+`backend/tests/test_query_agent_live_baseline.py`; it asserts numeric gold, selected sources,
+stable cross-source citations, and partial-source degradation before writing the artifact.

@@ -1,13 +1,11 @@
 """Parent query workflow: select authorized specialists, delegate, and compose their evidence."""
 from __future__ import annotations
 
-import json
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.orm import Session
 
-from backend.config import settings
 from backend.engine.query_agent_schemas import (
     QueryFilters,
     SpecialistQueryResult,
@@ -38,15 +36,6 @@ ROUTER_SYSTEM_PROMPT = (
     "comma-separated. If unsure, include every listed source."
 )
 
-COMPOSE_SYSTEM_PROMPT = (
-    "You merge answers and structured evidence from specialists for one project group. Keep "
-    "source boundaries clear, cite only the stable evidence IDs supplied under that source, "
-    "and use quantitative facts only from the matching source's deterministic facts. Never "
-    "estimate counts from sampled excerpts or combine facts with incompatible scopes. Mention "
-    "any requested source listed under SOURCE FAILURES as unavailable; do not imply it was checked."
-)
-
-
 class UnifiedState(TypedDict, total=False):
     sources: list[SourceName]
     specialist_results: dict[str, SpecialistQueryResult]
@@ -71,56 +60,23 @@ def infer_sources(question: str, available: list[SourceName]) -> list[SourceName
     return chosen or available
 
 
-def _format_specialist_context(
+def _compose_source_answers(
     results: dict[str, SpecialistQueryResult],
     errors: dict[str, str],
-    max_chars: int,
 ) -> str:
-    failure_context = ""
-    if errors:
-        failure_lines = ["SOURCE FAILURES (requested sources that could not be checked):"]
-        failure_lines.extend(f"- {source}: {message}" for source, message in errors.items())
-        failure_context = "\n".join(failure_lines)
-
-    available_chars = max(0, max_chars - len(failure_context) - (2 if failure_context else 0))
-    per_source_budget = available_chars // max(1, len(results))
     sections: list[str] = []
     for source, result in results.items():
-        lines = [f"SOURCE: {source}", "SPECIALIST ANSWER:", result.answer[: per_source_budget // 3]]
-        lines.append("DETERMINISTIC FACTS:")
-        lines.append(
-            json.dumps(
-                [fact.model_dump(mode="json") for fact in result.quantitative_facts],
-                ensure_ascii=False,
-            )
-        )
-        used = sum(len(line) for line in lines)
-        lines.append("CITED EVIDENCE:")
-        used += len(lines[-1])
-        omitted = 0
-        for evidence in result.evidence:
-            prefix = (
-                f"[{evidence.id}] {evidence.source_type} "
-                f"author={evidence.author or 'unknown'} timestamp={evidence.timestamp or 'unknown'}: "
-            )
-            remaining = per_source_budget - used - len(prefix)
-            if remaining <= 0:
-                omitted += 1
-                continue
-            excerpt = evidence.text[:remaining]
-            line = prefix + excerpt
-            if len(excerpt) < len(evidence.text):
-                line += " [truncated]"
-                omitted += 1
-            lines.append(line)
-            used += len(line)
-        if omitted:
-            lines.append(f"Additional evidence items omitted or truncated: {omitted}")
+        source_label = {"github": "GitHub", "trello": "Trello"}.get(source, source.title())
+        lines = [f"{source_label} findings:", result.answer.strip()]
+        if result.evidence:
+            evidence_ids = ", ".join(f"[{item.id}]" for item in result.evidence)
+            lines.append(f"Evidence IDs: {evidence_ids}")
         sections.append("\n".join(lines))
-    context = "\n\n".join(sections)[:available_chars]
-    if failure_context:
-        context = f"{context}\n\n{failure_context}"
-    return context[:max_chars]
+    if errors:
+        unavailable = ["Unavailable sources:"]
+        unavailable.extend(f"- {source}: unavailable" for source in errors)
+        sections.append("\n".join(unavailable))
+    return "\n\n".join(sections)
 
 
 def build_unified_graph(
@@ -154,7 +110,6 @@ def build_unified_graph(
                 "github": run_github_specialist,
                 "trello": run_trello_specialist,
             }[source]
-            db.rollback()
             try:
                 source_request = specialist_request.model_copy(
                     update={
@@ -181,27 +136,9 @@ def build_unified_graph(
     def compose(state: UnifiedState) -> UnifiedState:
         specialist_results = state["specialist_results"]
         results, errors = state["results"], state["errors"]
-        if len(results) == 1 and not errors:
-            only = next(iter(results.values()))
-            answer, model = only.answer, only.model
-        else:
-            source_context = _format_specialist_context(
-                specialist_results, errors, settings.max_context_chars
-            )
-            source_question_context = "\n".join(
-                f"{source}: {question}"
-                for source, question in request.source_questions.items()
-            )
-            composed = generate(
-                COMPOSE_SYSTEM_PROMPT,
-                f"{source_context}\n\nQUESTION: {request.question}"
-                + (
-                    f"\n\nSOURCE-SPECIFIC QUESTIONS:\n{source_question_context}"
-                    if source_question_context
-                    else ""
-                ),
-            )
-            answer, model = composed.text, composed.model
+        answer = _compose_source_answers(specialist_results, errors)
+        models = {result.model for result in specialist_results.values() if result.model}
+        model = next(iter(models)) if len(models) == 1 else None
         return {
             "response": UnifiedQueryResponse(
                 question=request.question,

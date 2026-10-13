@@ -75,11 +75,15 @@ An initial live API answer/evidence capture now exists at
 [`baseline_outputs.json`](../backend/tests/fixtures/query_agent_synthetic/baseline_outputs.json).
 The post-fix capture is at
 [`after_scope_stats_fixes.json`](../backend/tests/fixtures/query_agent_synthetic/after_scope_stats_fixes.json).
-The exclusive project date bound and transcript stats now match synthetic gold in live API checks.
-All four captured numeric comparisons pass, and transcript citations no longer use placeholders.
-The post-fix run is still exploratory because it used a dirty worktree, omits email-intent and
-partial-source cases, and shows residual evidence-index citation quality in cross-source prose; see
-the evaluation note before closing this phase.
+The current-parent capture is
+[`current_parent_reviewed.json`](../backend/tests/fixtures/query_agent_synthetic/current_parent_reviewed.json),
+recorded on 2026-10-13 with `llama3.1:8b`. All four numeric comparisons pass; the cross-source case
+returns its expected sources and stable evidence IDs; and a live partial-source case preserves
+available findings while naming the unavailable source. Multi-source parent output now uses
+deterministic source sections rather than a final LLM rewrite. The capture is marked dirty because
+these fixes are uncommitted; repeat it from a clean revision before treating it as the paper
+baseline. Offline trust-boundary tests pass; live email intent was intentionally excluded. See the
+[evaluation note](query-agent-evaluation.md).
 
 - Specify common specialist input/output schemas: authorized group context, question, source
   filters, answer, quantitative facts, evidence IDs/metadata, errors, and model/retrieval metadata.
@@ -94,8 +98,9 @@ the evaluation note before closing this phase.
 - Pin/record model, embedding, framework, prompt, chunking, and retrieval configuration needed
   to reproduce results.
 
-**Exit gate:** contracts, threat model, and baseline cases are reviewed before agent behavior is
-introduced.
+**Exit gate status:** contracts, threat boundaries, synthetic fixture truth, the pre-parent baseline,
+and an asserted current-parent working-tree evaluation are recorded. Repeat from a clean committed
+revision and run separate semantic-retrieval and performance evaluations before the academic gate.
 
 ### 2. Implement the three specialist query agents
 
@@ -120,8 +125,10 @@ unified route delegates through the parent LangGraph described in Phase 3.
 - Keep existing API response shapes stable while routing each source endpoint through its
   specialist.
 
-**Exit gate:** per-source API tests preserve authorization, evidence contracts, and baseline
-retrieval/answer quality; no write operation is reachable from a specialist.
+**Exit gate status:** offline API/specialist tests cover authorization, evidence contracts, source
+scope, and the read-only allowlist. The synthetic live capture verifies numeric facts and evidence
+for the current specialists using complete-window retrieval; semantic similarity ranking remains
+unverified.
 
 ### 3. Add the parent query agent
 
@@ -137,8 +144,11 @@ schema.
 - Record selected sources, specialist inputs/outputs, evidence, failures, and final composition
   for audit and evaluation.
 
-**Exit gate:** cross-source answers preserve source attribution, surface unavailable sources, and
-pass the evaluation set against the current unified-query baseline.
+**Exit gate status:** offline and live synthetic checks verify source selection, source-labeled
+answers, stable evidence IDs, exact numeric facts, and partial/total source failure handling. The
+parent assembles specialist responses deterministically to prevent a second model pass from
+rewriting quantitative facts. A clean committed-revision capture remains required for the final
+baseline.
 
 ### 4. Route validated email queries through the parent
 
@@ -159,8 +169,10 @@ delivery boundary.
 - Test spoofing/prompt injection, unauthorized and ambiguous groups, unsupported requests,
   source failures, cancellation, and equivalent API-versus-email query behavior.
 
-**Exit gate:** no agent runs before authentication/validation, and email cannot expand the
-permitted operation set or source scope.
+**Exit gate status:** offline tests cover authentication, prompt-injection containment, deterministic
+validation, cancellation, partial-source handling, and API parity. Per the agreed evaluation scope,
+email-intent model scoring is not run live; the email workflow delegates answer generation to the
+parent evaluated in Phase 3.
 
 ### 5. Persist follow-up conversation state
 

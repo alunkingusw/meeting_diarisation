@@ -4,7 +4,9 @@ Run only when explicitly enabled; ordinary tests never call Ollama or write a ba
 """
 import json
 import hashlib
+import importlib.metadata
 import os
+import platform
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -272,6 +274,7 @@ def test_capture_live_query_baseline(
             "since": since_september,
             "until": until_october,
             "sources": cross_case["expected_sources"],
+            "source_questions": cross_case["source_questions"],
         },
         auth_header,
     )
@@ -288,6 +291,21 @@ def test_capture_live_query_baseline(
         auth_header,
     )
 
+    partial_case = cases["partial_source_failure"]
+    group.trello_board_id = None
+    db_session.commit()
+    captures["partial_source_failure"] = _capture(
+        client,
+        f"/groups/{group.id}/query",
+        {
+            "question": partial_case["question"],
+            **partial_case["filters"],
+            "sources": partial_case["expected_sources"],
+            "source_questions": partial_case["source_questions"],
+        },
+        auth_header,
+    )
+
     failed = {
         case_id: result
         for case_id, result in captures.items()
@@ -296,7 +314,7 @@ def test_capture_live_query_baseline(
     assert not failed, f"Live baseline calls failed: {failed}"
 
     from backend.config import settings
-    from backend.engine.query_graph import COMPOSE_SYSTEM_PROMPT, ROUTER_SYSTEM_PROMPT
+    from backend.engine.query_graph import ROUTER_SYSTEM_PROMPT
     from backend.project_rag.group_service import CONVERSATION_SYSTEM_PROMPT
     from backend.project_rag.services.query_service import SYSTEM_PROMPT as PROJECT_SYSTEM_PROMPT
     import httpx
@@ -321,19 +339,41 @@ def test_capture_live_query_baseline(
         "captured_at": datetime.now(timezone.utc).isoformat(),
         "code_revision": revision,
         "working_tree_dirty": working_tree_dirty,
+        "python_version": platform.python_version(),
         "ollama_endpoint_redacted": True,
         "ollama_model": settings.ollama_model,
         "ollama_model_digest": model_info.get("digest"),
         "ollama_quantization": (model_info.get("details") or {}).get("quantization_level"),
         "ollama_temperature": settings.ollama_temperature,
         "transcript_embedding_model": settings.TRANSCRIPT_EMBEDDING_MODEL_NAME,
+        "transcript_embedding_device": settings.TRANSCRIPT_EMBEDDING_DEVICE,
         "transcript_retrieval_mode": "date-bounded complete Chroma window; fixture vectors are not used for similarity",
+        "effective_retrieval_settings": {
+            "retrieval_top_k": settings.retrieval_top_k,
+            "max_context_chars": settings.max_context_chars,
+            "project_complete_window_limit": settings.complete_retrieval_row_limit,
+            "transcript_window_chunk_limit": settings.transcript_window_chunk_limit,
+        },
+        "dependency_versions": {
+            name: importlib.metadata.version(name)
+            for name in (
+                "fastapi",
+                "sqlalchemy",
+                "pydantic",
+                "langchain",
+                "langchain-core",
+                "langchain-ollama",
+                "langgraph",
+                "chromadb",
+                "sentence-transformers",
+            )
+        },
         "prompt_sha256": {
             "conversation": hashlib.sha256(CONVERSATION_SYSTEM_PROMPT.encode()).hexdigest(),
             "project": hashlib.sha256(PROJECT_SYSTEM_PROMPT.encode()).hexdigest(),
             "router": hashlib.sha256(ROUTER_SYSTEM_PROMPT.encode()).hexdigest(),
-            "composer": hashlib.sha256(COMPOSE_SYSTEM_PROMPT.encode()).hexdigest(),
         },
+        "composition_strategy": "deterministic_source_sections_v1",
         "cases": captures,
         "gold_comparisons": {
             "github_activity_counts": _compare_project_facts(
@@ -349,8 +389,35 @@ def test_capture_live_query_baseline(
                 cases["conversation_speaker_metrics"], captures["conversation_speaker_metrics"]
             ),
         },
-        "not_captured": ["authorization_ambiguity", "unsupported", "partial_source_failure"],
+        "not_captured": ["authorization_ambiguity", "unsupported"],
     }
+    failed_gold = [
+        name for name, comparison in artifact["gold_comparisons"].items()
+        if not comparison["matches"]
+    ]
+    assert not failed_gold, f"Numeric gold comparisons failed: {failed_gold}"
+
+    cross_body = captures["cross_source_mixed"]["body"]
+    assert cross_body["sources_used"] == cross_case["expected_sources"]
+    assert "Conversation findings:" in cross_body["answer"]
+    assert "GitHub findings:" in cross_body["answer"]
+    cross_evidence_ids = {
+        item["id"]
+        for result in cross_body["results"].values()
+        for item in result["evidence"]
+    }
+    assert set(cross_case["expected_evidence_ids"]) <= cross_evidence_ids
+    assert all(
+        f"[{evidence_id}]" in cross_body["answer"]
+        for evidence_id in cross_case["expected_evidence_ids"]
+    )
+
+    partial_body = captures["partial_source_failure"]["body"]
+    assert partial_body["sources_used"] == ["conversation"]
+    assert "trello" in partial_body["errors"]
+    assert "Conversation findings:" in partial_body["answer"]
+    assert "Unavailable sources:\n- trello: unavailable" in partial_body["answer"]
+
     output_path = Path(output_value)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(artifact, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

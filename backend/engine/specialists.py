@@ -223,31 +223,25 @@ def run_transcript_specialist(
     if source not in available_sources(group):
         raise ValueError("This group has no transcript source linked")
 
-    source_result: SourceQueryResponse | None = None
-    source_error: Exception | None = None
+    try:
+        source_result = query_source(
+            db,
+            group,
+            source,
+            ConversationQueryRequest(
+                question=request.question,
+                since=request.filters.since,
+                until=request.filters.until,
+                meeting_id=request.filters.meeting_id,
+                retrieve_only=True,
+            ),
+        )
+    finally:
+        db.rollback()
 
     @tool
     def retrieve_transcript_evidence() -> str:
         """Retrieve transcript evidence within the application's authorized group and filters."""
-        nonlocal source_result, source_error
-        db.rollback()
-        try:
-            source_result = query_source(
-                db,
-                group,
-                source,
-                ConversationQueryRequest(
-                    question=request.question,
-                    since=request.filters.since,
-                    until=request.filters.until,
-                    meeting_id=request.filters.meeting_id,
-                    retrieve_only=True,
-                ),
-            )
-        except (OllamaError, PermissionError, ValueError) as exc:
-            source_error = exc
-            raise
-        db.rollback()
         return source_result.model_dump_json()
 
     agent = create_agent(
@@ -256,10 +250,6 @@ def run_transcript_specialist(
         system_prompt=_TRANSCRIPT_SYSTEM_PROMPT,
     )
     answer = _invoke_agent(agent, request.question, source)
-    if source_result is None:
-        if source_error is not None:
-            raise source_error
-        raise SpecialistModelError("Transcript specialist did not retrieve source evidence")
 
     return SpecialistQueryResult(
         source=source,
@@ -300,51 +290,45 @@ def _run_project_specialist(
     if source not in available_sources(group):
         raise ValueError(f"This group has no {source} source linked")
 
-    source_result: SourceQueryResponse | None = None
-    source_error: Exception | None = None
+    try:
+        repo = db.query(Repo).filter(Repo.group_id == group.id).one_or_none()
+        if repo is None:
+            raise ValueError(f"No ingested {source} activity for this group. Ingest it first.")
+        retrieved = retrieve_question(
+            db,
+            repo,
+            request.question,
+            since=request.filters.since,
+            until=request.filters.until,
+            sources=(source,),
+            label=group.name,
+        )
+        source_result = SourceQueryResponse(
+            source=source,
+            question=request.question,
+            answer="",
+            evidence=[
+                EvidenceItem(
+                    id=chunk.chunk_id,
+                    source_type=chunk.source_type,
+                    author=chunk.author,
+                    timestamp=chunk.timestamp,
+                    distance=chunk.distance,
+                    text=chunk.text,
+                    metadata=chunk.metadata,
+                )
+                for chunk in retrieved.sources
+            ],
+            truncated_evidence=retrieved.truncated_sources,
+            complete_window=retrieved.complete_window,
+            stats=ProjectStatsResponse.model_validate(retrieved.stats),
+        )
+    finally:
+        db.rollback()
 
     @tool
     def retrieve_project_evidence() -> str:
         """Retrieve this source's evidence and deterministic stats within trusted filters."""
-        nonlocal source_result, source_error
-        db.rollback()
-        try:
-            repo = db.query(Repo).filter(Repo.group_id == group.id).one_or_none()
-            if repo is None:
-                raise ValueError(f"No ingested {source} activity for this group. Ingest it first.")
-            retrieved = retrieve_question(
-                db,
-                repo,
-                request.question,
-                since=request.filters.since,
-                until=request.filters.until,
-                sources=(source,),
-                label=group.name,
-            )
-            source_result = SourceQueryResponse(
-                source=source,
-                question=request.question,
-                answer="",
-                evidence=[
-                    EvidenceItem(
-                        id=chunk.chunk_id,
-                        source_type=chunk.source_type,
-                        author=chunk.author,
-                        timestamp=chunk.timestamp,
-                        distance=chunk.distance,
-                        text=chunk.text,
-                        metadata=chunk.metadata,
-                    )
-                    for chunk in retrieved.sources
-                ],
-                truncated_evidence=retrieved.truncated_sources,
-                complete_window=retrieved.complete_window,
-                stats=ProjectStatsResponse.model_validate(retrieved.stats),
-            )
-        except (OllamaError, PermissionError, ValueError) as exc:
-            source_error = exc
-            raise
-        db.rollback()
         return source_result.model_dump_json()
 
     agent = create_agent(
@@ -353,10 +337,6 @@ def _run_project_specialist(
         system_prompt=_PROJECT_SYSTEM_PROMPT,
     )
     answer = _invoke_agent(agent, request.question, source)
-    if source_result is None:
-        if source_error is not None:
-            raise source_error
-        raise SpecialistModelError(f"{source.title()} specialist did not retrieve source evidence")
 
     return SpecialistQueryResult(
         source=source,

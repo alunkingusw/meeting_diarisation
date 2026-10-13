@@ -74,6 +74,10 @@
     "fixture_dataset_id": "query_agent_synthetic_v1",
     "fixture_meeting_id": 12,
     "filters": {"since": "2026-09-01", "until": "2026-10-01"},
+    "source_questions": {
+      "conversation": "What release decision is recorded in the meeting transcript?",
+      "github": "How many commits did each contributor make in September?"
+    },
     "expected_sources": ["conversation", "github"],
     "expected_facts": ["contributor_commit_count"],
     "expected_fact_values": {"total_commits": 4, "contributors": {"Ada": 2, "Ben": 1, "Cy": 1}},
@@ -127,6 +131,11 @@
     "question": "What was discussed about the launch, and what related Trello work was completed?",
     "fixture_dataset_id": "query_agent_synthetic_v1",
     "fixture_meeting_id": 13,
+    "filters": {"since": "2026-09-01", "until": "2026-10-01"},
+    "source_questions": {
+      "conversation": "What did the Launch Review say about the delayed worker?",
+      "trello": "What Trello work was completed for the launch review?"
+    },
     "expected_sources": ["conversation", "trello"],
     "expected_facts": [],
     "requires_clarification": false,
