@@ -184,11 +184,13 @@ job link. Completed turns also persist a metadata-only ledger entry with resolve
 sources, failed sources, model ID, and stable evidence references. The ledger deliberately does not
 duplicate email bodies, answers, or evidence text. Follow-ups reuse ancestry only from a completed,
 group-resolved query; each one authenticates and resolves its group afresh, and starts a new
-conversation if the group differs. Prior answers/evidence are not yet loaded into prompts.
+conversation if the group differs. Tests cover restart through a new store instance, legacy schema
+migration, thread continuation, and sender/user/group isolation. Prior answers/evidence are not yet
+loaded into prompts.
 
-- Add durable conversation/turn records linked to authenticated sender, authorized group, and
-  email message/thread IDs. Keep this application-owned store authoritative; LangGraph
-  checkpoints may support execution recovery but are not the only record.
+- Define an explicit retention/privacy policy before storing user questions or generated answers.
+  The current ledger is metadata-only and links through the authenticated job record; do not add
+  duplicated message or evidence text by default.
 - Persist each user query, selected specialists, evidence references/snapshots, answer, and
   relevant model/prompt versions. Apply retention and privacy rules to message content.
 - Let follow-ups reuse prior context only within the same authorized conversation, and re-query
@@ -197,8 +199,10 @@ conversation if the group differs. Prior answers/evidence are not yet loaded int
 - Add API conversation identifiers for clients that need multi-turn queries; keep one-shot source
   endpoints usable without conversation state.
 
-**Exit gate:** tests cover email threading, API continuation, restart/recovery, ownership
-isolation, evidence traceability, and stale-data behavior.
+**Exit gate status:** email ancestry and metadata persistence, migration/restart reads, ownership
+isolation, evidence references, and group-boundary splitting are covered. API continuation,
+retention-controlled question/answer history, prompt context reuse, and stale-data behavior remain
+open.
 
 ### 6. Evaluate, roll out, and document
 
