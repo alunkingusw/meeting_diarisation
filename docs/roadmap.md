@@ -164,6 +164,12 @@ permitted operation set or source scope.
 
 ### 5. Persist follow-up conversation state
 
+Current groundwork: email query jobs now persist a conversation ID and a sender-owned parent query
+job link. Every follow-up still authenticates and resolves its group afresh, and is assigned a new
+conversation ID if the resolved group differs. Previous answers/evidence are not yet replayed into
+the parent prompt; this keeps each query evidence-fresh while the retention and context policy is
+designed.
+
 - Add durable conversation/turn records linked to authenticated sender, authorized group, and
   email message/thread IDs. Keep this application-owned store authoritative; LangGraph
   checkpoints may support execution recovery but are not the only record.

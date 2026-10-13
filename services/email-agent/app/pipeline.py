@@ -236,6 +236,7 @@ class EmailProcessingPipeline:
             job_id = self._dispatch(
                 validated, msg, sender_email, sender_user_id,
                 msg.message_id, _reply_references(msg),
+                thread_job_id=thread_job_id,
             )
         except ClarificationRequired as e:
             self._reply_and_finalize(
@@ -258,7 +259,7 @@ class EmailProcessingPipeline:
 
     def _dispatch(
         self, validated, msg: EmailMessage, sender_email: str, sender_user_id: int | None,
-        in_reply_to: str, references: str,
+        in_reply_to: str, references: str, thread_job_id: Optional[str] = None,
     ) -> Optional[str]:
         """The explicit, finite dispatch (spec S17) - deliberately not a generic
         operation-name-to-callable lookup, so the full set of possible actions is visible here."""
@@ -299,6 +300,7 @@ class EmailProcessingPipeline:
                 validated, sender_email, sender_user_id, msg.message_id, self._job_store,
                 self._outbox, in_reply_to, references,
                 original_subject=msg.subject, original_body_text=msg.body_text,
+                thread_job_id=thread_job_id,
             )
         elif validated.operation == Operation.ADD_COMMENT:
             outcome = add_comment_handler.accept(

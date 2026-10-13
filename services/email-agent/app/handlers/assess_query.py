@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+from uuid import uuid4
 
 from app.admin.notifier import AdminCategory, AdminNotifier
 from app.commands.validator import ValidatedCommand
@@ -68,7 +69,23 @@ def accept(
     references: Optional[str] = None,
     original_subject: Optional[str] = None,
     original_body_text: Optional[str] = None,
+    thread_job_id: Optional[str] = None,
 ) -> HandlerOutcome:
+    parent_job = (
+        job_store.get_owned(thread_job_id, sender_email) if thread_job_id else None
+    )
+    if (
+        parent_job is not None
+        and parent_job.operation == "assess_query"
+        and backend_user_id is not None
+        and parent_job.backend_user_id == backend_user_id
+    ):
+        conversation_id = parent_job.query_conversation_id or str(uuid4())
+        parent_query_job_id = parent_job.job_id
+    else:
+        conversation_id = str(uuid4())
+        parent_query_job_id = None
+
     job = job_store.create_job(
         sender_email,
         backend_user_id,
@@ -80,6 +97,8 @@ def accept(
         trello_focus=validated_cmd.trello_focus,
         original_subject=original_subject,
         original_body_text=original_body_text,
+        query_conversation_id=conversation_id,
+        query_parent_job_id=parent_query_job_id,
     )
     job_store.set_status(job.job_id, JobState.VALIDATING)
     job_store.set_status(job.job_id, JobState.QUEUED)
@@ -124,6 +143,24 @@ def execute(
             return
 
         group = match.group
+        job_store.update(
+            job.job_id,
+            resolved_group_id=group.id,
+            resolved_group_name=group.name,
+        )
+        if job.query_parent_job_id:
+            parent_job = job_store.get_owned(job.query_parent_job_id, job.sender_email)
+            if (
+                parent_job is None
+                or parent_job.operation != "assess_query"
+                or parent_job.backend_user_id != job.backend_user_id
+                or (
+                    parent_job.resolved_group_id is not None
+                    and parent_job.resolved_group_id != group.id
+                )
+            ):
+                job_store.update(job.job_id, query_conversation_id=str(uuid4()))
+
         track = lambda backend_job_id: job_store.update(job.job_id, backend_job_id=backend_job_id)  # noqa: E731
         source_questions = {
             name: focus

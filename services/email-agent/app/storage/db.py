@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     trello_focus TEXT,
     comment_text TEXT,
     backend_job_id TEXT,
+    query_conversation_id TEXT,
+    query_parent_job_id TEXT,
     error TEXT,
     retry_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -126,6 +128,10 @@ def init_db(db_path: Path) -> None:
         if "comment_text" not in columns:
             conn.execute("ALTER TABLE jobs ADD COLUMN comment_text TEXT")
             columns.add("comment_text")
+        for column in ("query_conversation_id", "query_parent_job_id"):
+            if column not in columns:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
+                columns.add(column)
         for column in ("original_subject", "original_body_text"):
             if column not in columns:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
@@ -164,6 +170,8 @@ def init_db(db_path: Path) -> None:
                     trello_focus TEXT,
                     comment_text TEXT,
                     backend_job_id TEXT,
+                    query_conversation_id TEXT,
+                    query_parent_job_id TEXT,
                     error TEXT,
                     retry_count INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,

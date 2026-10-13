@@ -605,7 +605,7 @@ def test_assess_query_end_to_end_sends_ack_then_answer(db_path: Path, tmp_path: 
     assert job.transcript_focus == "mentions of the API redesign"
     assert job.github_focus == "open API issues"
 
-    worker, _ = _worker(
+    worker, diarisation = _worker(
         job_store, storage, outbox, admin, groups=[GroupSummary(id=1, name="Team A")],
         transcript_chunks=[],
         source_answers={"github": "Alice opened issue #12 about the API redesign."},
@@ -614,9 +614,29 @@ def test_assess_query_end_to_end_sends_ack_then_answer(db_path: Path, tmp_path: 
     pipeline.flush_outbox()
 
     assert job_store.get(job.job_id).status == JobState.COMPLETED
+    assert job_store.get(job.job_id).resolved_group_id == 1
     assert len(mail.sent) == 2
     body = mail.sent[1].body_text
     assert "Alice opened issue #12 about the API redesign." in body
+
+    followup_message = make_test_email(
+        "alice@uni.ac.uk",
+        body_text="What about the related GitHub issues?",
+        auth_signals=PASS,
+        in_reply_to=mail.sent[1].id,
+        references=mail.sent[1].id,
+    )
+    mail.add_message(followup_message)
+    pipeline.poll_once()
+    pipeline.flush_outbox()
+
+    followup_job = job_store.list_queued()[0]
+    assert followup_job.query_parent_job_id == job.job_id
+    assert followup_job.query_conversation_id == job.query_conversation_id
+
+    worker.run_once()
+    assert job_store.get(followup_job.job_id).status == JobState.COMPLETED
+    assert len(diarisation.queries) == 2
 
 
 def test_assess_query_with_no_sources_sends_clarification(db_path: Path, tmp_path: Path):

@@ -70,6 +70,8 @@ class Job:
     comment_text: Optional[str] = None
     # The backend job doing the slow part of this request (see backend /jobs), if any.
     backend_job_id: Optional[str] = None
+    query_conversation_id: Optional[str] = None
+    query_parent_job_id: Optional[str] = None
     error: Optional[str] = None
     retry_count: int = 0
     created_at: str = field(default_factory=utcnow_iso)
@@ -114,6 +116,12 @@ class Job:
             trello_focus=row["trello_focus"],
             comment_text=row["comment_text"],
             backend_job_id=row["backend_job_id"] if "backend_job_id" in row.keys() else None,
+            query_conversation_id=(
+                row["query_conversation_id"] if "query_conversation_id" in row.keys() else None
+            ),
+            query_parent_job_id=(
+                row["query_parent_job_id"] if "query_parent_job_id" in row.keys() else None
+            ),
             error=row["error"],
             retry_count=row["retry_count"],
             created_at=row["created_at"],

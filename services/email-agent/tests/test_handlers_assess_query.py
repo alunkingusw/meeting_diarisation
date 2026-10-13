@@ -38,10 +38,46 @@ def test_accept_creates_queued_job_and_sends_ack(db_path: Path):
     assert job.status == JobState.QUEUED
     assert job.operation == "assess_query"
     assert job.transcript_focus == "the API redesign"
+    assert job.query_conversation_id
+    assert job.query_parent_job_id is None
 
     pending = outbox.pending()
     assert len(pending) == 1
     assert outcome.job_id in pending[0].body_text
+
+
+def test_accept_reuses_owned_parent_query_conversation(db_path: Path):
+    job_store = JobStore(db_path)
+    parent = job_store.create_job(
+        "alice@uni.ac.uk", 12, "<parent@mail>", operation="assess_query",
+        query_conversation_id="conversation-1",
+    )
+
+    outcome = assess_query.accept(
+        _cmd(github_focus="open issues"), "alice@uni.ac.uk", 12, "<reply@mail>",
+        job_store, Outbox(db_path), thread_job_id=parent.job_id,
+    )
+
+    followup = job_store.get(outcome.job_id)
+    assert followup.query_conversation_id == "conversation-1"
+    assert followup.query_parent_job_id == parent.job_id
+
+
+def test_accept_does_not_reuse_another_users_query_conversation(db_path: Path):
+    job_store = JobStore(db_path)
+    parent = job_store.create_job(
+        "bob@uni.ac.uk", 13, "<parent@mail>", operation="assess_query",
+        query_conversation_id="conversation-1",
+    )
+
+    outcome = assess_query.accept(
+        _cmd(github_focus="open issues"), "alice@uni.ac.uk", 12, "<reply@mail>",
+        job_store, Outbox(db_path), thread_job_id=parent.job_id,
+    )
+
+    followup = job_store.get(outcome.job_id)
+    assert followup.query_conversation_id != "conversation-1"
+    assert followup.query_parent_job_id is None
 
 
 # --- execute() ---
@@ -125,6 +161,31 @@ def test_execute_github_and_trello_use_unified_query(db_path: Path):
         {"github": "open issues", "trello": "blocked cards"}
     ]
     assert job_store.get(job.job_id).status == JobState.COMPLETED
+
+
+def test_execute_starts_new_conversation_when_parent_group_changes(db_path: Path):
+    job_store = JobStore(db_path)
+    parent = job_store.create_job(
+        "alice@uni.ac.uk", 12, "<parent@mail>", operation="assess_query",
+        query_conversation_id="conversation-1", resolved_group_id=2,
+    )
+    job = job_store.create_job(
+        "alice@uni.ac.uk", 12, "<reply@mail>", operation="assess_query",
+        query_conversation_id="conversation-1", query_parent_job_id=parent.job_id,
+        transcript_focus="the API redesign",
+    )
+    job_store.set_status(job.job_id, JobState.VALIDATING)
+    job_store.set_status(job.job_id, JobState.QUEUED)
+    outbox = Outbox(db_path)
+    admin = AdminNotifier(db_path, outbox, admin_email=None)
+    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")])
+
+    assess_query.execute(job_store.get(job.job_id), diarisation, job_store, outbox, admin)
+
+    updated = job_store.get(job.job_id)
+    assert updated.query_parent_job_id == parent.job_id
+    assert updated.query_conversation_id != "conversation-1"
+    assert updated.resolved_group_id == 1
 
 
 def test_execute_unlinked_repo_notes_unavailable_but_still_sends_transcript_answer(db_path: Path):
