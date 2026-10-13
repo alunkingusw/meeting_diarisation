@@ -80,10 +80,10 @@ The current-parent capture is
 recorded on 2026-10-13 with `llama3.1:8b`. All four numeric comparisons pass; the cross-source case
 returns its expected sources and stable evidence IDs; and a live partial-source case preserves
 available findings while naming the unavailable source. Multi-source parent output now uses
-deterministic source sections rather than a final LLM rewrite. The capture is marked dirty because
-these fixes are uncommitted; repeat it from a clean revision before treating it as the paper
-baseline. Offline trust-boundary tests pass; live email intent was intentionally excluded. See the
-[evaluation note](query-agent-evaluation.md).
+deterministic source sections rather than a final LLM rewrite. The capture is clean at revision
+`842ac4e23e205bf5f35a16b1a8dddc294e2b3447`. Offline trust-boundary tests pass; live email intent
+was intentionally excluded. Semantic retrieval and performance remain separate evaluation work.
+See the [evaluation note](query-agent-evaluation.md).
 
 - Specify common specialist input/output schemas: authorized group context, question, source
   filters, answer, quantitative facts, evidence IDs/metadata, errors, and model/retrieval metadata.
@@ -99,8 +99,8 @@ baseline. Offline trust-boundary tests pass; live email intent was intentionally
   to reproduce results.
 
 **Exit gate status:** contracts, threat boundaries, synthetic fixture truth, the pre-parent baseline,
-and an asserted current-parent working-tree evaluation are recorded. Repeat from a clean committed
-revision and run separate semantic-retrieval and performance evaluations before the academic gate.
+and an asserted clean current-parent synthetic evaluation are recorded. Run separate
+semantic-retrieval and performance evaluations before the academic gate.
 
 ### 2. Implement the three specialist query agents
 
@@ -147,8 +147,8 @@ schema.
 **Exit gate status:** offline and live synthetic checks verify source selection, source-labeled
 answers, stable evidence IDs, exact numeric facts, and partial/total source failure handling. The
 parent assembles specialist responses deterministically to prevent a second model pass from
-rewriting quantitative facts. A clean committed-revision capture remains required for the final
-baseline.
+rewriting quantitative facts. The current-parent synthetic capture is clean at the recorded
+revision; semantic retrieval and performance are not covered by that gate.
 
 ### 4. Route validated email queries through the parent
 

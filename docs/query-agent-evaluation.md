@@ -115,13 +115,12 @@ parent workflow.
 
 The current-parent capture is
 [`current_parent_reviewed.json`](../backend/tests/fixtures/query_agent_synthetic/current_parent_reviewed.json).
-It was captured on 2026-10-13 against revision `ce37959ca6c8b8f2985e2c714bc7d5eae09265a5` using
+It was captured cleanly on 2026-10-13 against revision `842ac4e23e205bf5f35a16b1a8dddc294e2b3447` using
 `llama3.1:8b` digest
 `46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e` (`Q4_K_M`). The capture
 includes Python/dependency versions, effective retrieval settings, prompt hashes, and the
-`deterministic_source_sections_v1` composition strategy. It is marked `working_tree_dirty: true`
-because the evaluated fixes and evaluation assertions were not committed. Treat it as a reviewed
-working-tree evaluation, not the final clean-revision paper baseline.
+`deterministic_source_sections_v1` composition strategy. It records `working_tree_dirty: false` and
+is the clean current-parent synthetic API baseline for this revision.
 
 ### Gap Status
 
@@ -141,10 +140,9 @@ working-tree evaluation, not the final clean-revision paper baseline.
 - **Not captured live:** authorization ambiguity and unsupported email intent. These are application
   authorization/parser concerns, have offline coverage, and are intentionally outside this live
   model evaluation.
-- **Still open:** repeat the reviewed capture from a clean committed revision before treating it as
-  the reproducible baseline. The transcript fixture uses date-bounded complete-window retrieval;
-  its zero vectors are not used for similarity ranking, so semantic retrieval quality, latency, and
-  resource use need separate evaluation.
+- **Still open:** the transcript fixture uses date-bounded complete-window retrieval; its zero
+  vectors are not used for similarity ranking, so semantic retrieval quality, latency, and resource
+  use need separate evaluation. The clean synthetic baseline does not certify those dimensions.
 
 Keep the pre-fix, pre-parent, and current-parent snapshots separate. The current live test is
 `backend/tests/test_query_agent_live_baseline.py`; it asserts numeric gold, selected sources,
