@@ -1,7 +1,10 @@
 import json
+import os
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+
+import pytest
 
 from backend.transcript_rag.vtt_rag import process_vtt_file
 
@@ -40,6 +43,74 @@ def test_synthetic_vtt_files_produce_declared_speaker_statistics(tmp_path):
         chunk_ids = {chunk["chunk_id"] for chunk in chunks}
         for claim in meeting["gold_claims"]:
             assert set(claim["evidence"]) <= chunk_ids
+
+
+@pytest.mark.skipif(
+    os.environ.get("RUN_QUERY_AGENT_SEMANTIC_RETRIEVAL") != "1",
+    reason="Set RUN_QUERY_AGENT_SEMANTIC_RETRIEVAL=1 to load the embedding model.",
+)
+def test_semantic_transcript_search_retrieves_gold_evidence_at_production_top_k(
+    tmp_path, monkeypatch
+):
+    import chromadb
+
+    from backend.config import settings
+    from backend.transcript_rag import indexer, vectorstore
+
+    manifest = _read_manifest()
+    group_name = manifest["group"]["name"]
+    collection_name = vectorstore.transcripts_collection_name(group_name)
+    client = chromadb.PersistentClient(path=str(tmp_path / "semantic_chroma"))
+    monkeypatch.setattr(vectorstore, "get_chroma_client", lambda: client)
+
+    for meeting in manifest["meetings"]:
+        processed = process_vtt_file(
+            file_path=str(FIXTURE_DIR / meeting["vtt_file"]),
+            meeting_title=meeting["title"],
+            meeting_date=meeting["date"],
+            output_dir=str(tmp_path / "processed" / str(meeting["id"])),
+            meeting_id=str(meeting["id"]),
+        )
+        chunks = [
+            json.loads(line)
+            for line in Path(processed["chunks_path"]).read_text(encoding="utf-8").splitlines()
+        ]
+        vectorstore.replace_meeting_chunks(
+            collection_name, meeting["id"], manifest["group"]["id"], chunks
+        )
+
+    retrieval_cases = [
+        (12, "What decision did the team make about the API redesign?", "12_00000"),
+        (12, "What rollback recommendation did Ada make?", "12_00002"),
+        (13, "What did the monitoring dashboard show about the worker?", "13_00001"),
+    ]
+    reciprocal_ranks = []
+    case_ranks = []
+    misses = []
+    for meeting_id, question, expected_id in retrieval_cases:
+        hits = indexer.search_transcripts(
+            group_name, question, n_results=settings.retrieval_top_k, meeting_id=meeting_id
+        )
+        ranks = [index + 1 for index, hit in enumerate(hits) if hit["chunk_id"] == expected_id]
+        reciprocal_ranks.append(1 / ranks[0] if ranks else 0)
+        case_ranks.append({"gold_id": expected_id, "rank": ranks[0] if ranks else None})
+        if not ranks:
+            misses.append(
+                {
+                    "question": question,
+                    "expected_id": expected_id,
+                    "k": settings.retrieval_top_k,
+                    "ranked_ids": [hit["chunk_id"] for hit in hits],
+                }
+            )
+
+    assert not misses, f"Gold evidence missed top-{settings.retrieval_top_k}: {misses}"
+    mean_reciprocal_rank = sum(reciprocal_ranks) / len(reciprocal_ranks)
+    print(
+        f"Semantic transcript retrieval: Recall@{settings.retrieval_top_k}=1.0, "
+        f"MRR@{settings.retrieval_top_k}={mean_reciprocal_rank:.3f}, ranks={case_ranks}"
+    )
+    assert mean_reciprocal_rank >= 0.5
 
 
 def test_transcript_stats_loader_reports_missing_artifacts(tmp_path, monkeypatch):

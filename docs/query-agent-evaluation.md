@@ -140,10 +140,18 @@ is the clean current-parent synthetic API baseline for this revision.
 - **Not captured live:** authorization ambiguity and unsupported email intent. These are application
   authorization/parser concerns, have offline coverage, and are intentionally outside this live
   model evaluation.
-- **Still open:** the transcript fixture uses date-bounded complete-window retrieval; its zero
-  vectors are not used for similarity ranking, so semantic retrieval quality, latency, and resource
-  use need separate evaluation. The clean synthetic baseline does not certify those dimensions.
+ **Still open:** the transcript fixture uses date-bounded complete-window retrieval; its zero
+  vectors are not used for similarity ranking in the answer baseline. A separate opt-in semantic
+  check now indexes the same synthetic VTTs with the production embedding model and runs the
+  production Chroma search path in an isolated temporary collection. On three gold queries it
+  measured Recall@8 = 1.0 and MRR@8 = 0.750 (ranks 1, 4, 1); the rollback recommendation was not in
+  the top three. This is a preliminary smoke evaluation over only three synthetic queries, not a
+  broad relevance certification. Expand the query set before closing semantic retrieval quality;
+  latency and resource use also remain unmeasured.
 
 Keep the pre-fix, pre-parent, and current-parent snapshots separate. The current live test is
 `backend/tests/test_query_agent_live_baseline.py`; it asserts numeric gold, selected sources,
 stable cross-source citations, and partial-source degradation before writing the artifact.
+ Run the separate semantic smoke test with
+ `RUN_QUERY_AGENT_SEMANTIC_RETRIEVAL=1` and `HF_HUB_OFFLINE=1`; it uses temporary Chroma storage
+ and the locally cached embedding model, with no Ollama calls.

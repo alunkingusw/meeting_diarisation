@@ -100,7 +100,9 @@ See the [evaluation note](query-agent-evaluation.md).
 
 **Exit gate status:** contracts, threat boundaries, synthetic fixture truth, the pre-parent baseline,
 and an asserted clean current-parent synthetic evaluation are recorded. Run separate
-semantic-retrieval and performance evaluations before the academic gate.
+semantic-retrieval coverage expansion and performance evaluation before the academic gate. The
+initial semantic smoke check returns Recall@8 = 1.0 and MRR@8 = 0.750 on three synthetic transcript
+queries; one gold result ranks fourth.
 
 ### 2. Implement the three specialist query agents
 
@@ -127,8 +129,8 @@ unified route delegates through the parent LangGraph described in Phase 3.
 
 **Exit gate status:** offline API/specialist tests cover authorization, evidence contracts, source
 scope, and the read-only allowlist. The synthetic live capture verifies numeric facts and evidence
-for the current specialists using complete-window retrieval; semantic similarity ranking remains
-unverified.
+for the current specialists using complete-window retrieval. A separate three-query semantic smoke
+test exercises actual Chroma ranking; broader ranking quality remains unverified.
 
 ### 3. Add the parent query agent
 
@@ -148,7 +150,7 @@ schema.
 answers, stable evidence IDs, exact numeric facts, and partial/total source failure handling. The
 parent assembles specialist responses deterministically to prevent a second model pass from
 rewriting quantitative facts. The current-parent synthetic capture is clean at the recorded
-revision; semantic retrieval and performance are not covered by that gate.
+revision; broad semantic retrieval and performance are not covered by that gate.
 
 ### 4. Route validated email queries through the parent
 
