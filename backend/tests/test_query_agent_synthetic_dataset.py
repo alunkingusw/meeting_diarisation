@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -63,6 +64,7 @@ def test_semantic_transcript_search_retrieves_gold_evidence_at_production_top_k(
     client = chromadb.PersistentClient(path=str(tmp_path / "semantic_chroma"))
     monkeypatch.setattr(vectorstore, "get_chroma_client", lambda: client)
 
+    setup_and_index_started = time.perf_counter()
     for meeting in manifest["meetings"]:
         processed = process_vtt_file(
             file_path=str(FIXTURE_DIR / meeting["vtt_file"]),
@@ -78,19 +80,29 @@ def test_semantic_transcript_search_retrieves_gold_evidence_at_production_top_k(
         vectorstore.replace_meeting_chunks(
             collection_name, meeting["id"], manifest["group"]["id"], chunks
         )
+    setup_and_index_seconds = time.perf_counter() - setup_and_index_started
 
     retrieval_cases = [
-        (12, "What decision did the team make about the API redesign?", "12_00000"),
-        (12, "What rollback recommendation did Ada make?", "12_00002"),
-        (13, "What did the monitoring dashboard show about the worker?", "13_00001"),
+        ("What decision did the team make about the API redesign?", "12_00000"),
+        ("What rollback recommendation did Ada make?", "12_00002"),
+        ("What did the monitoring dashboard show about the worker?", "13_00001"),
+        ("What did Ben say about load tests?", "12_00001"),
+        ("What prerequisite did Cy mention before rollout?", "12_00003"),
+        ("What would Ben review tomorrow?", "12_00004"),
+        ("What did Ada plan to draft after review?", "12_00005"),
+        ("What action followed the rollback check?", "13_00000"),
+        ("What threshold needed documentation before the next launch?", "13_00002"),
     ]
     reciprocal_ranks = []
     case_ranks = []
     misses = []
-    for meeting_id, question, expected_id in retrieval_cases:
+    retrieval_latencies = []
+    for question, expected_id in retrieval_cases:
+        started = time.perf_counter()
         hits = indexer.search_transcripts(
-            group_name, question, n_results=settings.retrieval_top_k, meeting_id=meeting_id
+            group_name, question, n_results=settings.retrieval_top_k
         )
+        retrieval_latencies.append(time.perf_counter() - started)
         ranks = [index + 1 for index, hit in enumerate(hits) if hit["chunk_id"] == expected_id]
         reciprocal_ranks.append(1 / ranks[0] if ranks else 0)
         case_ranks.append({"gold_id": expected_id, "rank": ranks[0] if ranks else None})
@@ -106,9 +118,14 @@ def test_semantic_transcript_search_retrieves_gold_evidence_at_production_top_k(
 
     assert not misses, f"Gold evidence missed top-{settings.retrieval_top_k}: {misses}"
     mean_reciprocal_rank = sum(reciprocal_ranks) / len(reciprocal_ranks)
+    ordered_latencies = sorted(retrieval_latencies)
+    p95_index = min(len(ordered_latencies) - 1, int(0.95 * len(ordered_latencies)))
     print(
         f"Semantic transcript retrieval: Recall@{settings.retrieval_top_k}=1.0, "
-        f"MRR@{settings.retrieval_top_k}={mean_reciprocal_rank:.3f}, ranks={case_ranks}"
+        f"MRR@{settings.retrieval_top_k}={mean_reciprocal_rank:.3f}, "
+        f"ranks={case_ranks}, fixture_setup_and_index_seconds={setup_and_index_seconds:.3f}, "
+        f"warm_query_p50_seconds={ordered_latencies[len(ordered_latencies) // 2]:.3f}, "
+        f"warm_query_p95_seconds={ordered_latencies[p95_index]:.3f}"
     )
     assert mean_reciprocal_rank >= 0.5
 

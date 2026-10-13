@@ -143,11 +143,12 @@ is the clean current-parent synthetic API baseline for this revision.
  **Still open:** the transcript fixture uses date-bounded complete-window retrieval; its zero
   vectors are not used for similarity ranking in the answer baseline. A separate opt-in semantic
   check now indexes the same synthetic VTTs with the production embedding model and runs the
-  production Chroma search path in an isolated temporary collection. On three gold queries it
-  measured Recall@8 = 1.0 and MRR@8 = 0.750 (ranks 1, 4, 1); the rollback recommendation was not in
-  the top three. This is a preliminary smoke evaluation over only three synthetic queries, not a
-  broad relevance certification. Expand the query set before closing semantic retrieval quality;
-  latency and resource use also remain unmeasured.
+  production Chroma search path across both meetings in an isolated temporary collection. On nine
+  synthetic gold queries it measured Recall@8 = 1.0 and MRR@8 = 0.726; the gold ranks were
+  1, 5, 1, 1, 3, 2, 1, 2, 1. Fixture processing plus indexing took about 0.2 seconds; warm query
+  latency was 12 ms p50 and 13 ms p95 on the test machine. This is a small synthetic benchmark, not a
+  production-scale relevance or performance certification. Broader corpora and resource use remain
+  unmeasured.
 
 Keep the pre-fix, pre-parent, and current-parent snapshots separate. The current live test is
 `backend/tests/test_query_agent_live_baseline.py`; it asserts numeric gold, selected sources,
