@@ -71,7 +71,10 @@ def test_execute_transcript_only_uses_conversation_source(db_path: Path):
     assess_query.execute(job, diarisation, job_store, outbox, admin)
 
     assert job_store.get(job.job_id).status == JobState.COMPLETED
-    assert diarisation.queries == [("conversation", "the API redesign")]
+    assert diarisation.queries == [
+        ("unified:conversation", "Answer the sender's request using the source-specific questions provided.")
+    ]
+    assert diarisation.source_question_requests == [{"conversation": "the API redesign"}]
     assert "Alice raised the API redesign on Tuesday." in outbox.pending()[0].body_text
 
 
@@ -100,7 +103,10 @@ def test_execute_github_only_queries_github_source(db_path: Path):
     assess_query.execute(job, diarisation, job_store, outbox, admin)
 
     assert job_store.get(job.job_id).status == JobState.COMPLETED
-    assert diarisation.queries == [("github", "open issues about the API")]
+    assert diarisation.queries == [
+        ("unified:github", "Answer the sender's request using the source-specific questions provided.")
+    ]
+    assert diarisation.source_question_requests == [{"github": "open issues about the API"}]
     assert "Two open issues mention the API." in outbox.pending()[0].body_text
 
 
@@ -112,7 +118,12 @@ def test_execute_github_and_trello_use_unified_query(db_path: Path):
 
     assess_query.execute(job, diarisation, job_store, outbox, admin)
 
-    assert diarisation.queries == [("unified:github,trello", "open issues blocked cards")]
+    assert diarisation.queries == [
+        ("unified:github,trello", "Answer the sender's request using the source-specific questions provided.")
+    ]
+    assert diarisation.source_question_requests == [
+        {"github": "open issues", "trello": "blocked cards"}
+    ]
     assert job_store.get(job.job_id).status == JobState.COMPLETED
 
 

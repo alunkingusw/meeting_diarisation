@@ -46,19 +46,21 @@ flowchart TD
 ## Current Baseline
 
 - `backend/routes/queries.py` exposes conversation, GitHub, Trello, and unified query routes.
-- `backend/engine/query_graph.py` routes a unified query, retrieves per-source answers, and
-  composes them. `backend/project_rag` and `backend/transcript_rag` implement retrieval and
-  evidence; Ollama generation currently goes through `backend/llm/ollama_client.py`.
-- The email agent parses a constrained command and validates it. `assess_query` calls the
-  backend query API using its `DiarisationClient`; it does not yet use a parent LangChain agent.
+- `backend/engine/query_graph.py` is the parent LangGraph workflow for unified API queries. It
+  selects linked/requested sources, invokes the matching read-only specialist with application-bound
+  user/group scope, retains per-source errors, and composes multi-source evidence. The email
+  `assess_query` handler calls this parent once with validated per-source questions; see Phase 4.
+- The email agent parses a constrained command and validates it. After sender authentication and
+  deterministic group matching, `assess_query` sends one unified request with per-source focus
+  questions through its `DiarisationClient`; the backend parent owns source delegation.
 - Transcript upload and transcription already have deterministic processing paths. Provided and
   generated VTTs are chunked and indexed into persistent Chroma. Conversation queries now expose
   persisted speaker statistics as structured data alongside transcript evidence; see the
   [retrieval implementation guide](langchain-langgraph-storage-retrieval.md).
 - Weekly reports already use a backend LangGraph and persist report evidence. Their flow is
   separate from conversational query-agent state.
-- Transcript, GitHub, and Trello specialists now expose one fixed-scope, read-only retrieval tool
-  each. Unified-query and email flows have not yet been moved to a parent specialist agent.
+- Transcript, GitHub, and Trello specialists each expose one fixed-scope, read-only retrieval tool.
+  The unified API and validated email query flow use a parent specialist workflow.
 
 ## Implementation Phases
 
@@ -100,7 +102,7 @@ introduced.
 Current implementation: the three typed specialists are wired to the synchronous source-query
 routes and their background-job handlers. Transcript retrieval uses the existing retrieve-only
 path; GitHub/Trello use the shared retrieval-only project query plus deterministic SQL facts. The
-unified route still uses the existing LangGraph workflow and remains the Phase 3 integration.
+unified route delegates through the parent LangGraph described in Phase 3.
 
 - Implement transcript, GitHub, and Trello specialists behind shared typed contracts.
 - Define each specialist's LangChain tools here: narrow, typed, read-only wrappers around its
@@ -123,14 +125,15 @@ retrieval/answer quality; no write operation is reachable from a specialist.
 
 ### 3. Add the parent query agent
 
-- Replace or evolve the unified query graph into a parent LangGraph workflow that selects the
-  relevant specialists, invokes them, handles partial failures, and composes a source-attributed
-  answer from their evidence.
-- Add only three delegation capabilities to the parent (transcripts, GitHub, Trello), implemented
-  as specialist-agent invocations or graph subgraphs. The parent does not receive CRUD tools or
-  lower-level unrestricted API access.
-- Make the unified API query route invoke this parent workflow directly; API intent remains
-  explicit in the route/request, not inferred from arbitrary API calls.
+Current implementation: the unified API route and background query jobs now use a parent LangGraph
+that delegates to transcript, GitHub, and Trello specialists, aggregates partial failures, and
+composes a source-attributed response from answers, deterministic facts, and cited evidence. It
+retains specialist facts internally for composition while preserving the public source-response
+schema.
+
+- Keep parent delegation limited to the three source specialists (transcripts, GitHub, Trello).
+  The parent does not receive CRUD tools or lower-level unrestricted API access.
+- Keep API intent explicit in the route/request rather than inferred from arbitrary API calls.
 - Record selected sources, specialist inputs/outputs, evidence, failures, and final composition
   for audit and evaluation.
 
@@ -139,16 +142,20 @@ pass the evaluation set against the current unified-query baseline.
 
 ### 4. Route validated email queries through the parent
 
+Current implementation: the email job worker now makes one unified backend call with validated
+per-source focus questions after resolving the sender's authorized group. The backend parent
+delegates to selected specialists; the email handler remains the job, cancellation, and reply
+delivery boundary.
+
 - Preserve the email trust boundary: authenticate sender and screen message, parse into the finite
   intent schema, then run deterministic validation and bind the authorized group before agent
   execution.
-- Align the command-parser prompt and its tests with current behavior: the prompt still describes
-  `assess_query` as dry-run-only although the handler performs live backend queries. The parser
-  should select query intent/sources, not imply it has queried data or generated the answer.
-- Route validated transcript-upload/action intents to their existing deterministic workflows.
-  Route only validated data-query intents to the parent query agent.
-- Remove duplicate source orchestration from the email `assess_query` handler after parity is
-  established; keep it as the API client, job, and email-delivery boundary.
+- Keep the command parser limited to query intent and source-specific questions; it must not claim
+  that it queried data or generated findings.
+- Keep transcript-upload/action intents on their existing deterministic workflows. Route only
+  validated data-query intents to the parent query agent.
+- Keep source selection and orchestration in the backend parent; the email handler should remain
+  the API client, job, cancellation, and email-delivery boundary.
 - Test spoofing/prompt injection, unauthorized and ambiguous groups, unsupported requests,
   source failures, cancellation, and equivalent API-versus-email query behavior.
 

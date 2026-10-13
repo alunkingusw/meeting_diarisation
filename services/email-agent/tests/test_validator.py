@@ -168,7 +168,7 @@ def test_cancel_with_return_statistics_ignored_gracefully(db_path: Path):
     assert result.job_id == job.job_id
 
 
-# --- assess_query: dry-run source selection ---
+# --- assess_query: validated source selection ---
 
 def test_assess_query_single_source_validates_and_others_stay_none(db_path: Path):
     cmd = ParsedCommand(operation=Operation.ASSESS_QUERY, github_focus="open issues about auth")

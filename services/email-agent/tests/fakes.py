@@ -69,6 +69,7 @@ class FakeDiarisationClient:
         self.source_answers = source_answers or {}
         self.unlinked_sources = unlinked_sources or set()
         self.queries: list[tuple[str, str]] = []
+        self.source_question_requests: list[dict[str, str]] = []
         self.groups = groups
         self.transcript_chunks = transcript_chunks or []
         self.member_by_name = member_by_name or {}
@@ -181,15 +182,32 @@ class FakeDiarisationClient:
         self.queries.append((source, question))
         return QueryAnswer(answer=self.source_answers.get(source, f"{source} answer"), sources_used=[source])
 
-    def query_unified(self, token: str, group_id: int, question: str, sources=None, since=None, on_job=None) -> QueryAnswer:
+    def query_unified(
+        self,
+        token: str,
+        group_id: int,
+        question: str,
+        sources=None,
+        since=None,
+        on_job=None,
+        until=None,
+        source_questions=None,
+    ) -> QueryAnswer:
         self._maybe_fail("query_unified")
+        for source in sources or []:
+            self._maybe_fail(f"query_{source}")
         self._announce_job(on_job)
         used = [s for s in (sources or []) if s not in self.unlinked_sources]
         if not used:
             raise NotFoundError("no sources linked")
         self.queries.append(("unified:" + ",".join(used), question))
+        self.source_question_requests.append(source_questions or {})
         return QueryAnswer(
             answer=" ".join(self.source_answers.get(s, f"{s} answer") for s in used),
             sources_used=used,
-            errors={s: "unavailable" for s in sources or [] if s in self.unlinked_sources},
+            errors={
+                s: f"This group has no {s} source linked"
+                for s in sources or []
+                if s in self.unlinked_sources
+            },
         )

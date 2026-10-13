@@ -129,6 +129,23 @@ def test_assess_result_includes_unavailable_notes():
     assert "couldn't check past meeting transcripts" in body
 
 
+def test_assess_result_renders_parent_answer_as_one_findings_section():
+    _, body = render.render_assess_result(
+        "DIAR-2026-0811-0017",
+        group_name="Team A",
+        transcript_answer=None,
+        github_trello_answer=None,
+        trello_checked=False,
+        unavailable_notes=["I couldn't check the Trello board right now."],
+        unified_answer="The API decision is recorded in the transcript [meeting-42].",
+    )
+
+    assert "Findings:" in body
+    assert "The API decision is recorded in the transcript [meeting-42]." in body
+    assert "From your group's GitHub" not in body
+    assert "couldn't check the Trello board" in body
+
+
 def test_failure_explains_admin_actions_are_not_available_over_email():
     from app.email_templates.render import render_failure
 

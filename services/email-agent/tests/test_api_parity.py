@@ -22,9 +22,8 @@ OPERATION_ROUTES = {
         ("POST", "/groups/{group_id}/meetings/{meeting_id}/attendees"),
     ],
     Operation.ASSESS_QUERY: [
-        ("POST", "/groups/{group_id}/conversation/query"),
-        ("POST", "/groups/{group_id}/github/query"),
-        ("POST", "/groups/{group_id}/trello/query"),
+        ("POST", "/admin/user-token"),
+        ("GET", "/groups/"),
         ("POST", "/groups/{group_id}/query"),
     ],
     Operation.ADD_COMMENT: [("POST", "/groups/{group_id}/meetings/{meeting_id}/comments")],

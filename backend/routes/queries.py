@@ -164,10 +164,10 @@ def query_unified(
         return _accepted(db, group_id, user_id, "unified", payload)
     group = get_group_or_404(db, group_id)
     try:
-        return run_unified_query(db, group, payload)
+        return run_unified_query(db, group, payload, user_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except OllamaError as exc:
+    except (OllamaError, SpecialistModelError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 

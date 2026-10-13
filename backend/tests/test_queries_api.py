@@ -218,7 +218,11 @@ def test_unified_query_merges_sources(
 
     response = client.post(
         f"/groups/{group.id}/query",
-        json={"question": "Summarise progress", "sources": ["github", "trello"]},
+        json={
+            "question": "Summarise progress",
+            "sources": ["github", "trello"],
+            "source_questions": {"github": "What did Alice commit?", "trello": "What remains blocked?"},
+        },
         headers=auth_header_for(owner.id),
     )
 
@@ -227,6 +231,13 @@ def test_unified_query_merges_sources(
     assert body["sources_used"] == ["github", "trello"]
     assert set(body["results"]) == {"github", "trello"}
     assert body["errors"] == {}
+    assert '"name": "commits"' in fake_llm.prompts[-1]
+    assert '"name": "trello_actions"' in fake_llm.prompts[-1]
+    assert "project_stats:repo=" in fake_llm.prompts[-1]
+    assert "SOURCE-SPECIFIC QUESTIONS" in fake_llm.prompts[-1]
+    assert "What did Alice commit?" in fake_llm.prompts[-1]
+    assert any("What did Alice commit?" in prompt for prompt in fake_llm.agent_prompts)
+    assert any("What remains blocked?" in prompt for prompt in fake_llm.agent_prompts)
 
 
 def test_unified_query_reports_partial_failure(
@@ -256,6 +267,45 @@ def test_unified_query_reports_partial_failure(
     body = response.json()
     assert body["sources_used"] == ["trello"]
     assert "github" in body["errors"]
+    assert "SOURCE FAILURES" in fake_llm.prompts[-1]
+    assert "github" in fake_llm.prompts[-1]
+
+
+def test_unified_query_keeps_available_source_when_another_is_unlinked(
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
+):
+    owner, group = _linked_group(db_session, make_user, make_group, trello=False)
+    _seed_index(db_session, group)
+
+    response = client.post(
+        f"/groups/{group.id}/query",
+        json={"question": "Summarise progress", "sources": ["github", "trello"]},
+        headers=auth_header_for(owner.id),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["sources_used"] == ["github"]
+    assert "trello" in body["errors"]
+
+
+def test_unified_query_returns_service_unavailable_when_all_specialists_fail(
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
+):
+    from backend.llm.ollama_client import OllamaError
+
+    owner, group = _linked_group(db_session, make_user, make_group)
+    _seed_index(db_session, group)
+    fake_llm.error = OllamaError("Ollama is unreachable")
+
+    response = client.post(
+        f"/groups/{group.id}/query",
+        json={"question": "Summarise progress", "sources": ["github", "trello"]},
+        headers=auth_header_for(owner.id),
+    )
+
+    assert response.status_code == 503
+    assert "Ollama is unreachable" in response.json()["detail"]
 
 
 def test_ingest_requires_owner(client, db_session, make_user, make_group, auth_header_for):

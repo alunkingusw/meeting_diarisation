@@ -100,7 +100,9 @@ def query(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
     with SessionLocal() as db:
         group = db.get(Group, params["group_id"])
         if scope == "unified":
-            result = run_unified_query(db, group, UnifiedQueryRequest(**payload))
+            result = run_unified_query(
+                db, group, UnifiedQueryRequest(**payload), params["user_id"]
+            )
         elif scope == "conversation" and payload.get("retrieve_only", False):
             result = group_service.query_source(db, group, scope, ConversationQueryRequest(**payload))
         else:

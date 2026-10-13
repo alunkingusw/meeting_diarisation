@@ -155,6 +155,45 @@ def test_async_query_returns_202_and_result_lands_on_the_job(
     assert job["result"]["answer"] == "fake answer" and job["result"]["source"] == "conversation"
 
 
+def test_async_unified_query_runs_parent_with_job_user_scope(
+    sync_jobs, client, db_session, make_user, make_group, auth_header_for, fake_llm
+):
+    from backend.project_rag import group_service
+    from backend.project_rag.models import Commit
+
+    owner, group = _team(db_session, make_user, make_group)
+    group.github_repo_url = "https://github.com/example/project"
+    db_session.commit()
+    repo = group_service.get_or_create_repo(db_session, group)
+    db_session.add(
+        Commit(
+            repo_id=repo.id,
+            sha="a" * 40,
+            author_name="Ada",
+            author_email="ada@example.invalid",
+            committed_at=datetime(2026, 10, 1),
+            message="Add release notes",
+            files_changed=1,
+            additions=8,
+            deletions=0,
+            diff_text="",
+        )
+    )
+    db_session.commit()
+
+    accepted = client.post(
+        f"/groups/{group.id}/query?async=true",
+        json={"question": "Summarize the release work", "sources": ["github"]},
+        headers=auth_header_for(owner.id),
+    )
+
+    assert accepted.status_code == 202
+    job = client.get(f"/jobs/{accepted.json()['job_id']}", headers=auth_header_for(owner.id)).json()
+    assert job["state"] == "completed" and job["kind"] == "query"
+    assert job["result"]["sources_used"] == ["github"]
+    assert job["result"]["results"]["github"]["stats"]["total_commits"] == 1
+
+
 def test_async_report_job_fails_cleanly_when_llm_is_down(
     sync_jobs, client, db_session, make_user, make_group, auth_header_for, monkeypatch, fake_llm
 ):

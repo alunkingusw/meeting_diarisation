@@ -418,7 +418,7 @@ def test_query_source_posts_to_source_endpoint(client):
 
 
 @respx.mock
-def test_query_unified_sends_sources_and_date_window(client):
+def test_query_unified_sends_source_questions_and_date_window(client):
     from datetime import date
 
     route = respx.post(f"{BASE_URL}/groups/3/query").mock(
@@ -437,6 +437,7 @@ def test_query_unified_sends_sources_and_date_window(client):
     result = client.query_unified(
         "tok", 3, "progress?", sources=["github", "trello"],
         since=date(2026, 9, 1), until=date(2026, 10, 1),
+        source_questions={"github": "open issues?", "trello": "blocked cards?"},
     )
 
     assert result.sources_used == ["github", "trello"]
@@ -444,7 +445,7 @@ def test_query_unified_sends_sources_and_date_window(client):
     assert result.results == {"github": {"stats": {"total_commits": 4}}}
     assert result.model == "test-model"
     assert route.calls.last.request.read() == (
-        b'{"question":"progress?","since":"2026-09-01","until":"2026-10-01","sources":["github","trello"]}'
+        b'{"question":"progress?","since":"2026-09-01","until":"2026-10-01","sources":["github","trello"],"source_questions":{"github":"open issues?","trello":"blocked cards?"}}'
     )
 
 

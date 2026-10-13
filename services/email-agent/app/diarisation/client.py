@@ -374,11 +374,14 @@ class DiarisationClient:
         since: Optional[date] = None,
         on_job: Optional[Callable[[str], None]] = None,
         until: Optional[date] = None,
+        source_questions: Optional[dict[str, str]] = None,
     ) -> QueryAnswer:
-        """POST /groups/{id}/query - the backend routes the question and merges source answers."""
+        """POST /groups/{id}/query - the parent routes validated source-specific questions."""
         body = _query_body(question, since, until)
         if sources is not None:
             body["sources"] = sources
+        if source_questions:
+            body["source_questions"] = source_questions
         data = self._query(token, f"/groups/{group_id}/query", body, on_job)
         return QueryAnswer(
             answer=data["answer"],

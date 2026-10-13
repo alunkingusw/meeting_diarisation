@@ -1,9 +1,9 @@
-"""Answers a sender's question by querying real sources - past meeting transcripts
-and/or the group's GitHub repo and Trello board, all through the backend's query API - for
-whichever of transcript_focus/github_focus/trello_focus the LLM set. Split into accept()
-(local-only: create the job, done inline in the mail-polling pipeline) and execute() (all
-external HTTP + LLM calls, run by the job worker thread), mirroring submit_transcript.py's
-split for the same reason: a slow/unavailable source should never block mail polling.
+"""Answers an email query through the backend's unified parent-query API.
+
+The validated command's per-source focuses are passed to one parent request after the sender
+and group have been resolved. Split into accept() (local-only: create the job, done inline in
+the mail-polling pipeline) and execute() (backend API call, run by the job worker thread),
+mirroring submit_transcript.py's split so a slow/unavailable source never blocks mail polling.
 
 A source being unreachable degrades the reply (a note saying so) rather than failing the whole
 job, as long as at least one requested source answered - matching the "still send something
@@ -30,7 +30,20 @@ from app.jobs.store import JobStore, Outbox, PendingClarificationStore
 
 logger = logging.getLogger(__name__)
 
-_SOURCE_LABELS = {"github": "the GitHub repo", "trello": "the Trello board"}
+_SOURCE_LABELS = {
+    "conversation": "past meeting transcripts",
+    "github": "the GitHub repo",
+    "trello": "the Trello board",
+}
+
+
+def _source_unavailable_note(source: str, detail: str) -> str:
+    message = detail.lower()
+    if source == "github" and "no github source linked" in message:
+        return "Your group doesn't have a GitHub repo linked yet, so I couldn't check it."
+    if source == "trello" and "no trello source linked" in message:
+        return "Your group doesn't have a Trello board linked yet, so I couldn't check it."
+    return f"I couldn't check {_SOURCE_LABELS[source]} right now."
 
 
 def _was_cancelled(job: Job, job_store: JobStore) -> bool:
@@ -42,10 +55,6 @@ def _mark_cancelled(job: Job, job_store: JobStore) -> None:
     """The backend job was cancelled; the cancel email (or the API) already told the user."""
     if not _was_cancelled(job, job_store):
         job_store.set_status(job.job_id, JobState.CANCELLED)
-
-
-def _project_sources_label(sources: list[str]) -> str:
-    return " or ".join({"github": "a GitHub repo", "trello": "a Trello board"}[s] for s in sources)
 
 
 def accept(
@@ -116,61 +125,56 @@ def execute(
 
         group = match.group
         track = lambda backend_job_id: job_store.update(job.job_id, backend_job_id=backend_job_id)  # noqa: E731
-        transcript_answer: Optional[str] = None
-        github_trello_answer: Optional[str] = None
+        source_questions = {
+            name: focus
+            for name, focus in (
+                ("conversation", job.transcript_focus),
+                ("github", job.github_focus),
+                ("trello", job.trello_focus),
+            )
+            if focus
+        }
+        sources = list(source_questions)
+        unified_answer: Optional[str] = None
         unavailable_notes: list[str] = []
 
-        if job.transcript_focus:
-            try:
-                transcript_answer = diarisation_client.query_source(
-                    token, group.id, "conversation", job.transcript_focus, on_job=track
-                ).answer
-            except JobCancelledError:
-                _mark_cancelled(job, job_store)
-                return
-            except NotFoundError:
-                transcript_answer = "I didn't find anything in past transcripts that speaks to this."
-            except DiarisationApiError:
-                logger.exception("Transcript query failed for job %s", job.job_id)
-                unavailable_notes.append("I couldn't check past meeting transcripts right now.")
-
-        project_sources = [
-            name for name, focus in (("github", job.github_focus), ("trello", job.trello_focus)) if focus
-        ]
         if _was_cancelled(job, job_store):
             return
-        if project_sources:
-            question = " ".join(f for f in (job.github_focus, job.trello_focus) if f)
+        if sources:
             try:
-                if len(project_sources) == 1:
-                    result = diarisation_client.query_source(
-                        token, group.id, project_sources[0], question, on_job=track
-                    )
-                else:
-                    result = diarisation_client.query_unified(
-                        token, group.id, question, sources=project_sources, on_job=track
-                    )
-                github_trello_answer = result.answer
+                result = diarisation_client.query_unified(
+                    token,
+                    group.id,
+                    "Answer the sender's request using the source-specific questions provided.",
+                    sources=sources,
+                    source_questions=source_questions,
+                    on_job=track,
+                )
+                unified_answer = result.answer
                 unavailable_notes.extend(
-                    f"I couldn't check {_SOURCE_LABELS[name]} right now."
-                    for name in result.errors
+                    _source_unavailable_note(name, detail)
+                    for name, detail in result.errors.items()
                     if name in _SOURCE_LABELS
                 )
             except JobCancelledError:
                 _mark_cancelled(job, job_store)
                 return
-            except NotFoundError:
-                unavailable_notes.append(
-                    f"Your group doesn't have {_project_sources_label(project_sources)} linked yet, "
-                    "so I couldn't check it."
-                )
+            except NotFoundError as exc:
+                if sources == ["conversation"]:
+                    unified_answer = "I didn't find anything in past meeting transcripts that speaks to this."
+                else:
+                    unavailable_notes.extend(
+                        _source_unavailable_note(source, str(exc)) for source in sources
+                    )
             except DiarisationApiError:
-                logger.exception("GitHub/Trello query failed for job %s", job.job_id)
-                unavailable_notes.append("I couldn't check the GitHub repo/Trello board right now.")
+                logger.exception("Unified parent query failed for job %s", job.job_id)
+                unavailable_notes.extend(
+                    _source_unavailable_note(source, "backend query failed") for source in sources
+                )
 
         if _was_cancelled(job, job_store):
             return
-        if transcript_answer is None and github_trello_answer is None:
+        if unified_answer is None:
             reason = "None of the sources I needed to answer this were reachable just now."
             if unavailable_notes:
                 reason += " " + " ".join(unavailable_notes)
@@ -181,10 +185,11 @@ def execute(
         subject, body = render_assess_result(
             job.job_id,
             group.name,
-            transcript_answer,
-            github_trello_answer,
-            trello_checked=bool(job.trello_focus and github_trello_answer),
+            None,
+            None,
+            trello_checked=False,
             unavailable_notes=unavailable_notes,
+            unified_answer=unified_answer,
         )
         outbox.enqueue(
             to_email=job.sender_email, subject=subject, body_text=body, job_id=job.job_id,

@@ -179,6 +179,7 @@ def render_assess_result(
     github_trello_answer: Optional[str],
     trello_checked: bool,
     unavailable_notes: list[str],
+    unified_answer: Optional[str] = None,
 ) -> tuple[str, str]:
     subject = f"Here's what I found — {job_id}"
     body = _render(
@@ -189,6 +190,7 @@ def render_assess_result(
         github_trello_answer=github_trello_answer,
         trello_checked=trello_checked,
         unavailable_notes=unavailable_notes,
+        unified_answer=unified_answer,
     )
     return subject, body
 

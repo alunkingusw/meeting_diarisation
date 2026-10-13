@@ -109,6 +109,25 @@ class UnifiedQueryRequest(QueryRequest):
         default=None,
         description="Sources to query. Omit to let the router infer them from the question.",
     )
+    source_questions: dict[SourceName, str] = Field(
+        default_factory=dict,
+        description="Optional validated question per explicitly selected source.",
+    )
+
+    @model_validator(mode="after")
+    def validate_source_questions(self) -> "UnifiedQueryRequest":
+        if self.source_questions and self.sources is None:
+            raise ValueError("source_questions requires an explicit sources list")
+        normalized: dict[SourceName, str] = {}
+        for source, question in self.source_questions.items():
+            question = question.strip()
+            if not 3 <= len(question) <= 2000:
+                raise ValueError("each source question must contain 3 to 2000 characters")
+            if self.sources is not None and source not in self.sources:
+                raise ValueError(f"source question for {source} requires that source to be selected")
+            normalized[source] = question
+        self.source_questions = normalized
+        return self
 
 
 class EvidenceItem(BaseModel):
