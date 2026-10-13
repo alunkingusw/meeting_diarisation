@@ -1,0 +1,46 @@
+flowchart TD
+    Job["Validated assess_query job\ncreated after authenticated email intake"] --> Worker["Email JobWorker"]
+    Worker --> Client["DiarisationClient\nlogin_for_email and list_groups"]
+    Client --> Matcher["Deterministic group matcher\nresolve validated group hint"]
+    Matcher --> Unique{"One authorized group resolved?"}
+    Unique -->|"no"| Clarify["Persist clarification state"]
+    Clarify --> ClarifyMail["Outbox sends clarification\nin the original email thread"]
+    Unique -->|"yes"| Request["Build request from validated\nsource focuses and filters"]
+
+    Request -. "intended Phase 4 route" .-> API["FastAPI parent-query endpoint"]
+    API --> Gate["Verify JWT and group membership"]
+    Gate --> Context["Bind trusted user, group,\nand linked-source context"]
+    Context --> Parent["Parent LangGraph query agent\nplanned Phase 3"]
+    Parent --> Select{"Choose only requested\nand linked sources"}
+
+    subgraph Specialists["Source specialists: each is invoked only when selected"]
+        direction LR
+        Transcript["Transcript specialist"]
+        GitHub["GitHub specialist"]
+        Trello["Trello specialist"]
+    end
+    Select -->|"conversation"| Transcript
+    Select -->|"github"| GitHub
+    Select -->|"trello"| Trello
+
+    Transcript --> TranscriptTool["Fixed-scope transcript tool"]
+    GitHub --> ProjectTool["Fixed-scope GitHub tool"]
+    Trello --> TrelloTool["Fixed-scope Trello tool"]
+    TranscriptTool --> TranscriptData["Transcript Chroma\nand stats.json"]
+    ProjectTool --> ProjectData["Project Chroma\nand Postgres aggregates"]
+    TrelloTool --> ProjectData
+    TranscriptData --> TranscriptResult["Transcript answer, evidence IDs,\nspeaker facts or error"]
+    ProjectData --> GitHubResult["GitHub answer, evidence IDs,\nproject facts or error"]
+    ProjectData --> TrelloResult["Trello answer, evidence IDs,\nproject facts or error"]
+
+    TranscriptResult --> Compose["Parent composes a source-attributed\nanswer and records partial failures"]
+    GitHubResult --> Compose
+    TrelloResult --> Compose
+    Compose --> Response["Structured answer, facts,\nevidence, source errors"]
+    Response --> Client
+    Client --> Worker
+    Worker --> Outbox["Render and enqueue reply\nwith thread references"]
+    Outbox --> Mailbox["MailClient sends response"]
+
+    Current["Current Phase 2: email handler calls source/unified API routes directly"] -.-> Request
+    Security["No agent gets credentials, arbitrary URLs, CRUD tools,\nor authority to expand user/group/source scope"] -.-> Parent

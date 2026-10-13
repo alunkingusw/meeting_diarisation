@@ -1,24 +1,21 @@
-flowchart LR
-    group_id, group_name, meeting_id,
-    vtt_path, meeting_title, meeting_date)"]
-    A["VTT path\ndirect upload or generated transcript"] --> B["index_transcript(
-    group_id, group_name, meeting_id,
-    vtt_path, meeting_title, meeting_date)"]
-    group_id, group_name, meeting_id,
-    vtt_path, meeting_title, meeting_date)"]
-    B --> C["process_vtt_file"]
-    C --> D["verify_vtt\n    speaker metadata and structure"]
-    D --> E["parse_vtt_cues"]
-    E --> F["merge_cues_into_turns"]
-    F --> G["build_chunks\n    max 150 words by default"]
-    G --> H["Persist chunks.jsonl\n    and stats.json"]
-    H --> I["SentenceTransformer\n    all-MiniLM-L6-v2 on CPU"]
-    I --> J["Chroma PersistentClient"]
-    J --> K["get_or_create_collection\n    {group}_transcripts"]
-    K --> L["collection.upsert\n    ids, documents, metadatas, embeddings"]
-    L --> M["Available to POST\n    /groups/{group_id}/conversation/query"]
+flowchart TD
+    Direct["Provided VTT upload"] --> Index["index_transcript"]
+    Generated["VTT from diarisation/transcription"] --> Index
 
-    N["Meeting summarisation is separate from retrieval"] --> O["Read latest transcript file"]
-    O --> P["Parse and merge transcript"]
-    P --> Q["Send full transcript directly to Ollama"]
-    Q --> R["Cache response in Meeting.summary"]
+    Index --> Process["process_vtt_file"]
+    Process --> Verify["Verify VTT structure and speaker metadata"]
+    Verify --> Parse["Parse cues and merge speaker turns"]
+    Parse --> Chunks["Build timestamped retrieval chunks"]
+    Chunks --> Persist["Persist chunks.jsonl and stats.json"]
+    Persist --> Embed["SentenceTransformer\nall-MiniLM-L6-v2 on CPU"]
+    Embed --> Chroma["Upsert into group transcript Chroma collection"]
+    Persist --> Stats["Deterministic speaker statistics"]
+    Chroma --> Query["Transcript specialist retrieval tool"]
+    Stats --> Query
+    Query --> Evidence["Evidence IDs and scoped transcript stats"]
+
+    Direct -. "separate workflow" .-> Summary["Meeting summarisation task"]
+    Generated -. "separate workflow" .-> Summary
+    Summary --> Read["Read and parse latest transcript"]
+    Read --> Ollama["Generate summary with Ollama"]
+    Ollama --> Cache["Cache in Meeting.summary"]

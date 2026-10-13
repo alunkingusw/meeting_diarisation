@@ -1,0 +1,49 @@
+flowchart TD
+    Mailbox["Mailbox\nMicrosoft Graph, IMAP, or fake provider"] --> Fetch["MailClient.fetch_new_messages"]
+    Fetch --> Pipeline["EmailProcessingPipeline._process_message"]
+    Pipeline --> Auth["SenderAuthoriser\nvalidate address and provider auth signals"]
+    Auth --> Ledger["ProcessedMessageStore.begin"]
+    Ledger --> Duplicate{"Duplicate or exhausted retry?"}
+    Duplicate -->|"yes"| MarkDone["Mark provider message processed"]
+    Duplicate -->|"no"| Authorized{"Registered owner or group member?"}
+
+    Authorized -->|"no"| Alert["Admin alert\nno sender reply"]
+    Alert --> SilentDone["Finalize as silently rejected\nand mark processed"]
+    Authorized -->|"yes"| Thread["Match owned thread and report replies"]
+    Thread --> Existing{"Report reply or pending clarification?"}
+    Existing -->|"yes"| ExistingHandler["Deterministic thread/report handler"]
+    ExistingHandler --> Outbox["Enqueue reply in SQLite outbox"]
+    Existing -->|"no"| ModelReady{"Ollama available?"}
+
+    ModelReady -->|"no"| Defer["Leave message unread/in progress\nretry on a later poll"]
+    Defer --> InfraAlert["Infrastructure alert"]
+    ModelReady -->|"yes"| Parser["EmailCommandParser\nreturns finite ParsedCommand"]
+    Parser --> ParseOK{"Parsed command?"}
+    ParseOK -->|"no"| ParseHelp["Clarification or restricted group-member help"]
+    ParseHelp --> Outbox
+    ParseOK -->|"yes"| MemberPolicy{"Allowed for this sender role?"}
+    MemberPolicy -->|"no"| RestrictedHelp["Group-member help reply"]
+    RestrictedHelp --> Outbox
+    MemberPolicy -->|"yes"| Validator["validate_command\nactual attachments, owned job, limits, ambiguity"]
+
+    Validator --> Outcome{"Validation outcome"}
+    Outcome -->|"clarification required"| Clarify["Store pending clarification"]
+    Clarify --> Outbox
+    Outcome -->|"rejected"| Failure["Render deterministic failure reply"]
+    Failure --> Outbox
+    Outcome -->|"validated"| Dispatch{"Explicit finite dispatch"}
+    Dispatch -->|"assess_query"| QueryAccept["Create local query job\nand acknowledge sender"]
+    QueryAccept --> Outbox
+    Dispatch -->|"submit_transcript"| TranscriptAccept["Save and parse real VTT attachment\nresolve date or request clarification"]
+    TranscriptAccept --> Outbox
+    Dispatch -->|"other supported operation"| Handler["Call deterministic operation handler"]
+    Handler --> Outbox
+
+    Outbox --> Finalize["Finalize processed-message record"]
+    Finalize --> MarkDone
+    Outbox --> Send["MailClient flushes queued replies\nwith thread headers"]
+
+    classDef untrusted fill:#fff7ed,stroke:#c2410c
+    classDef trusted fill:#ecfdf5,stroke:#15803d
+    class Parser untrusted
+    class Auth,Validator,Dispatch,Handler,TranscriptAccept trusted
