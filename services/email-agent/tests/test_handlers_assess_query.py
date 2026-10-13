@@ -50,8 +50,12 @@ def test_accept_reuses_owned_parent_query_conversation(db_path: Path):
     job_store = JobStore(db_path)
     parent = job_store.create_job(
         "alice@uni.ac.uk", 12, "<parent@mail>", operation="assess_query",
-        query_conversation_id="conversation-1",
+        query_conversation_id="conversation-1", resolved_group_id=1,
     )
+    job_store.set_status(parent.job_id, JobState.VALIDATING)
+    job_store.set_status(parent.job_id, JobState.QUEUED)
+    job_store.set_status(parent.job_id, JobState.PROCESSING)
+    job_store.set_status(parent.job_id, JobState.COMPLETED)
 
     outcome = assess_query.accept(
         _cmd(github_focus="open issues"), "alice@uni.ac.uk", 12, "<reply@mail>",
@@ -89,6 +93,7 @@ def _queued_job(db_path, group_hint=None, transcript_focus=None, github_focus=No
         "alice@uni.ac.uk", 12, "<msg-1@mail>", operation="assess_query",
         group_hint=group_hint, transcript_focus=transcript_focus,
         github_focus=github_focus, trello_focus=trello_focus,
+        query_conversation_id="conversation-1",
     )
     job_store.set_status(job.job_id, JobState.VALIDATING)
     job_store.set_status(job.job_id, JobState.QUEUED)
@@ -112,6 +117,12 @@ def test_execute_transcript_only_uses_conversation_source(db_path: Path):
     ]
     assert diarisation.source_question_requests == [{"conversation": "the API redesign"}]
     assert "Alice raised the API redesign on Tuesday." in outbox.pending()[0].body_text
+    turns = job_store.list_query_turns(
+        job.query_conversation_id, job.sender_email, job.backend_user_id, 1
+    )
+    assert len(turns) == 1
+    assert turns[0].selected_sources == ["conversation"]
+    assert turns[0].group_id == 1
 
 
 def test_execute_no_transcript_match_says_nothing_found(db_path: Path):
@@ -206,6 +217,10 @@ def test_execute_unlinked_repo_notes_unavailable_but_still_sends_transcript_answ
     body = outbox.pending()[0].body_text
     assert "Alice raised the API redesign on Tuesday." in body
     assert "doesn't have a GitHub repo linked" in body
+    turns = job_store.list_query_turns(
+        job.query_conversation_id, job.sender_email, job.backend_user_id, 1
+    )
+    assert turns[0].failed_sources == ["github"]
 
 
 def test_execute_ambiguous_group_asks_for_clarification(db_path: Path):

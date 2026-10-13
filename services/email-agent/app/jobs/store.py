@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from app.jobs.models import ALLOWED_TRANSITIONS, Job, JobState, utcnow_iso
+from app.jobs.models import ALLOWED_TRANSITIONS, Job, JobState, QueryTurn, utcnow_iso
 from app.storage.db import get_connection
 
 _JSON_FIELDS = {"speakers", "resolved_attendees", "unresolved_speakers"}
@@ -115,6 +115,89 @@ class JobStore:
         if job is None or job.sender_email.lower() != sender_email.lower():
             return None
         return job
+
+    def record_query_turn(
+        self,
+        job_id: str,
+        selected_sources: list[str],
+        evidence_refs: list[dict[str, str]],
+        failed_sources: list[str],
+        model: Optional[str],
+    ) -> None:
+        """Persist query provenance without duplicating message, answer, or evidence text."""
+        conn = self._conn()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            job = conn.execute(
+                """SELECT operation, query_conversation_id, resolved_group_id
+                   FROM jobs WHERE job_id = ?""",
+                (job_id,),
+            ).fetchone()
+            if (
+                job is None
+                or job["operation"] != "assess_query"
+                or not job["query_conversation_id"]
+                or job["resolved_group_id"] is None
+            ):
+                raise ValueError("Query turn requires an assess_query job with resolved scope")
+
+            conn.execute(
+                """INSERT INTO query_turns (
+                       job_id, conversation_id, group_id, selected_sources_json,
+                       evidence_refs_json, failed_sources_json, model, created_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(job_id) DO UPDATE SET
+                       conversation_id = excluded.conversation_id,
+                       group_id = excluded.group_id,
+                       selected_sources_json = excluded.selected_sources_json,
+                       evidence_refs_json = excluded.evidence_refs_json,
+                       failed_sources_json = excluded.failed_sources_json,
+                       model = excluded.model""",
+                (
+                    job_id,
+                    job["query_conversation_id"],
+                    job["resolved_group_id"],
+                    json.dumps(selected_sources),
+                    json.dumps(evidence_refs),
+                    json.dumps(failed_sources),
+                    model,
+                    utcnow_iso(),
+                ),
+            )
+            conn.execute("COMMIT")
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    def list_query_turns(
+        self,
+        conversation_id: str,
+        sender_email: str,
+        backend_user_id: int,
+        group_id: int,
+        limit: int = 100,
+    ) -> list[QueryTurn]:
+        """List turns only for the exact authenticated sender, user, group, and conversation."""
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                """SELECT turns.* FROM query_turns AS turns
+                   JOIN jobs ON jobs.job_id = turns.job_id
+                   WHERE turns.conversation_id = ?
+                     AND jobs.query_conversation_id = turns.conversation_id
+                     AND jobs.sender_email = ? COLLATE NOCASE
+                     AND jobs.backend_user_id = ?
+                     AND jobs.resolved_group_id = ?
+                   ORDER BY turns.created_at, turns.job_id
+                   LIMIT ?""",
+                (conversation_id, sender_email, backend_user_id, group_id, limit),
+            ).fetchall()
+            return [QueryTurn.from_row(row) for row in rows]
+        finally:
+            conn.close()
 
     def update(self, job_id: str, **fields) -> None:
         if not fields:

@@ -130,3 +130,28 @@ class Job:
             last_response_message_id=row["last_response_message_id"],
             in_reply_to_message_id=row["in_reply_to_message_id"],
         )
+
+
+@dataclass
+class QueryTurn:
+    job_id: str
+    conversation_id: str
+    group_id: int
+    selected_sources: list[str]
+    evidence_refs: list[dict[str, str]]
+    failed_sources: list[str]
+    model: Optional[str]
+    created_at: str
+
+    @classmethod
+    def from_row(cls, row) -> "QueryTurn":
+        return cls(
+            job_id=row["job_id"],
+            conversation_id=row["conversation_id"],
+            group_id=row["group_id"],
+            selected_sources=json.loads(row["selected_sources_json"]),
+            evidence_refs=json.loads(row["evidence_refs_json"]),
+            failed_sources=json.loads(row["failed_sources_json"]),
+            model=row["model"],
+            created_at=row["created_at"],
+        )

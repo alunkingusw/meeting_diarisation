@@ -34,6 +34,51 @@ def test_get_owned_hides_jobs_from_non_owner(db_path: Path):
     assert store.get_owned(job.job_id, "mallory@evil.example") is None
 
 
+def test_query_turns_are_idempotent_and_scoped_to_sender_user_and_group(db_path: Path):
+    store = JobStore(db_path)
+    job = store.create_job(
+        "alice@uni.ac.uk",
+        12,
+        "<query@mail>",
+        operation="assess_query",
+        query_conversation_id="conversation-1",
+        resolved_group_id=4,
+    )
+    references = [{"source": "conversation", "id": "12_00002"}]
+
+    store.record_query_turn(
+        job.job_id,
+        selected_sources=["conversation", "github"],
+        evidence_refs=references,
+        failed_sources=["github"],
+        model="llama3.1:8b",
+    )
+    store.record_query_turn(
+        job.job_id,
+        selected_sources=["conversation", "github"],
+        evidence_refs=references,
+        failed_sources=[],
+        model="llama3.1:8b",
+    )
+
+    turns = JobStore(db_path).list_query_turns("conversation-1", "ALICE@UNI.AC.UK", 12, 4)
+    assert len(turns) == 1
+    assert turns[0].selected_sources == ["conversation", "github"]
+    assert turns[0].evidence_refs == references
+    assert turns[0].failed_sources == []
+    assert turns[0].model == "llama3.1:8b"
+    assert store.list_query_turns("conversation-1", "mallory@evil.example", 12, 4) == []
+    assert store.list_query_turns("conversation-1", "alice@uni.ac.uk", 13, 4) == []
+    assert store.list_query_turns("conversation-1", "alice@uni.ac.uk", 12, 5) == []
+
+    conn = store._conn()
+    try:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(query_turns)")}
+    finally:
+        conn.close()
+    assert not {"question", "answer", "evidence_text", "message_body"} & columns
+
+
 def test_valid_status_transition_succeeds(db_path: Path):
     store = JobStore(db_path)
     job = store.create_job("alice@uni.ac.uk", 12, "<msg-1@mail>")
@@ -81,6 +126,27 @@ def test_existing_jobs_database_migrates_user_id_to_nullable(tmp_path: Path):
         ) VALUES (?, ?, ?, ?, ?, ?)""",
         ("DIAR-2026-1001-0001", "alice@uni.ac.uk", 12, "<old@mail>", "RECEIVED", "2026-10-01"),
     )
+    conn.execute(
+        """INSERT INTO jobs (
+            job_id, sender_email, backend_user_id, source_message_id, operation, status,
+            resolved_group_id, query_conversation_id, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            "DIAR-2026-1001-0002", "alice@uni.ac.uk", 12, "<query@mail>",
+            "assess_query", "COMPLETED", 4, "conversation-1", "2026-10-01",
+        ),
+    )
+    conn.execute(
+        """INSERT INTO query_turns (
+            job_id, conversation_id, group_id, selected_sources_json,
+            evidence_refs_json, failed_sources_json, model, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            "DIAR-2026-1001-0002", "conversation-1", 4, '["conversation"]',
+            '[{"source":"conversation","id":"12_00002"}]', "[]",
+            "llama3.1:8b", "2026-10-01",
+        ),
+    )
     conn.commit()
     conn.close()
 
@@ -93,10 +159,17 @@ def test_existing_jobs_database_migrates_user_id_to_nullable(tmp_path: Path):
     preserved_job = conn.execute(
         "SELECT backend_user_id FROM jobs WHERE job_id = ?", ("DIAR-2026-1001-0001",)
     ).fetchone()
+    preserved_turns = conn.execute(
+        "SELECT conversation_id, group_id FROM query_turns WHERE job_id = ?",
+        ("DIAR-2026-1001-0002",),
+    ).fetchall()
+    foreign_key_errors = conn.execute("PRAGMA foreign_key_check").fetchall()
     conn.close()
 
     assert backend_user_column[3] == 0
     assert preserved_job == (12,)
+    assert [tuple(row) for row in preserved_turns] == [("conversation-1", 4)]
+    assert foreign_key_errors == []
     member_job = JobStore(db_path).create_job("carol@uni.ac.uk", None, "<member@mail>")
     assert member_job.backend_user_id is None
 

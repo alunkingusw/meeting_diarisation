@@ -58,6 +58,18 @@ def _mark_cancelled(job: Job, job_store: JobStore) -> None:
         job_store.set_status(job.job_id, JobState.CANCELLED)
 
 
+def _query_evidence_refs(results: dict[str, dict]) -> list[dict[str, str]]:
+    references = []
+    for source, result in results.items():
+        if source not in _SOURCE_LABELS or not isinstance(result, dict):
+            continue
+        for evidence in result.get("evidence", []):
+            evidence_id = evidence.get("id") if isinstance(evidence, dict) else None
+            if evidence_id:
+                references.append({"source": source, "id": str(evidence_id)})
+    return references
+
+
 def accept(
     validated_cmd: ValidatedCommand,
     sender_email: str,
@@ -77,6 +89,8 @@ def accept(
     if (
         parent_job is not None
         and parent_job.operation == "assess_query"
+        and parent_job.status == JobState.COMPLETED
+        and parent_job.resolved_group_id is not None
         and backend_user_id is not None
         and parent_job.backend_user_id == backend_user_id
     ):
@@ -174,12 +188,13 @@ def execute(
         sources = list(source_questions)
         unified_answer: Optional[str] = None
         unavailable_notes: list[str] = []
+        query_result = None
 
         if _was_cancelled(job, job_store):
             return
         if sources:
             try:
-                result = diarisation_client.query_unified(
+                query_result = diarisation_client.query_unified(
                     token,
                     group.id,
                     "Answer the sender's request using the source-specific questions provided.",
@@ -187,10 +202,10 @@ def execute(
                     source_questions=source_questions,
                     on_job=track,
                 )
-                unified_answer = result.answer
+                unified_answer = query_result.answer
                 unavailable_notes.extend(
                     _source_unavailable_note(name, detail)
-                    for name, detail in result.errors.items()
+                    for name, detail in query_result.errors.items()
                     if name in _SOURCE_LABELS
                 )
             except JobCancelledError:
@@ -218,6 +233,13 @@ def execute(
             _handle_failure(job, reason, job_store, outbox, admin_notifier)
             return
 
+        job_store.record_query_turn(
+            job.job_id,
+            selected_sources=sources,
+            evidence_refs=_query_evidence_refs(query_result.results) if query_result else [],
+            failed_sources=list(query_result.errors) if query_result else [],
+            model=query_result.model if query_result else None,
+        )
         job_store.set_status(job.job_id, JobState.COMPLETED)
         subject, body = render_assess_result(
             job.job_id,

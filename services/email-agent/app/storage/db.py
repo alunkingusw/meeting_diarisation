@@ -50,6 +50,20 @@ CREATE TABLE IF NOT EXISTS jobs (
 CREATE INDEX IF NOT EXISTS idx_jobs_sender ON jobs (sender_email);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
 
+CREATE TABLE IF NOT EXISTS query_turns (
+    job_id TEXT PRIMARY KEY REFERENCES jobs(job_id) ON DELETE CASCADE,
+    conversation_id TEXT NOT NULL,
+    group_id INTEGER NOT NULL,
+    selected_sources_json TEXT NOT NULL,
+    evidence_refs_json TEXT NOT NULL,
+    failed_sources_json TEXT NOT NULL,
+    model TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_query_turns_conversation
+    ON query_turns (conversation_id, created_at);
+
 CREATE TABLE IF NOT EXISTS processed_messages (
     message_id TEXT PRIMARY KEY,
     received_at TEXT NOT NULL,

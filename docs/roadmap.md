@@ -179,11 +179,12 @@ parent evaluated in Phase 3.
 
 ### 5. Persist follow-up conversation state
 
-Current groundwork: email query jobs now persist a conversation ID and a sender-owned parent query
-job link. Every follow-up still authenticates and resolves its group afresh, and is assigned a new
-conversation ID if the resolved group differs. Previous answers/evidence are not yet replayed into
-the parent prompt; this keeps each query evidence-fresh while the retention and context policy is
-designed.
+Current groundwork: email query jobs persist a conversation ID and a sender-owned parent query
+job link. Completed turns also persist a metadata-only ledger entry with resolved group, selected
+sources, failed sources, model ID, and stable evidence references. The ledger deliberately does not
+duplicate email bodies, answers, or evidence text. Follow-ups reuse ancestry only from a completed,
+group-resolved query; each one authenticates and resolves its group afresh, and starts a new
+conversation if the group differs. Prior answers/evidence are not yet loaded into prompts.
 
 - Add durable conversation/turn records linked to authenticated sender, authorized group, and
   email message/thread IDs. Keep this application-owned store authoritative; LangGraph
