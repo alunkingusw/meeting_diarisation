@@ -1,8 +1,9 @@
 # NLP Agent Architecture Roadmap
 
 This is the single implementation roadmap for natural-language query agents. It distinguishes
-the current system from the target design; the target is not yet implemented. CRUD and existing
-transcript-submission actions remain explicit API/application workflows, not query-agent tools.
+the current source-specialist implementation from the remaining parent/email workflow. CRUD and
+existing transcript-submission actions remain explicit API/application workflows, not query-agent
+tools.
 
 ## Agreed Design
 
@@ -56,7 +57,8 @@ flowchart TD
   [retrieval implementation guide](langchain-langgraph-storage-retrieval.md).
 - Weekly reports already use a backend LangGraph and persist report evidence. Their flow is
   separate from conversational query-agent state.
-- No model-selectable `@tool`/`BaseTool` definitions currently exist in the Python source.
+- Transcript, GitHub, and Trello specialists now expose one fixed-scope, read-only retrieval tool
+  each. Unified-query and email flows have not yet been moved to a parent specialist agent.
 
 ## Implementation Phases
 
@@ -94,6 +96,11 @@ the evaluation note before closing this phase.
 introduced.
 
 ### 2. Implement the three specialist query agents
+
+Current implementation: the three typed specialists are wired to the synchronous source-query
+routes and their background-job handlers. Transcript retrieval uses the existing retrieve-only
+path; GitHub/Trello use the shared retrieval-only project query plus deterministic SQL facts. The
+unified route still uses the existing LangGraph workflow and remains the Phase 3 integration.
 
 - Implement transcript, GitHub, and Trello specialists behind shared typed contracts.
 - Define each specialist's LangChain tools here: narrow, typed, read-only wrappers around its

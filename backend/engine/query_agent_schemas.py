@@ -1,13 +1,15 @@
-"""Shared contracts for source query specialists and their parent workflow.
-
-These schemas are additive design contracts; current API handlers do not use them yet.
-"""
+"""Shared typed contracts for source query specialists and their parent workflow."""
 from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from backend.project_rag.schemas import EvidenceItem, SourceName
+from backend.project_rag.schemas import (
+    EvidenceItem,
+    ProjectStatsResponse,
+    SourceName,
+    TranscriptStatsResponse,
+)
 
 
 class QueryFilters(BaseModel):
@@ -73,6 +75,10 @@ class SpecialistQueryResult(BaseModel):
     answer: str
     quantitative_facts: list[QuantitativeFact] = Field(default_factory=list)
     evidence: list[EvidenceItem] = Field(default_factory=list)
+    truncated_evidence: int = 0
+    complete_window: bool = False
+    stats: ProjectStatsResponse | None = None
+    transcript_stats: TranscriptStatsResponse | None = None
     errors: list[str] = Field(default_factory=list)
     model: str | None = None
     retrieval_metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)

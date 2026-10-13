@@ -277,6 +277,8 @@ class _FakeOllama:
 
     def __init__(self):
         self.prompts: list[str] = []
+        self.agent_prompts: list[str] = []
+        self.agent_tool_results: list[str] = []
         self.error: Exception | None = None
 
     def __enter__(self):
@@ -298,4 +300,25 @@ class _FakeOllama:
 def fake_llm(monkeypatch):
     llm = _FakeOllama()
     monkeypatch.setattr("backend.llm.ollama_client.OllamaClient", lambda *a, **k: llm)
+
+    from backend.engine import specialists
+
+    def fake_create_agent(*, model, tools, system_prompt):
+        class FakeAgent:
+            def invoke(self, state):
+                from types import SimpleNamespace
+
+                tool_result = tools[0].invoke({})
+                llm.agent_prompts.append(
+                    f"{system_prompt}\nQUESTION: {state['messages'][0]['content']}"
+                )
+                llm.agent_tool_results.append(str(tool_result))
+                if llm.error:
+                    raise llm.error
+                return {"messages": [SimpleNamespace(content="fake answer")]}
+
+        return FakeAgent()
+
+    monkeypatch.setattr(specialists, "create_agent", fake_create_agent)
+    monkeypatch.setattr(specialists, "ChatOllama", lambda **kwargs: None)
     return llm

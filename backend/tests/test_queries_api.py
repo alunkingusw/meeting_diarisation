@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 
 # backend modules are imported inside functions: backend.config reads env at import time,
@@ -151,9 +152,10 @@ def test_project_query_until_is_exclusive_for_evidence_and_stats(
         assert body["stats"][total_key] == 1
         assert any(expected_text in item["text"] for item in body["evidence"])
         assert all(excluded_text not in item["text"] for item in body["evidence"])
-        assert "Requested activity window: [2026-09-01, 2026-10-01)" in fake_llm.prompts[-1]
-        assert "AUTHORITATIVE PER-CONTRIBUTOR COUNTS" in fake_llm.prompts[-1]
-        assert expected_text.split()[0] in fake_llm.prompts[-1]
+        agent_payload = json.loads(fake_llm.agent_tool_results[-1])
+        assert agent_payload["complete_window"] is True
+        assert any(expected_text in item["text"] for item in agent_payload["evidence"])
+        assert "deterministic stats" in fake_llm.agent_prompts[-1]
 
     unified = client.post(
         f"/groups/{group.id}/query",

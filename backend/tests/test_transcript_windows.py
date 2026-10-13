@@ -1,3 +1,4 @@
+import json
 from datetime import date
 
 
@@ -122,7 +123,6 @@ def test_conversation_query_returns_transcript_stats_and_includes_them_in_prompt
 
     from backend.models import RawFile, RawFileType
     from backend.project_rag import group_service
-    from backend.project_rag.group_service import CONVERSATION_SYSTEM_PROMPT
 
     owner, group = _group_with_owner(db_session, make_user, make_group)
     meeting = make_meeting(group, datetime(2026, 9, 14))
@@ -179,9 +179,10 @@ def test_conversation_query_returns_transcript_stats_and_includes_them_in_prompt
     assert body["transcript_stats"]["speakers"][0]["speaker"] == "Ada"
     assert body["transcript_stats"]["speakers"][0]["turn_count"] == 3
     assert seen == {"group_id": group.id, "meeting_ids": [meeting.id]}
-    assert f"meeting_id={meeting.id}" in fake_llm.prompts[-1]
-    assert '"turn_count": 3' in fake_llm.prompts[-1]
-    assert "do not include the heading index or meeting ID in citations" in CONVERSATION_SYSTEM_PROMPT
+    tool_result = json.loads(fake_llm.agent_tool_results[-1])
+    assert tool_result["transcript_stats"]["meetings"][0]["meeting_id"] == meeting.id
+    assert tool_result["transcript_stats"]["speakers"][0]["turn_count"] == 3
+    assert "deterministic transcript statistics" in fake_llm.agent_prompts[-1]
 
     monkeypatch.setattr(
         group_service,

@@ -24,6 +24,18 @@ from backend.jobs.schemas import ASYNC_PARAM, JobAccepted, accepted_response
 from backend.jobs.service import submit_job
 from backend.llm.ollama_client import OllamaError
 from backend.engine.query_graph import run_unified_query
+from backend.engine.query_agent_schemas import (
+    QueryFilters,
+    SpecialistQueryInput,
+    TrustedQueryContext,
+)
+from backend.engine.specialists import (
+    SpecialistModelError,
+    run_github_specialist,
+    run_transcript_specialist,
+    run_trello_specialist,
+    to_source_query_response,
+)
 from backend.project_rag import group_service
 from backend.project_rag.models import Repo
 from backend.project_rag.schemas import (
@@ -46,21 +58,49 @@ def _accepted(db: Session, group_id: int, user_id: int, scope: str, payload) -> 
     get_group_or_404(db, group_id)
     job = submit_job(
         db, "query",
-        {"group_id": group_id, "scope": scope, "payload": payload.model_dump(mode="json")},
+        {
+            "group_id": group_id,
+            "scope": scope,
+            "user_id": user_id,
+            "payload": payload.model_dump(mode="json"),
+        },
         user_id=user_id, group_id=group_id,
     )
     return accepted_response(job.id)
 
 
 def _run_source_query(
-    db: Session, group_id: int, source: SourceName, payload: QueryRequest
+    db: Session, group_id: int, user_id: int, source: SourceName, payload: QueryRequest
 ) -> SourceQueryResponse:
     group = get_group_or_404(db, group_id)
     try:
-        return group_service.query_source(db, group, source, payload)
+        if source == "conversation" and getattr(payload, "retrieve_only", False):
+            return group_service.query_source(db, group, source, payload)
+
+        context = TrustedQueryContext(
+            user_id=user_id,
+            group_id=group_id,
+            allowed_sources=[source],
+        )
+        request = SpecialistQueryInput(
+            question=payload.question,
+            filters=QueryFilters(
+                since=payload.since,
+                until=payload.until,
+                meeting_id=getattr(payload, "meeting_id", None),
+            ),
+        )
+        runner = {
+            "conversation": run_transcript_specialist,
+            "github": run_github_specialist,
+            "trello": run_trello_specialist,
+        }[source]
+        return to_source_query_response(runner(db, context, request))
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except OllamaError as exc:
+    except (OllamaError, SpecialistModelError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
@@ -79,7 +119,7 @@ def query_conversation(
     `retrieve_only` to get the chunks without an LLM answer."""
     if run_async:
         return _accepted(db, group_id, user_id, "conversation", payload)
-    return _run_source_query(db, group_id, "conversation", payload)
+    return _run_source_query(db, group_id, user_id, "conversation", payload)
 
 
 @router.post("/github/query", response_model=SourceQueryResponse, responses={202: {"model": JobAccepted}})
@@ -93,7 +133,7 @@ def query_github(
     """Answer a question from the group's ingested GitHub commits, issues and review comments."""
     if run_async:
         return _accepted(db, group_id, user_id, "github", payload)
-    return _run_source_query(db, group_id, "github", payload)
+    return _run_source_query(db, group_id, user_id, "github", payload)
 
 
 @router.post("/trello/query", response_model=SourceQueryResponse, responses={202: {"model": JobAccepted}})
@@ -107,7 +147,7 @@ def query_trello(
     """Answer a question from the group's ingested Trello card activity."""
     if run_async:
         return _accepted(db, group_id, user_id, "trello", payload)
-    return _run_source_query(db, group_id, "trello", payload)
+    return _run_source_query(db, group_id, user_id, "trello", payload)
 
 
 @router.post("/query", response_model=UnifiedQueryResponse, responses={202: {"model": JobAccepted}})

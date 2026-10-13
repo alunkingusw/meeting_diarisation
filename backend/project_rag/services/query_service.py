@@ -99,6 +99,19 @@ class QueryResult:
     complete_window: bool = False
 
 
+@dataclass
+class QueryEvidence:
+    """Retrieved project evidence and complete SQL facts, without an LLM answer."""
+
+    question: str
+    repo_id: int
+    repo_name: str
+    stats: ProjectStats
+    sources: list[RetrievedChunk]
+    truncated_sources: int = 0
+    complete_window: bool = False
+
+
 def _since_to_datetime(since: date | None) -> datetime | None:
     """Turn a `since` date into the UTC instant it begins at, for comparison
     against the timezone-aware timestamps stored in Postgres and Chroma."""
@@ -344,7 +357,7 @@ def _fetch_complete_window(
     return hits
 
 
-def answer_question(
+def retrieve_question(
     db: Session,
     repo: Repo,
     question: str,
@@ -352,9 +365,8 @@ def answer_question(
     until: date | None = None,
     sources: tuple[str, ...] = SOURCES,
     label: str | None = None,
-) -> QueryResult:
-    """
-    Answer a natural-language question about one repo's activity.
+) -> QueryEvidence:
+    """Retrieve source evidence and deterministic project facts without generation.
 
     `since` and `until`, if given, scope both PROJECT FACTS and RETRIEVED
     EXTRACTS to the half-open interval [since, until).
@@ -383,13 +395,36 @@ def answer_question(
     if chunks is None:
         chunks = retrieve_chunks(repo, question, since=since_dt, until=until_dt, sources=sources)
 
-    context, dropped = _build_context(chunks, settings.max_context_chars)
-    facts = format_stats_for_prompt(stats, sources, since=since, until=until)
+    _, dropped = _build_context(chunks, settings.max_context_chars)
 
-    # The budget can still trim a complete window (a large window near the
-    # row limit can still overflow MAX_CONTEXT_CHARS) - only claim
-    # completeness in the prompt when nothing was actually dropped.
     complete_window = used_complete_window and dropped == 0
+    return QueryEvidence(
+        question=question,
+        repo_id=repo.id,
+        repo_name=label or repo.name,
+        stats=stats,
+        sources=chunks[: len(chunks) - dropped],
+        truncated_sources=dropped,
+        complete_window=complete_window,
+    )
+
+
+def answer_question(
+    db: Session,
+    repo: Repo,
+    question: str,
+    since: date | None = None,
+    until: date | None = None,
+    sources: tuple[str, ...] = SOURCES,
+    label: str | None = None,
+) -> QueryResult:
+    """Answer a natural-language question about one repo's activity."""
+    retrieved = retrieve_question(
+        db, repo, question, since=since, until=until, sources=sources, label=label
+    )
+    context, _ = _build_context(retrieved.sources, settings.max_context_chars)
+    facts = format_stats_for_prompt(retrieved.stats, sources, since=since, until=until)
+    complete_window = retrieved.complete_window
     extracts_label = (
         "RETRIEVED EXTRACTS (complete for the given time window, not a sample):"
         if complete_window else
@@ -407,13 +442,13 @@ def answer_question(
     generated = generate(SYSTEM_PROMPT, user_prompt)
 
     return QueryResult(
-        question=question,
-        repo_id=repo.id,
-        repo_name=label or repo.name,
+        question=retrieved.question,
+        repo_id=retrieved.repo_id,
+        repo_name=retrieved.repo_name,
         answer=generated.text,
         model=generated.model,
-        stats=stats,
-        sources=chunks[: len(chunks) - dropped],
-        truncated_sources=dropped,
+        stats=retrieved.stats,
+        sources=retrieved.sources,
+        truncated_sources=retrieved.truncated_sources,
         complete_window=complete_window,
     )

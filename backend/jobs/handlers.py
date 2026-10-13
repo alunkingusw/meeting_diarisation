@@ -77,8 +77,23 @@ def ingest(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
 def query(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
     """A group query that is too slow to hold an HTTP request open for."""
     from backend.engine.query_graph import run_unified_query
+    from backend.engine.query_agent_schemas import (
+        QueryFilters,
+        SpecialistQueryInput,
+        TrustedQueryContext,
+    )
+    from backend.engine.specialists import (
+        run_github_specialist,
+        run_transcript_specialist,
+        run_trello_specialist,
+        to_source_query_response,
+    )
     from backend.project_rag import group_service
-    from backend.project_rag.schemas import ConversationQueryRequest, QueryRequest, UnifiedQueryRequest
+    from backend.project_rag.schemas import (
+        ConversationQueryRequest,
+        QueryRequest,
+        UnifiedQueryRequest,
+    )
 
     scope, payload = params["scope"], params["payload"]
     ctx.progress(f"running {scope} query")
@@ -86,9 +101,28 @@ def query(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
         group = db.get(Group, params["group_id"])
         if scope == "unified":
             result = run_unified_query(db, group, UnifiedQueryRequest(**payload))
+        elif scope == "conversation" and payload.get("retrieve_only", False):
+            result = group_service.query_source(db, group, scope, ConversationQueryRequest(**payload))
         else:
-            request_cls = ConversationQueryRequest if scope == "conversation" else QueryRequest
-            result = group_service.query_source(db, group, scope, request_cls(**payload))
+            context = TrustedQueryContext(
+                user_id=params["user_id"],
+                group_id=params["group_id"],
+                allowed_sources=[scope],
+            )
+            request = SpecialistQueryInput(
+                question=payload["question"],
+                filters=QueryFilters(
+                    since=payload.get("since"),
+                    until=payload.get("until"),
+                    meeting_id=payload.get("meeting_id"),
+                ),
+            )
+            runner = {
+                "conversation": run_transcript_specialist,
+                "github": run_github_specialist,
+                "trello": run_trello_specialist,
+            }[scope]
+            result = to_source_query_response(runner(db, context, request))
     return result.model_dump(mode="json")
 
 
