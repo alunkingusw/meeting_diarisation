@@ -180,19 +180,17 @@ parent evaluated in Phase 3.
 ### 5. Persist follow-up conversation state
 
 Current groundwork: email query jobs persist a conversation ID and a sender-owned parent query
-job link. Completed turns also persist a metadata-only ledger entry with resolved group, selected
-sources, failed sources, model ID, and stable evidence references. The ledger deliberately does not
-duplicate email bodies, answers, or evidence text. Follow-ups reuse ancestry only from a completed,
-group-resolved query; each one authenticates and resolves its group afresh, and starts a new
-conversation if the group differs. Tests cover restart through a new store instance, legacy schema
-migration, thread continuation, and sender/user/group isolation. Prior answers/evidence are not yet
-loaded into prompts.
+job link. Completed turns persist validated per-source questions and the final answer, along with
+resolved group, selected/failed sources, model ID, and stable evidence references. The ledger does
+not duplicate the original email body or evidence text. Follow-ups reuse ancestry only from a
+completed, group-resolved query; each one authenticates and resolves its group afresh, and starts a
+new conversation if the group differs. Tests cover restart through a new store instance, legacy
+schema migration, thread continuation, and sender/user/group isolation. Prior answers/evidence are
+not yet loaded into prompts.
 
-- Define an explicit retention/privacy policy before storing user questions or generated answers.
-  The current ledger is metadata-only and links through the authenticated job record; do not add
-  duplicated message or evidence text by default.
-- Persist each user query, selected specialists, evidence references/snapshots, answer, and
-  relevant model/prompt versions. Apply retention and privacy rules to message content.
+- Define and document a retention/privacy policy for the stored per-source questions and answers.
+- Record effective prompt/dependency versions and any evidence snapshots needed for reproducible
+  evaluation; the current ledger stores stable evidence references and model ID only.
 - Let follow-ups reuse prior context only within the same authorized conversation, and re-query
   data when the follow-up asks for new or current evidence. Never use old thread context as proof
   of current authorization.
@@ -200,9 +198,9 @@ loaded into prompts.
   endpoints usable without conversation state.
 
 **Exit gate status:** email ancestry and metadata persistence, migration/restart reads, ownership
-isolation, evidence references, and group-boundary splitting are covered. API continuation,
-retention-controlled question/answer history, prompt context reuse, and stale-data behavior remain
-open.
+isolation, validated question/answer storage, evidence references, and group-boundary splitting are
+covered. Retention policy, prompt/dependency versioning, API continuation, prompt context reuse, and
+stale-data behavior remain open.
 
 ### 6. Evaluate, roll out, and document
 

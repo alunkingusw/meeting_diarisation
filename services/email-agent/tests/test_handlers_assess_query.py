@@ -123,6 +123,8 @@ def test_execute_transcript_only_uses_conversation_source(db_path: Path):
     assert len(turns) == 1
     assert turns[0].selected_sources == ["conversation"]
     assert turns[0].group_id == 1
+    assert turns[0].source_questions == {"conversation": "the API redesign"}
+    assert turns[0].answer == "Alice raised the API redesign on Tuesday."
 
 
 def test_execute_no_transcript_match_says_nothing_found(db_path: Path):

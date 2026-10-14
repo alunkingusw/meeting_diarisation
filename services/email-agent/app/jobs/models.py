@@ -137,6 +137,8 @@ class QueryTurn:
     job_id: str
     conversation_id: str
     group_id: int
+    source_questions: dict[str, str]
+    answer: str
     selected_sources: list[str]
     evidence_refs: list[dict[str, str]]
     failed_sources: list[str]
@@ -149,6 +151,8 @@ class QueryTurn:
             job_id=row["job_id"],
             conversation_id=row["conversation_id"],
             group_id=row["group_id"],
+            source_questions=json.loads(row["source_questions_json"]),
+            answer=row["answer"],
             selected_sources=json.loads(row["selected_sources_json"]),
             evidence_refs=json.loads(row["evidence_refs_json"]),
             failed_sources=json.loads(row["failed_sources_json"]),

@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS query_turns (
     job_id TEXT PRIMARY KEY REFERENCES jobs(job_id) ON DELETE CASCADE,
     conversation_id TEXT NOT NULL,
     group_id INTEGER NOT NULL,
+    source_questions_json TEXT NOT NULL,
+    answer TEXT NOT NULL,
     selected_sources_json TEXT NOT NULL,
     evidence_refs_json TEXT NOT NULL,
     failed_sources_json TEXT NOT NULL,
@@ -150,6 +152,17 @@ def init_db(db_path: Path) -> None:
             if column not in columns:
                 conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
                 columns.add(column)
+        query_turn_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(query_turns)")
+        }
+        if "source_questions_json" not in query_turn_columns:
+            conn.execute(
+                "ALTER TABLE query_turns ADD COLUMN source_questions_json TEXT NOT NULL DEFAULT '{}'"
+            )
+        if "answer" not in query_turn_columns:
+            conn.execute(
+                "ALTER TABLE query_turns ADD COLUMN answer TEXT NOT NULL DEFAULT ''"
+            )
         backend_user_column = next(
             row for row in conn.execute("PRAGMA table_info(jobs)")
             if row["name"] == "backend_user_id"

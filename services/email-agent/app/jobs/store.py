@@ -119,12 +119,14 @@ class JobStore:
     def record_query_turn(
         self,
         job_id: str,
+        source_questions: dict[str, str],
+        answer: str,
         selected_sources: list[str],
         evidence_refs: list[dict[str, str]],
         failed_sources: list[str],
         model: Optional[str],
     ) -> None:
-        """Persist query provenance without duplicating message, answer, or evidence text."""
+        """Persist validated source questions and the answer without copying the email body."""
         conn = self._conn()
         try:
             conn.execute("BEGIN IMMEDIATE")
@@ -143,12 +145,15 @@ class JobStore:
 
             conn.execute(
                 """INSERT INTO query_turns (
-                       job_id, conversation_id, group_id, selected_sources_json,
-                       evidence_refs_json, failed_sources_json, model, created_at
-                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                       job_id, conversation_id, group_id, source_questions_json, answer,
+                       selected_sources_json, evidence_refs_json, failed_sources_json, model,
+                       created_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(job_id) DO UPDATE SET
                        conversation_id = excluded.conversation_id,
                        group_id = excluded.group_id,
+                       source_questions_json = excluded.source_questions_json,
+                       answer = excluded.answer,
                        selected_sources_json = excluded.selected_sources_json,
                        evidence_refs_json = excluded.evidence_refs_json,
                        failed_sources_json = excluded.failed_sources_json,
@@ -157,6 +162,8 @@ class JobStore:
                     job_id,
                     job["query_conversation_id"],
                     job["resolved_group_id"],
+                    json.dumps(source_questions),
+                    answer,
                     json.dumps(selected_sources),
                     json.dumps(evidence_refs),
                     json.dumps(failed_sources),

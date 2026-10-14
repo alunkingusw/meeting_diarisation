@@ -235,6 +235,8 @@ def execute(
 
         job_store.record_query_turn(
             job.job_id,
+            source_questions=source_questions,
+            answer=unified_answer,
             selected_sources=sources,
             evidence_refs=_query_evidence_refs(query_result.results) if query_result else [],
             failed_sources=list(query_result.errors) if query_result else [],

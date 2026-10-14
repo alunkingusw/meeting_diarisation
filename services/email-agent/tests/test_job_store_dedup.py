@@ -44,10 +44,14 @@ def test_query_turns_are_idempotent_and_scoped_to_sender_user_and_group(db_path:
         query_conversation_id="conversation-1",
         resolved_group_id=4,
     )
+    source_questions = {"conversation": "What did we decide?", "github": "Any related issues?"}
+    answer = "The meeting recorded the decision; GitHub was unavailable."
     references = [{"source": "conversation", "id": "12_00002"}]
 
     store.record_query_turn(
         job.job_id,
+        source_questions=source_questions,
+        answer=answer,
         selected_sources=["conversation", "github"],
         evidence_refs=references,
         failed_sources=["github"],
@@ -55,6 +59,8 @@ def test_query_turns_are_idempotent_and_scoped_to_sender_user_and_group(db_path:
     )
     store.record_query_turn(
         job.job_id,
+        source_questions=source_questions,
+        answer=answer,
         selected_sources=["conversation", "github"],
         evidence_refs=references,
         failed_sources=[],
@@ -63,6 +69,8 @@ def test_query_turns_are_idempotent_and_scoped_to_sender_user_and_group(db_path:
 
     turns = JobStore(db_path).list_query_turns("conversation-1", "ALICE@UNI.AC.UK", 12, 4)
     assert len(turns) == 1
+    assert turns[0].source_questions == source_questions
+    assert turns[0].answer == answer
     assert turns[0].selected_sources == ["conversation", "github"]
     assert turns[0].evidence_refs == references
     assert turns[0].failed_sources == []
@@ -76,7 +84,7 @@ def test_query_turns_are_idempotent_and_scoped_to_sender_user_and_group(db_path:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(query_turns)")}
     finally:
         conn.close()
-    assert not {"question", "answer", "evidence_text", "message_body"} & columns
+    assert not {"question", "evidence_text", "message_body"} & columns
 
 
 def test_valid_status_transition_succeeds(db_path: Path):
@@ -117,6 +125,8 @@ def test_existing_jobs_database_migrates_user_id_to_nullable(tmp_path: Path):
     db_path = tmp_path / "legacy.db"
     legacy_schema = SCHEMA.replace(
         "backend_user_id INTEGER,", "backend_user_id INTEGER NOT NULL,", 1
+    ).replace("    source_questions_json TEXT NOT NULL,\n", "").replace(
+        "    answer TEXT NOT NULL,\n", ""
     )
     conn = sqlite3.connect(db_path)
     conn.executescript(legacy_schema)
@@ -160,7 +170,7 @@ def test_existing_jobs_database_migrates_user_id_to_nullable(tmp_path: Path):
         "SELECT backend_user_id FROM jobs WHERE job_id = ?", ("DIAR-2026-1001-0001",)
     ).fetchone()
     preserved_turns = conn.execute(
-        "SELECT conversation_id, group_id FROM query_turns WHERE job_id = ?",
+        "SELECT conversation_id, group_id, source_questions_json, answer FROM query_turns WHERE job_id = ?",
         ("DIAR-2026-1001-0002",),
     ).fetchall()
     foreign_key_errors = conn.execute("PRAGMA foreign_key_check").fetchall()
@@ -168,7 +178,7 @@ def test_existing_jobs_database_migrates_user_id_to_nullable(tmp_path: Path):
 
     assert backend_user_column[3] == 0
     assert preserved_job == (12,)
-    assert [tuple(row) for row in preserved_turns] == [("conversation-1", 4)]
+    assert [tuple(row) for row in preserved_turns] == [("conversation-1", 4, "{}", "")]
     assert foreign_key_errors == []
     member_job = JobStore(db_path).create_job("carol@uni.ac.uk", None, "<member@mail>")
     assert member_job.backend_user_id is None
