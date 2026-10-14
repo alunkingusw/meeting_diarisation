@@ -185,22 +185,24 @@ resolved group, selected/failed sources, model ID, and stable evidence reference
 not duplicate the original email body or evidence text. Follow-ups reuse ancestry only from a
 completed, group-resolved query; each one authenticates and resolves its group afresh, and starts a
 new conversation if the group differs. Tests cover restart through a new store instance, legacy
-schema migration, thread continuation, and sender/user/group isolation. Prior answers/evidence are
-not yet loaded into prompts.
+schema migration, thread continuation, and sender/user/group isolation. An email follow-up may now
+use the latest completed same-group answer only as bounded disambiguation context; the backend is
+queried again, and prior evidence is never reused as current proof.
 
-- Define and document a retention/privacy policy for the stored per-source questions and answers.
-- Record effective prompt/dependency versions and any evidence snapshots needed for reproducible
-  evaluation; the current ledger stores stable evidence references and model ID only.
-- Let follow-ups reuse prior context only within the same authorized conversation, and re-query
-  data when the follow-up asks for new or current evidence. Never use old thread context as proof
-  of current authorization.
+- Keep stored questions and answers for the lifetime of the application database; no separate
+  per-turn expiry or prompt/dependency versioning is planned for the current project scope.
+- Use prior turns to resolve conversational references such as "that issue," not as proof of a
+  mutable source's current state. For example, if an earlier answer said a GitHub issue was open
+  and a follow-up asks whether it is still open, query GitHub again. Re-query whenever a follow-up
+  asks for new or current evidence, and never use old thread content as proof of authorization.
 - Add API conversation identifiers for clients that need multi-turn queries; keep one-shot source
   endpoints usable without conversation state.
 
 **Exit gate status:** email ancestry and metadata persistence, migration/restart reads, ownership
 isolation, validated question/answer storage, evidence references, and group-boundary splitting are
-covered. Retention policy, prompt/dependency versioning, API continuation, prompt context reuse, and
-stale-data behavior remain open.
+covered. Email prior-turn context is bounded to the backend's source-question limit and tested to
+trigger a fresh query. Database-lifetime retention is the current policy. API conversation IDs and
+broader stale-data behavior remain open.
 
 ### 6. Evaluate, roll out, and document
 

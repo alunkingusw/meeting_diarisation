@@ -33,7 +33,7 @@ class SpecialistQueryInput(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    question: str = Field(min_length=3, max_length=2000)
+    question: str = Field(min_length=3, max_length=4000)
     filters: QueryFilters = Field(default_factory=QueryFilters)
 
 

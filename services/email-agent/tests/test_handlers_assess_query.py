@@ -127,6 +127,66 @@ def test_execute_transcript_only_uses_conversation_source(db_path: Path):
     assert turns[0].answer == "Alice raised the API redesign on Tuesday."
 
 
+def test_followup_uses_latest_turn_only_as_context_and_requeries(db_path: Path):
+    job_store, first_job = _queued_job(db_path, transcript_focus="the API redesign")
+    outbox = Outbox(db_path)
+    admin = AdminNotifier(db_path, outbox, admin_email=None)
+    diarisation = FakeDiarisationClient(
+        groups=[GroupSummary(id=1, name="Team A")],
+        source_answers={"conversation": "The transcript records a rollback recommendation."},
+    )
+
+    assess_query.execute(first_job, diarisation, job_store, outbox, admin)
+
+    followup = job_store.create_job(
+        "alice@uni.ac.uk", 12, "<followup@mail>", operation="assess_query",
+        query_conversation_id=first_job.query_conversation_id,
+        query_parent_job_id=first_job.job_id,
+        transcript_focus="What risks were associated with it?",
+    )
+    job_store.set_status(followup.job_id, JobState.VALIDATING)
+    job_store.set_status(followup.job_id, JobState.QUEUED)
+
+    assess_query.execute(job_store.get(followup.job_id), diarisation, job_store, outbox, admin)
+
+    assert len(diarisation.queries) == 2
+    effective_question = diarisation.source_question_requests[1]["conversation"]
+    assert "Prior context only; not evidence." in effective_question
+    assert "the API redesign" in effective_question
+    assert "The transcript records a rollback recommendation." in effective_question
+    assert "not evidence" in effective_question
+    assert "What risks were associated with it?" in effective_question
+    turns = job_store.list_query_turns(
+        first_job.query_conversation_id, "alice@uni.ac.uk", 12, 1
+    )
+    assert turns[-1].source_questions == {"conversation": "What risks were associated with it?"}
+
+
+def test_prior_context_never_exceeds_backend_source_question_limit():
+    from app.handlers.assess_query import _add_prior_turn_context
+    from app.jobs.models import QueryTurn
+
+    prior_turn = QueryTurn(
+        job_id="DIAR-2026-1014-0001",
+        conversation_id="conversation-1",
+        group_id=1,
+        source_questions={"github": "previous question"},
+        answer="A previous answer. " * 100,
+        selected_sources=["github"],
+        evidence_refs=[],
+        failed_sources=[],
+        model="llama3.1:8b",
+        created_at="2026-10-14T12:00:00+00:00",
+    )
+
+    contextual = _add_prior_turn_context({"github": "x" * 4000}, prior_turn)
+
+    assert contextual["github"] == "x" * 4000
+    contextual = _add_prior_turn_context({"github": "What about it?"}, prior_turn)
+    assert len(contextual["github"]) <= 4000
+    assert "Current follow-up question: What about it?" in contextual["github"]
+
+
 def test_execute_no_transcript_match_says_nothing_found(db_path: Path):
     job_store, job = _queued_job(db_path, transcript_focus="something never discussed")
     outbox = Outbox(db_path)

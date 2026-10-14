@@ -36,6 +36,7 @@ _SOURCE_LABELS = {
     "github": "the GitHub repo",
     "trello": "the Trello board",
 }
+_MAX_SOURCE_QUESTION_CHARS = 4000
 
 
 def _source_unavailable_note(source: str, detail: str) -> str:
@@ -68,6 +69,42 @@ def _query_evidence_refs(results: dict[str, dict]) -> list[dict[str, str]]:
             if evidence_id:
                 references.append({"source": source, "id": str(evidence_id)})
     return references
+
+
+def _add_prior_turn_context(
+    source_questions: dict[str, str], prior_turn
+) -> dict[str, str]:
+    if prior_turn is None or (not prior_turn.source_questions and not prior_turn.answer):
+        return source_questions
+
+    contextual_questions = {}
+    for source, question in source_questions.items():
+        prefix = "Prior context only; not evidence.\n"
+        prior_question_label = "Previous question: "
+        answer_label = "\nPrevious answer: "
+        current_label = "\nCurrent follow-up question: "
+        available = (
+            _MAX_SOURCE_QUESTION_CHARS
+            - len(prefix)
+            - len(prior_question_label)
+            - len(answer_label)
+            - len(current_label)
+            - len(question)
+        )
+        if available <= 0:
+            contextual_questions[source] = question
+            continue
+
+        previous_question = prior_turn.source_questions.get(source, "")
+        question_budget = min(len(previous_question), 500, available // 3)
+        previous_question = previous_question[-question_budget:] if question_budget else ""
+        answer_budget = max(0, available - len(previous_question))
+        previous_answer = prior_turn.answer[:answer_budget]
+        contextual_questions[source] = (
+            f"{prefix}{prior_question_label}{previous_question}{answer_label}{previous_answer}"
+            f"{current_label}{question}"
+        )
+    return contextual_questions
 
 
 def accept(
@@ -157,6 +194,7 @@ def execute(
             return
 
         group = match.group
+        conversation_id = job.query_conversation_id
         job_store.update(
             job.job_id,
             resolved_group_id=group.id,
@@ -167,13 +205,16 @@ def execute(
             if (
                 parent_job is None
                 or parent_job.operation != "assess_query"
+                or parent_job.status != JobState.COMPLETED
                 or parent_job.backend_user_id != job.backend_user_id
+                or parent_job.query_conversation_id != conversation_id
                 or (
                     parent_job.resolved_group_id is not None
                     and parent_job.resolved_group_id != group.id
                 )
             ):
-                job_store.update(job.job_id, query_conversation_id=str(uuid4()))
+                conversation_id = str(uuid4())
+                job_store.update(job.job_id, query_conversation_id=conversation_id)
 
         track = lambda backend_job_id: job_store.update(job.job_id, backend_job_id=backend_job_id)  # noqa: E731
         source_questions = {
@@ -186,6 +227,17 @@ def execute(
             if focus
         }
         sources = list(source_questions)
+        prior_turn = (
+            job_store.get_latest_query_turn(
+                conversation_id,
+                job.sender_email,
+                job.backend_user_id,
+                group.id,
+            )
+            if job.backend_user_id is not None
+            else None
+        )
+        effective_source_questions = _add_prior_turn_context(source_questions, prior_turn)
         unified_answer: Optional[str] = None
         unavailable_notes: list[str] = []
         query_result = None
@@ -199,7 +251,7 @@ def execute(
                     group.id,
                     "Answer the sender's request using the source-specific questions provided.",
                     sources=sources,
-                    source_questions=source_questions,
+                    source_questions=effective_source_questions,
                     on_job=track,
                 )
                 unified_answer = query_result.answer

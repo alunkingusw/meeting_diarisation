@@ -8,6 +8,7 @@ from backend.engine.query_agent_schemas import (
     SpecialistQueryResult,
     TrustedQueryContext,
 )
+from backend.project_rag.schemas import UnifiedQueryRequest
 
 
 def test_specialist_input_excludes_trusted_identity_and_group_scope():
@@ -16,6 +17,27 @@ def test_specialist_input_excludes_trusted_identity_and_group_scope():
     assert request.filters.meeting_id == 12
     with pytest.raises(ValidationError):
         SpecialistQueryInput(question="Who spoke most?", group_id=4)
+
+
+def test_source_questions_accept_four_thousand_characters():
+    question = "x" * 4000
+    unified = UnifiedQueryRequest(
+        question="Answer the follow-up.",
+        sources=["github"],
+        source_questions={"github": question},
+    )
+    specialist = SpecialistQueryInput(question=question)
+
+    assert len(unified.source_questions["github"]) == 4000
+    assert len(specialist.question) == 4000
+    with pytest.raises(ValueError, match="3 to 4000"):
+        UnifiedQueryRequest(
+            question="Answer the follow-up.",
+            sources=["github"],
+            source_questions={"github": question + "x"},
+        )
+    with pytest.raises(ValidationError):
+        SpecialistQueryInput(question=question + "x")
 
 
 def test_query_filters_use_exclusive_until_and_reject_empty_ranges():

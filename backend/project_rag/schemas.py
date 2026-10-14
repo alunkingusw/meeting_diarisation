@@ -121,8 +121,8 @@ class UnifiedQueryRequest(QueryRequest):
         normalized: dict[SourceName, str] = {}
         for source, question in self.source_questions.items():
             question = question.strip()
-            if not 3 <= len(question) <= 2000:
-                raise ValueError("each source question must contain 3 to 2000 characters")
+            if not 3 <= len(question) <= 4000:
+                raise ValueError("each source question must contain 3 to 4000 characters")
             if self.sources is not None and source not in self.sources:
                 raise ValueError(f"source question for {source} requires that source to be selected")
             normalized[source] = question

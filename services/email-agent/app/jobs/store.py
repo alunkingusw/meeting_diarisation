@@ -206,6 +206,39 @@ class JobStore:
         finally:
             conn.close()
 
+    def get_latest_query_turn(
+        self,
+        conversation_id: str,
+        sender_email: str,
+        backend_user_id: int,
+        group_id: int,
+    ) -> Optional[QueryTurn]:
+        """Return the latest completed turn for this authenticated conversation scope."""
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                """SELECT turns.* FROM query_turns AS turns
+                   JOIN jobs ON jobs.job_id = turns.job_id
+                   WHERE turns.conversation_id = ?
+                     AND jobs.query_conversation_id = turns.conversation_id
+                     AND jobs.sender_email = ? COLLATE NOCASE
+                     AND jobs.backend_user_id = ?
+                     AND jobs.resolved_group_id = ?
+                     AND jobs.status = ?
+                   ORDER BY turns.created_at DESC, turns.job_id DESC
+                   LIMIT 1""",
+                (
+                    conversation_id,
+                    sender_email,
+                    backend_user_id,
+                    group_id,
+                    JobState.COMPLETED.value,
+                ),
+            ).fetchone()
+            return QueryTurn.from_row(row) if row else None
+        finally:
+            conn.close()
+
     def update(self, job_id: str, **fields) -> None:
         if not fields:
             return
