@@ -213,6 +213,31 @@ class WeeklyReport(Base):
     created_at = Column(DateTime, nullable=False, default=func.now())
 
 
+class QueryConversationTurn(Base):
+    """Evaluation history for explicitly continued, user- and group-scoped queries."""
+
+    __tablename__ = "query_conversation_turns"
+    __table_args__ = (
+        Index(
+            "ix_query_conversation_scope_created",
+            "conversation_id", "user_id", "group_id", "created_at",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    conversation_id = Column(String(36), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+    question = Column(Text, nullable=False)
+    source_questions = Column(JSON, nullable=False, default=dict)
+    answer = Column(Text, nullable=False)
+    sources_used = Column(JSON, nullable=False, default=list)
+    evidence_refs = Column(JSON, nullable=False, default=dict)
+    errors = Column(JSON, nullable=False, default=dict)
+    model = Column(String(255), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+
+
 class GroupNudge(Base):
     """Tracks reminder delivery per member and reporting period for retry-safe weekly runs."""
 

@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -105,6 +106,10 @@ class ConversationQueryRequest(QueryRequest):
 
 
 class UnifiedQueryRequest(QueryRequest):
+    conversation_id: UUID | None = Field(
+        default=None,
+        description="Client-generated ID for a continued, user- and group-scoped query conversation.",
+    )
     sources: list[SourceName] | None = Field(
         default=None,
         description="Sources to query. Omit to let the router infer them from the question.",
@@ -190,6 +195,7 @@ class UnifiedQueryResponse(BaseModel):
     question: str
     answer: str
     model: str
+    conversation_id: UUID | None = None
     sources_used: list[SourceName]
     results: dict[str, SourceQueryResponse]
     errors: dict[str, str] = Field(

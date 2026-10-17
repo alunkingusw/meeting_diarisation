@@ -1,5 +1,6 @@
 import json
 from datetime import datetime, timezone
+from uuid import uuid4
 
 # backend modules are imported inside functions: backend.config reads env at import time,
 # and the `app` fixture sets that env after collection.
@@ -212,6 +213,7 @@ def test_unified_query_merges_sources(
     client, db_session, make_user, make_group, auth_header_for, fake_llm
 ):
     from backend.project_rag import group_service
+    from backend.models import QueryConversationTurn
 
     owner, group = _linked_group(db_session, make_user, make_group)
     _seed_index(db_session, group)
@@ -229,12 +231,111 @@ def test_unified_query_merges_sources(
     assert response.status_code == 200
     body = response.json()
     assert body["sources_used"] == ["github", "trello"]
+    assert body["conversation_id"] is None
     assert set(body["results"]) == {"github", "trello"}
     assert body["errors"] == {}
     assert "GitHub findings:" in body["answer"]
     assert "Trello findings:" in body["answer"]
     assert any("What did Alice commit?" in prompt for prompt in fake_llm.agent_prompts)
     assert any("What remains blocked?" in prompt for prompt in fake_llm.agent_prompts)
+    assert db_session.query(QueryConversationTurn).count() == 0
+
+
+def test_unified_query_continues_conversation_with_fresh_scoped_retrieval(
+    client, db_session, make_user, make_group, auth_header_for, monkeypatch
+):
+    from backend.engine import query_graph
+    from backend.engine.query_agent_schemas import SpecialistQueryResult
+    from backend.models import QueryConversationTurn
+
+    owner, group = _linked_group(db_session, make_user, make_group, trello=False)
+    calls = []
+
+    def fake_github_specialist(session, context, request):
+        calls.append((context.user_id, context.group_id, request))
+        answer = "Issue 42 is open." if len(calls) == 1 else "Issue 42 is now closed."
+        return SpecialistQueryResult(
+            source="github",
+            question=request.question,
+            answer=answer,
+            model="fake-model",
+        )
+
+    monkeypatch.setattr(query_graph, "run_github_specialist", fake_github_specialist)
+    conversation_id = uuid4()
+
+    first = client.post(
+        f"/groups/{group.id}/query",
+        json={
+            "question": "Find Ada's issue.",
+            "sources": ["github"],
+            "source_questions": {"github": "Find Ada's issue."},
+            "conversation_id": str(conversation_id),
+        },
+        headers=auth_header_for(owner.id),
+    )
+    assert first.status_code == 200
+    assert first.json()["conversation_id"] == str(conversation_id)
+
+    followup = client.post(
+        f"/groups/{group.id}/query",
+        json={
+            "question": "Is it still open?",
+            "sources": ["github"],
+            "source_questions": {"github": "Is it still open?"},
+            "conversation_id": str(conversation_id),
+        },
+        headers=auth_header_for(owner.id),
+    )
+    assert followup.status_code == 200
+    assert followup.json()["answer"] == "GitHub findings:\nIssue 42 is now closed."
+    assert len(calls) == 2
+    assert calls[1][2].question == "Is it still open?"
+    assert calls[1][2].retrieval_question == "Find Ada's issue.\nFollow-up: Is it still open?"
+    assert "Issue 42 is open." in calls[1][2].context
+    assert db_session.query(QueryConversationTurn).filter_by(
+        conversation_id=str(conversation_id), user_id=owner.id, group_id=group.id
+    ).count() == 2
+
+    other_user = make_user(username="other-user")
+    group.users.append(other_user)
+    db_session.commit()
+    isolated = client.post(
+        f"/groups/{group.id}/query",
+        json={
+            "question": "What did we ask?",
+            "sources": ["github"],
+            "source_questions": {"github": "What did we ask?"},
+            "conversation_id": str(conversation_id),
+        },
+        headers=auth_header_for(other_user.id),
+    )
+    assert isolated.status_code == 200
+    assert calls[2][0] == other_user.id
+    assert calls[2][2].context is None
+    assert calls[2][2].retrieval_question is None
+    assert db_session.query(QueryConversationTurn).filter_by(
+        conversation_id=str(conversation_id), user_id=other_user.id, group_id=group.id
+    ).count() == 1
+
+    other_group = make_group(name="Team B", owner=owner)
+    other_group.github_repo_url = "https://github.com/example/other"
+    db_session.commit()
+    other_group_response = client.post(
+        f"/groups/{other_group.id}/query",
+        json={
+            "question": "What did we ask?",
+            "sources": ["github"],
+            "source_questions": {"github": "What did we ask?"},
+            "conversation_id": str(conversation_id),
+        },
+        headers=auth_header_for(owner.id),
+    )
+    assert other_group_response.status_code == 200
+    assert calls[3][0] == owner.id
+    assert calls[3][1] == other_group.id
+    assert calls[3][2].context is None
+    assert calls[3][2].retrieval_question is None
 
 
 def test_unified_query_reports_partial_failure(

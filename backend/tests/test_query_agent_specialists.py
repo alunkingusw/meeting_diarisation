@@ -52,6 +52,8 @@ def test_transcript_specialist_keeps_scope_and_structured_results(monkeypatch):
     context = TrustedQueryContext(user_id=4, group_id=8, allowed_sources=["conversation"])
     request = SpecialistQueryInput(
         question="Who spoke most?",
+        retrieval_question="Release discussion\nFollow-up: Who spoke most?",
+        context="Prior turn context (reference resolution only, not evidence). Ada led the release.",
         filters={"since": "2026-09-01", "until": "2026-10-01", "meeting_id": 42},
     )
     source_response = SimpleNamespace(
@@ -90,6 +92,7 @@ def test_transcript_specialist_keeps_scope_and_structured_results(monkeypatch):
         assert session is db
         assert target_group is group
         assert source == "conversation"
+        assert source_request.question == request.retrieval_question
         assert source_request.since == date(2026, 9, 1)
         assert source_request.until == date(2026, 10, 1)
         assert source_request.meeting_id == 42
@@ -103,7 +106,9 @@ def test_transcript_specialist_keeps_scope_and_structured_results(monkeypatch):
 
     class FakeAgent:
         def invoke(self, state):
-            assert state["messages"][0]["content"] == request.question
+            user_content = state["messages"][0]["content"]
+            assert request.question in user_content
+            assert "Prior turn context" in user_content
             tool = captured["tool"]
             tool.invoke({})
             return {
@@ -212,13 +217,14 @@ def test_project_specialist_limits_tool_to_one_source_and_returns_facts(
     context = TrustedQueryContext(user_id=4, group_id=8, allowed_sources=[source])
     request = SpecialistQueryInput(
         question="Summarize activity",
+        retrieval_question="API migration issue\nFollow-up: Summarize activity",
         filters={"since": "2026-09-01", "until": "2026-10-01"},
     )
 
     def fake_retrieve_question(session, target_repo, question, *, since, until, sources, label):
         assert session is db
         assert target_repo is repo
-        assert question == request.question
+        assert question == request.retrieval_question
         assert since == date(2026, 9, 1)
         assert until == date(2026, 10, 1)
         assert sources == (source,)

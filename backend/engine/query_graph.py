@@ -1,7 +1,7 @@
 """Parent query workflow: select authorized specialists, delegate, and compose their evidence."""
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.orm import Session
@@ -20,7 +20,7 @@ from backend.engine.specialists import (
     to_source_query_response,
 )
 from backend.llm.ollama_client import OllamaError, generate
-from backend.models import Group
+from backend.models import Group, QueryConversationTurn
 from backend.project_rag.group_service import available_sources
 from backend.project_rag.schemas import (
     SourceName,
@@ -42,6 +42,7 @@ class UnifiedState(TypedDict, total=False):
     results: dict[str, SourceQueryResponse]
     errors: dict[str, str]
     user_id: int
+    prior_turn: dict[str, Any] | None
     response: UnifiedQueryResponse
 
 
@@ -84,26 +85,63 @@ def build_unified_graph(
 ):
     def route(state: UnifiedState) -> UnifiedState:
         available = available_sources(group)
+        prior_turn = None
+        if request.conversation_id is not None:
+            stored_turn = (
+                db.query(QueryConversationTurn)
+                .filter(
+                    QueryConversationTurn.conversation_id == str(request.conversation_id),
+                    QueryConversationTurn.user_id == user_id,
+                    QueryConversationTurn.group_id == group.id,
+                )
+                .order_by(QueryConversationTurn.created_at.desc(), QueryConversationTurn.id.desc())
+                .first()
+            )
+            if stored_turn is not None:
+                prior_turn = {
+                    "question": stored_turn.question,
+                    "source_questions": dict(stored_turn.source_questions or {}),
+                    "answer": stored_turn.answer,
+                }
         if request.sources is not None:
             sources = list(dict.fromkeys(request.sources))
         else:
-            sources = infer_sources(request.question, available)
-        return {"sources": sources, "user_id": user_id}
+            routing_question = request.question
+            if prior_turn is not None:
+                previous_questions = " ".join(prior_turn["source_questions"].values())
+                if not previous_questions:
+                    previous_questions = prior_turn["question"]
+                routing_question = (
+                    f"Previous user question: {previous_questions}\n"
+                    f"Current follow-up: {request.question}"
+                )
+            sources = infer_sources(routing_question, available)
+        return {"sources": sources, "user_id": user_id, "prior_turn": prior_turn}
 
     def retrieve(state: UnifiedState) -> UnifiedState:
         specialist_results: dict[str, SpecialistQueryResult] = {}
         results: dict[str, SourceQueryResponse] = {}
         errors: dict[str, str] = {}
         model_errors: list[OllamaError | SpecialistModelError] = []
+        prior_turn = state.get("prior_turn")
+        prior_context = None
+        if prior_turn is not None:
+            previous_questions = "\n".join(
+                f"{source}: {question}"
+                for source, question in prior_turn["source_questions"].items()
+            ) or prior_turn["question"]
+            context_prefix = (
+                "Previous conversation (reference resolution only; not evidence):\n"
+                f"Previous questions: {previous_questions}\nPrevious answer: "
+            )
+            prior_context = (
+                context_prefix + prior_turn["answer"][: max(0, 4000 - len(context_prefix))]
+            )
         for source in state["sources"]:
             context = TrustedQueryContext(
                 user_id=state["user_id"],
                 group_id=group.id,
                 allowed_sources=[source],
-            )
-            specialist_request = SpecialistQueryInput(
-                question=request.question,
-                filters=QueryFilters(since=request.since, until=request.until),
             )
             specialist = {
                 "conversation": run_transcript_specialist,
@@ -111,10 +149,31 @@ def build_unified_graph(
                 "trello": run_trello_specialist,
             }[source]
             try:
+                current_question = request.source_questions.get(source, request.question)
+                retrieval_question = current_question
+                if prior_turn is not None:
+                    previous_question = (
+                        prior_turn["source_questions"].get(source)
+                        or prior_turn["question"]
+                    )
+                    separator = "\nFollow-up: "
+                    previous_budget = max(
+                        0, 4000 - len(current_question) - len(separator)
+                    )
+                    if previous_budget:
+                        retrieval_question = (
+                            f"{previous_question[-previous_budget:]}{separator}{current_question}"
+                        )
+                specialist_request = SpecialistQueryInput(
+                    question=current_question,
+                    retrieval_question=(
+                        retrieval_question if retrieval_question != current_question else None
+                    ),
+                    context=prior_context,
+                    filters=QueryFilters(since=request.since, until=request.until),
+                )
                 source_request = specialist_request.model_copy(
-                    update={
-                        "question": request.source_questions.get(source, request.question)
-                    }
+                    update={"question": current_question}
                 )
                 specialist_result = specialist(db, context, source_request)
                 specialist_results[source] = specialist_result
@@ -139,16 +198,38 @@ def build_unified_graph(
         answer = _compose_source_answers(specialist_results, errors)
         models = {result.model for result in specialist_results.values() if result.model}
         model = next(iter(models)) if len(models) == 1 else None
-        return {
-            "response": UnifiedQueryResponse(
-                question=request.question,
-                answer=answer,
-                model=model,
-                sources_used=[r.source for r in results.values()],
-                results=results,
-                errors=errors,
+        response = UnifiedQueryResponse(
+            question=request.question,
+            answer=answer,
+            model=model,
+            conversation_id=request.conversation_id,
+            sources_used=[r.source for r in results.values()],
+            results=results,
+            errors=errors,
+        )
+        if request.conversation_id is not None:
+            db.add(
+                QueryConversationTurn(
+                    conversation_id=str(request.conversation_id),
+                    user_id=state["user_id"],
+                    group_id=group.id,
+                    question=request.question,
+                    source_questions={
+                        source: request.source_questions.get(source, request.question)
+                        for source in state["sources"]
+                    },
+                    answer=answer,
+                    sources_used=response.sources_used,
+                    evidence_refs={
+                        source: [item.id for item in result.evidence]
+                        for source, result in results.items()
+                    },
+                    errors=errors,
+                    model=model,
+                )
             )
-        }
+            db.commit()
+        return {"response": response}
 
     graph = StateGraph(UnifiedState)
     graph.add_node("route", route)

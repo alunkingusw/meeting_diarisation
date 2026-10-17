@@ -189,20 +189,25 @@ schema migration, thread continuation, and sender/user/group isolation. An email
 use the latest completed same-group answer only as bounded disambiguation context; the backend is
 queried again, and prior evidence is never reused as current proof.
 
+The unified API also accepts an optional client-generated conversation UUID and returns it in the
+response. When present, turns are stored in Postgres scoped to the authenticated user and group;
+follow-ups load only the latest matching turn. This works for synchronous and async query requests.
+Without an ID, API queries remain stateless.
+
 - Keep stored questions and answers for the lifetime of the application database; no separate
   per-turn expiry or prompt/dependency versioning is planned for the current project scope.
 - Use prior turns to resolve conversational references such as "that issue," not as proof of a
   mutable source's current state. For example, if an earlier answer said a GitHub issue was open
   and a follow-up asks whether it is still open, query GitHub again. Re-query whenever a follow-up
   asks for new or current evidence, and never use old thread content as proof of authorization.
-- Add API conversation identifiers for clients that need multi-turn queries; keep one-shot source
-  endpoints usable without conversation state.
+- Keep one-shot and source-specific endpoints usable without conversation state; conversation IDs
+  remain optional on unified API requests.
 
 **Exit gate status:** email ancestry and metadata persistence, migration/restart reads, ownership
 isolation, validated question/answer storage, evidence references, and group-boundary splitting are
-covered. Email prior-turn context is bounded to the backend's source-question limit and tested to
-trigger a fresh query. Database-lifetime retention is the current policy. API conversation IDs and
-broader stale-data behavior remain open.
+covered. API sync/async continuation and user/group isolation are also covered. Prior turns are
+bounded disambiguation context only; specialists re-query current sources. Database-lifetime
+retention is the current policy. Broader stale-data behavior across mutable sources remains open.
 
 ### 6. Evaluate, roll out, and document
 

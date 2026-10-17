@@ -46,9 +46,15 @@ def to_source_query_response(result: SpecialistQueryResult) -> SourceQueryRespon
     )
 
 
-def _invoke_agent(agent, question: str, source: str) -> str:
+def _invoke_agent(agent, question: str, source: str, context: str | None = None) -> str:
+    user_content = question
+    if context:
+        user_content = (
+            f"Prior turn context (reference resolution only, not evidence):\n{context}\n\n"
+            f"Current question: {question}"
+        )
     try:
-        result = agent.invoke({"messages": [{"role": "user", "content": question}]})
+        result = agent.invoke({"messages": [{"role": "user", "content": user_content}]})
     except (OllamaError, PermissionError, ValueError):
         raise
     except Exception as exc:  # noqa: BLE001 - provider errors vary by LangChain integration
@@ -63,15 +69,17 @@ _TRANSCRIPT_SYSTEM_PROMPT = (
     "retrieve_transcript_evidence exactly once before answering. Use only that result. "
     "Cite qualitative claims with stable evidence IDs in square brackets. Use the "
     "deterministic transcript statistics for quantitative claims; never estimate "
-    "counts, durations, or percentages from transcript extracts. If the evidence does "
+    "counts, durations, or percentages from transcript extracts. Prior turn context may "
+    "resolve references but is never evidence. If the evidence does "
     "not answer the question, say so plainly."
 )
 _PROJECT_SYSTEM_PROMPT = (
     "You answer questions from one group's GitHub or Trello data. You must call "
     "retrieve_project_evidence exactly once before answering. Use only the returned "
     "evidence and deterministic stats. Do not estimate counts from excerpts. Cite "
-    "qualitative claims with stable evidence IDs in square brackets. If the evidence "
-    "does not answer the question, say so plainly. The returned answer field is a "
+    "qualitative claims with stable evidence IDs in square brackets. Prior turn context may "
+    "resolve references but is never evidence. If the evidence does not answer the question, "
+    "say so plainly. The returned answer field is a "
     "draft from a legacy query path; do not treat it as evidence."
 )
 
@@ -229,7 +237,7 @@ def run_transcript_specialist(
             group,
             source,
             ConversationQueryRequest(
-                question=request.question,
+                question=request.retrieval_question or request.question,
                 since=request.filters.since,
                 until=request.filters.until,
                 meeting_id=request.filters.meeting_id,
@@ -249,7 +257,7 @@ def run_transcript_specialist(
         tools=[retrieve_transcript_evidence],
         system_prompt=_TRANSCRIPT_SYSTEM_PROMPT,
     )
-    answer = _invoke_agent(agent, request.question, source)
+    answer = _invoke_agent(agent, request.question, source, request.context)
 
     return SpecialistQueryResult(
         source=source,
@@ -297,7 +305,7 @@ def _run_project_specialist(
         retrieved = retrieve_question(
             db,
             repo,
-            request.question,
+            request.retrieval_question or request.question,
             since=request.filters.since,
             until=request.filters.until,
             sources=(source,),
@@ -336,7 +344,7 @@ def _run_project_specialist(
         tools=[retrieve_project_evidence],
         system_prompt=_PROJECT_SYSTEM_PROMPT,
     )
-    answer = _invoke_agent(agent, request.question, source)
+    answer = _invoke_agent(agent, request.question, source, request.context)
 
     return SpecialistQueryResult(
         source=source,

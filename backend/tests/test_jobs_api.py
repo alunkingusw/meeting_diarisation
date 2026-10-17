@@ -181,15 +181,21 @@ def test_async_unified_query_runs_parent_with_job_user_scope(
     )
     db_session.commit()
 
+    conversation_id = "9dd2a9e6-299a-4dca-93fc-24c78f739c34"
     accepted = client.post(
         f"/groups/{group.id}/query?async=true",
-        json={"question": "Summarize the release work", "sources": ["github"]},
+        json={
+            "question": "Summarize the release work",
+            "sources": ["github"],
+            "conversation_id": conversation_id,
+        },
         headers=auth_header_for(owner.id),
     )
 
     assert accepted.status_code == 202
     job = client.get(f"/jobs/{accepted.json()['job_id']}", headers=auth_header_for(owner.id)).json()
     assert job["state"] == "completed" and job["kind"] == "query"
+    assert job["result"]["conversation_id"] == conversation_id
     assert job["result"]["sources_used"] == ["github"]
     assert job["result"]["results"]["github"]["stats"]["total_commits"] == 1
 
