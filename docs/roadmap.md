@@ -191,8 +191,9 @@ queried again, and prior evidence is never reused as current proof.
 
 The unified API also accepts an optional client-generated conversation UUID and returns it in the
 response. When present, turns are stored in Postgres scoped to the authenticated user and group;
-follow-ups load only the latest matching turn. This works for synchronous and async query requests.
-Without an ID, API queries remain stateless.
+follow-ups load only the latest matching turn. This works for synchronous and async query requests,
+including a follow-up dispatched through a separate async worker execution. Without an ID, API
+queries remain stateless.
 
 - Keep stored questions and answers for the lifetime of the application database; no separate
   per-turn expiry or prompt/dependency versioning is planned for the current project scope.
@@ -206,8 +207,11 @@ Without an ID, API queries remain stateless.
 **Exit gate status:** email ancestry and metadata persistence, migration/restart reads, ownership
 isolation, validated question/answer storage, evidence references, and group-boundary splitting are
 covered. API sync/async continuation and user/group isolation are also covered. Prior turns are
-bounded disambiguation context only; specialists re-query current sources. Database-lifetime
-retention is the current policy. Broader stale-data behavior across mutable sources remains open.
+bounded disambiguation context only; specialists re-query current sources. A synthetic API test
+changes a GitHub issue from open to closed between turns and verifies the follow-up returns the new
+counts. The Phase 5 exit gate is complete for the agreed synthetic scope. Database-lifetime
+retention is the current policy; broader stale-data coverage across mutable sources remains Phase 6
+evaluation work.
 
 ### 6. Evaluate, roll out, and document
 

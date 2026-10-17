@@ -338,6 +338,65 @@ def test_unified_query_continues_conversation_with_fresh_scoped_retrieval(
     assert calls[3][2].retrieval_question is None
 
 
+def test_api_followup_requeries_mutable_github_state(
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
+):
+    from backend.project_rag import group_service
+    from backend.project_rag.models import Issue
+
+    owner, group = _linked_group(db_session, make_user, make_group, trello=False)
+    repo = group_service.get_or_create_repo(db_session, group)
+    issue = Issue(
+        repo_id=repo.id,
+        github_issue_number=42,
+        title="Release gate",
+        body="Track release approval.",
+        author="Ada",
+        state="open",
+        created_at=datetime(2026, 10, 1, tzinfo=timezone.utc),
+    )
+    db_session.add(issue)
+    db_session.commit()
+    conversation_id = uuid4()
+    headers = auth_header_for(owner.id)
+
+    first = client.post(
+        f"/groups/{group.id}/query",
+        json={
+            "question": "Is issue 42 open?",
+            "sources": ["github"],
+            "source_questions": {"github": "Is issue 42 open?"},
+            "conversation_id": str(conversation_id),
+        },
+        headers=headers,
+    )
+    assert first.status_code == 200
+    first_tool_result = json.loads(fake_llm.agent_tool_results[-1])
+    assert first_tool_result["stats"]["open_issues"] == 1
+    assert first_tool_result["stats"]["closed_issues"] == 0
+
+    issue.state = "closed"
+    db_session.commit()
+
+    followup = client.post(
+        f"/groups/{group.id}/query",
+        json={
+            "question": "Is it still open?",
+            "sources": ["github"],
+            "source_questions": {"github": "Is it still open?"},
+            "conversation_id": str(conversation_id),
+        },
+        headers=headers,
+    )
+    assert followup.status_code == 200
+    followup_tool_result = json.loads(fake_llm.agent_tool_results[-1])
+    assert followup_tool_result["stats"]["open_issues"] == 0
+    assert followup_tool_result["stats"]["closed_issues"] == 1
+    assert "Prior turn context" in fake_llm.agent_prompts[-1]
+    assert "fake answer" in fake_llm.agent_prompts[-1]
+    assert "Is it still open?" in fake_llm.agent_prompts[-1]
+
+
 def test_unified_query_reports_partial_failure(
     client, db_session, make_user, make_group, auth_header_for, fake_llm
 ):

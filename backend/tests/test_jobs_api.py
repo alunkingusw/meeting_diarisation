@@ -160,6 +160,7 @@ def test_async_unified_query_runs_parent_with_job_user_scope(
 ):
     from backend.project_rag import group_service
     from backend.project_rag.models import Commit
+    from backend.models import QueryConversationTurn
 
     owner, group = _team(db_session, make_user, make_group)
     group.github_repo_url = "https://github.com/example/project"
@@ -198,6 +199,28 @@ def test_async_unified_query_runs_parent_with_job_user_scope(
     assert job["result"]["conversation_id"] == conversation_id
     assert job["result"]["sources_used"] == ["github"]
     assert job["result"]["results"]["github"]["stats"]["total_commits"] == 1
+
+    followup = client.post(
+        f"/groups/{group.id}/query?async=true",
+        json={
+            "question": "How many issues are open now?",
+            "sources": ["github"],
+            "conversation_id": conversation_id,
+        },
+        headers=auth_header_for(owner.id),
+    )
+    assert followup.status_code == 202
+    followup_job = client.get(
+        f"/jobs/{followup.json()['job_id']}", headers=auth_header_for(owner.id)
+    ).json()
+    assert followup_job["state"] == "completed"
+    assert followup_job["result"]["conversation_id"] == conversation_id
+    assert len(db_session.query(QueryConversationTurn).filter_by(
+        conversation_id=conversation_id, user_id=owner.id, group_id=group.id
+    ).all()) == 2
+    assert "Previous conversation" in fake_llm.agent_prompts[-1]
+    assert "Summarize the release work" in fake_llm.agent_prompts[-1]
+    assert "How many issues are open now?" in fake_llm.agent_prompts[-1]
 
 
 def test_async_report_job_fails_cleanly_when_llm_is_down(
