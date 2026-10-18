@@ -2,17 +2,16 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Optional
 
 from app.admin.notifier import AdminCategory, AdminNotifier
 from app.commands.validator import ValidatedCommand
 from app.diarisation.client import DiarisationApiError, DiarisationClient
-from app.diarisation.group_matching import Matched, group_clarification_question, match_group
 from app.email_templates.render import render_clarification, render_failure, render_meeting_log_confirmation
 from app.handlers.base import HandlerOutcome
 from app.jobs.models import Job, JobState
 from app.jobs.store import JobStore, Outbox, PendingClarificationStore
+from app.llm.log_meeting_graph import build_log_meeting_graph
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +25,8 @@ def accept(
     outbox: Outbox,
     in_reply_to: Optional[str] = None,
     references: Optional[str] = None,
+    original_subject: Optional[str] = None,
+    original_body_text: Optional[str] = None,
 ) -> HandlerOutcome:
     assert validated_cmd.meeting_date is not None
     assert validated_cmd.comment is not None
@@ -40,6 +41,8 @@ def accept(
         meeting_date_source="email_text",
         comment_text=validated_cmd.comment,
         in_reply_to_message_id=in_reply_to,
+        original_subject=original_subject,
+        original_body_text=original_body_text,
     )
     job_store.set_status(job.job_id, JobState.VALIDATING)
     job_store.set_status(job.job_id, JobState.QUEUED)
@@ -58,14 +61,33 @@ def execute(
     parent_message_id = job.in_reply_to_message_id or job.source_message_id
     try:
         job_store.set_status(job.job_id, JobState.PROCESSING)
-        token = diarisation_client.login_for_email(job.sender_email)
-        groups = diarisation_client.list_groups(token)
-        match = match_group(job.group_hint, groups)
-        if not isinstance(match, Matched):
-            question = group_clarification_question(match, groups, "this meeting")
+        graph = build_log_meeting_graph(diarisation_client)
+        result = graph.invoke(
+            {
+                "job_id": job.job_id,
+                "sender_email": job.sender_email,
+                "group_hint": job.group_hint,
+                "meeting_date": job.meeting_date,
+                "comment_text": job.comment_text,
+            }
+        )
+        logger.info(
+            "Job %s log-meeting graph steps: %s", job.job_id,
+            [e["event"] for e in result.get("audit_events", [])],
+        )
+
+        if result.get("clarification_question"):
+            question = result["clarification_question"]
             job_store.set_status(job.job_id, JobState.NEEDS_CLARIFICATION)
-            pending_clarifications.put(job.job_id, question, "group_hint", [g.name for g in groups])
-            subject, body = render_clarification(question, job.job_id)
+            pending_clarifications.put(
+                job.job_id,
+                question,
+                result.get("clarification_expected_field", "group_hint"),
+                result.get("clarification_options", []),
+            )
+            subject, body = render_clarification(
+                question, job.job_id, job.original_subject, job.original_body_text
+            )
             outbox.enqueue(
                 to_email=job.sender_email,
                 subject=subject,
@@ -76,24 +98,21 @@ def execute(
             )
             return
 
-        meeting_date = datetime.fromisoformat(job.meeting_date)
-        meeting = diarisation_client.create_meeting(
-            token, match.group.id, meeting_date, idempotency_key=job.job_id
-        )
         job_store.update(
             job.job_id,
-            resolved_group_id=match.group.id,
-            resolved_group_name=match.group.name,
-            backend_meeting_id=meeting.id,
+            resolved_group_id=result["group_id"],
+            resolved_group_name=result["group_name"],
+            backend_meeting_id=result["meeting_id"],
         )
-        diarisation_client.add_comment(token, match.group.id, meeting.id, job.comment_text)
+        if result.get("execution_error"):
+            raise RuntimeError(result["execution_error"])
         job_store.set_status(job.job_id, JobState.COMPLETED)
 
         subject, body = render_meeting_log_confirmation(
             job.job_id,
-            match.group.name,
-            meeting_date.isoformat(),
-            meeting.id,
+            result["group_name"],
+            job.meeting_date,
+            result["meeting_id"],
             job.comment_text,
         )
         outbox.enqueue(
@@ -105,6 +124,7 @@ def execute(
             references=parent_message_id,
         )
     except DiarisationApiError as exc:
+        logger.exception("Backend API error logging meeting for job %s", job.job_id)
         _fail(job, str(exc), job_store, outbox, admin_notifier, parent_message_id)
     except Exception as exc:
         logger.exception("Unexpected error logging meeting for job %s", job.job_id)

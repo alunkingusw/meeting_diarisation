@@ -9,7 +9,7 @@ from app.commands.validator import AttachmentMeta, ValidatedCommand
 from app.diarisation.client import GroupSummary
 from app.handlers import submit_transcript
 from app.jobs.models import JobState
-from app.jobs.store import JobStore, Outbox
+from app.jobs.store import JobStore, Outbox, PendingClarificationStore
 from app.mail.base import Attachment
 from app.settings import StorageSettings
 
@@ -204,15 +204,22 @@ def test_execute_group_hint_matches_case_insensitively(db_path: Path, tmp_path: 
 def test_execute_ambiguous_group_with_no_hint_asks_for_clarification(db_path: Path, tmp_path: Path):
     job_store, storage, job = _job_store_with_queued_job(db_path, tmp_path, group_hint=None)
     outbox = Outbox(db_path)
+    pending_clarifications = PendingClarificationStore(db_path)
     admin = AdminNotifier(db_path, outbox, admin_email=None)
     fake_client = FakeDiarisationClient(
         groups=[GroupSummary(id=1, name="Team A"), GroupSummary(id=2, name="Team B")],
     )
 
-    submit_transcript.execute(job, fake_client, job_store, outbox, admin, storage)
+    submit_transcript.execute(
+        job, fake_client, job_store, outbox, admin, storage,
+        pending_clarifications=pending_clarifications,
+    )
 
     updated = job_store.get(job.job_id)
     assert updated.status == JobState.NEEDS_CLARIFICATION
+    pending = pending_clarifications.get(job.job_id)
+    assert pending.expected_field == "group_hint"
+    assert pending.options == ["Team A", "Team B"]
     pending = outbox.pending()
     assert "Team A" in pending[0].body_text
     assert "Team B" in pending[0].body_text
@@ -230,11 +237,14 @@ def test_execute_unmatched_group_hint_asks_for_clarification(db_path: Path, tmp_
     assert updated.status == JobState.NEEDS_CLARIFICATION
 
 
-def test_execute_backend_failure_marks_job_failed_and_alerts_admin(db_path: Path, tmp_path: Path):
+@pytest.mark.parametrize("fail_on", ["login", "upload_file"])
+def test_execute_backend_failure_marks_job_failed_and_alerts_admin(
+    db_path: Path, tmp_path: Path, fail_on: str
+):
     job_store, storage, job = _job_store_with_queued_job(db_path, tmp_path)
     outbox = Outbox(db_path)
     admin = AdminNotifier(db_path, outbox, admin_email="admin@uni.ac.uk")
-    fake_client = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")], fail_on="login")
+    fake_client = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")], fail_on=fail_on)
 
     submit_transcript.execute(job, fake_client, job_store, outbox, admin, storage)
 

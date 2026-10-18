@@ -30,6 +30,7 @@ ALLOWED_TRANSITIONS: dict[JobState, set[JobState]] = {
         JobState.COMPLETED,
         JobState.FAILED,
         JobState.NEEDS_CLARIFICATION,
+        JobState.CANCELLED,
     },
     JobState.COMPLETED: set(),
     JobState.FAILED: set(),
@@ -48,6 +49,8 @@ class Job:
     backend_user_id: Optional[int]
     source_message_id: str
     status: JobState
+    original_subject: Optional[str] = None
+    original_body_text: Optional[str] = None
     operation: str = "submit_transcript"
     group_hint: Optional[str] = None
     resolved_group_id: Optional[int] = None
@@ -65,6 +68,10 @@ class Job:
     github_focus: Optional[str] = None
     trello_focus: Optional[str] = None
     comment_text: Optional[str] = None
+    # The backend job doing the slow part of this request (see backend /jobs), if any.
+    backend_job_id: Optional[str] = None
+    query_conversation_id: Optional[str] = None
+    query_parent_job_id: Optional[str] = None
     error: Optional[str] = None
     retry_count: int = 0
     created_at: str = field(default_factory=utcnow_iso)
@@ -82,6 +89,8 @@ class Job:
             source_message_id=row["source_message_id"],
             operation=row["operation"],
             status=JobState(row["status"]),
+            original_subject=row["original_subject"],
+            original_body_text=row["original_body_text"],
             group_hint=row["group_hint"],
             resolved_group_id=row["resolved_group_id"],
             resolved_group_name=row["resolved_group_name"],
@@ -106,6 +115,13 @@ class Job:
             github_focus=row["github_focus"],
             trello_focus=row["trello_focus"],
             comment_text=row["comment_text"],
+            backend_job_id=row["backend_job_id"] if "backend_job_id" in row.keys() else None,
+            query_conversation_id=(
+                row["query_conversation_id"] if "query_conversation_id" in row.keys() else None
+            ),
+            query_parent_job_id=(
+                row["query_parent_job_id"] if "query_parent_job_id" in row.keys() else None
+            ),
             error=row["error"],
             retry_count=row["retry_count"],
             created_at=row["created_at"],
@@ -113,4 +129,33 @@ class Job:
             completed_at=row["completed_at"],
             last_response_message_id=row["last_response_message_id"],
             in_reply_to_message_id=row["in_reply_to_message_id"],
+        )
+
+
+@dataclass
+class QueryTurn:
+    job_id: str
+    conversation_id: str
+    group_id: int
+    source_questions: dict[str, str]
+    answer: str
+    selected_sources: list[str]
+    evidence_refs: list[dict[str, str]]
+    failed_sources: list[str]
+    model: Optional[str]
+    created_at: str
+
+    @classmethod
+    def from_row(cls, row) -> "QueryTurn":
+        return cls(
+            job_id=row["job_id"],
+            conversation_id=row["conversation_id"],
+            group_id=row["group_id"],
+            source_questions=json.loads(row["source_questions_json"]),
+            answer=row["answer"],
+            selected_sources=json.loads(row["selected_sources_json"]),
+            evidence_refs=json.loads(row["evidence_refs_json"]),
+            failed_sources=json.loads(row["failed_sources_json"]),
+            model=row["model"],
+            created_at=row["created_at"],
         )

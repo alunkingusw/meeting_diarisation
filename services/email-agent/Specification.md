@@ -107,15 +107,19 @@ The LLM must NOT:
 - modify application configuration;
 - determine its own permissions.
 
-The LLM should only perform:
+For email intake, the LLM first maps the message to a constrained intent/command representation:
 
 ```text
 Natural-language email
         ↓
-Structured command
+Constrained intent (supported action or data query)
 ```
 
-All execution must happen in deterministic application code.
+Sender authentication, message screening, deterministic validation, and authorization happen in
+application code. Supported CRUD and transcript-submission actions execute through explicit
+handlers. Under the planned query-agent architecture, a validated data query may use narrowly
+scoped, read-only source tools; the model still cannot authorize itself or select arbitrary
+operations.
 
 ---
 
@@ -640,9 +644,13 @@ The system must follow the principle:
 
 > The LLM interprets requests; application code authorises and executes them.
 
-The LLM must never receive unrestricted tool access.
+The LLM must never receive unrestricted tool access. In particular, do not expose CRUD, arbitrary
+HTTP methods/URLs, credentials, filesystem access, or permission decisions as model-selectable
+operations.
 
-Do not implement a generic:
+The planned query agents may use explicit, read-only tools for their own data source (transcript,
+GitHub, or Trello). The application binds the authenticated principal and authorized group scope;
+those values are not trusted from model arguments. Do not implement a generic:
 
 ```text
 LLM → execute_tool(name, arguments)
@@ -650,7 +658,8 @@ LLM → execute_tool(name, arguments)
 
 interface.
 
-Instead implement an explicit finite command set.
+For actions, continue to implement an explicit finite command set. For queries, expose only the
+small, source-specific read operations required by the relevant specialist.
 
 For example:
 

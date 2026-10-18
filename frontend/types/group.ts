@@ -23,6 +23,12 @@ export interface Group {
   id: number;
   name: string;
   created: string;
+  github_repo_url?: string | null;
+  trello_board_id?: string | null;
+  project_expiry?: string | null;
+  github_connected?: boolean;
+  trello_connected?: boolean;
+  notify: boolean;
   users:UserReference[];
   members:GroupMember[];
   meetings:Meeting[];

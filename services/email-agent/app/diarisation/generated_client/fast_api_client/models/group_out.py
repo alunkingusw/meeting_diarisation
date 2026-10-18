@@ -24,8 +24,10 @@ class GroupOut:
         id (int):
         members (list[GroupMemberOut]):
         name (str):
+        github_connected (bool | Unset):  Default: False.
         github_repo_url (None | str | Unset):
         notify (bool | Unset):  Default: False.
+        trello_connected (bool | Unset):  Default: False.
         trello_board_id (None | str | Unset):
     """
 
@@ -33,8 +35,10 @@ class GroupOut:
     id: int
     members: list[GroupMemberOut]
     name: str
+    github_connected: bool | Unset = False
     github_repo_url: None | str | Unset = UNSET
     notify: bool | Unset = False
+    trello_connected: bool | Unset = False
     trello_board_id: None | str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -50,6 +54,8 @@ class GroupOut:
 
         name = self.name
 
+        github_connected = self.github_connected
+
         github_repo_url: None | str | Unset
         if isinstance(self.github_repo_url, Unset):
             github_repo_url = UNSET
@@ -57,6 +63,8 @@ class GroupOut:
             github_repo_url = self.github_repo_url
 
         notify = self.notify
+
+        trello_connected = self.trello_connected
 
         trello_board_id: None | str | Unset
         if isinstance(self.trello_board_id, Unset):
@@ -74,10 +82,14 @@ class GroupOut:
                 "name": name,
             }
         )
+        if github_connected is not UNSET:
+            field_dict["github_connected"] = github_connected
         if github_repo_url is not UNSET:
             field_dict["github_repo_url"] = github_repo_url
         if notify is not UNSET:
             field_dict["notify"] = notify
+        if trello_connected is not UNSET:
+            field_dict["trello_connected"] = trello_connected
         if trello_board_id is not UNSET:
             field_dict["trello_board_id"] = trello_board_id
 
@@ -101,6 +113,8 @@ class GroupOut:
 
         name = d.pop("name")
 
+        github_connected = d.pop("github_connected", UNSET)
+
         def _parse_github_repo_url(data: object) -> None | str | Unset:
             if data is None:
                 return data
@@ -111,6 +125,7 @@ class GroupOut:
         github_repo_url = _parse_github_repo_url(d.pop("github_repo_url", UNSET))
 
         notify = d.pop("notify", UNSET)
+        trello_connected = d.pop("trello_connected", UNSET)
 
         def _parse_trello_board_id(data: object) -> None | str | Unset:
             if data is None:
@@ -126,8 +141,10 @@ class GroupOut:
             id=id,
             members=members,
             name=name,
+            github_connected=github_connected,
             github_repo_url=github_repo_url,
             notify=notify,
+            trello_connected=trello_connected,
             trello_board_id=trello_board_id,
         )
 

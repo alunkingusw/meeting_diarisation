@@ -4,14 +4,14 @@ from pathlib import Path
 
 from app.commands.validator import ValidatedCommand
 from app.email_templates.render import render_results
-from app.handlers.base import STATUS_TEXT, ClarificationRequired, HandlerOutcome
+from app.handlers.base import STATUS_TEXT, ClarificationRequired, HandlerOutcome, backend_progress
 from app.jobs.models import JobState
 from app.jobs.store import JobStore, Outbox
 
 
 def handle(
     validated_cmd: ValidatedCommand, sender_email: str, job_store: JobStore, outbox: Outbox,
-    in_reply_to: str | None = None, references: str | None = None,
+    in_reply_to: str | None = None, references: str | None = None, diarisation_client=None,
 ) -> HandlerOutcome:
     job = job_store.get_owned(validated_cmd.job_id, sender_email)
     if job is None:
@@ -20,6 +20,9 @@ def handle(
         )
 
     status_text = STATUS_TEXT.get(job.status, job.status.value)
+    detail = backend_progress(diarisation_client, sender_email, job)
+    if detail:
+        status_text = f"{status_text}\n{detail}"
     is_completed = job.status == JobState.COMPLETED
 
     subject, body = render_results(

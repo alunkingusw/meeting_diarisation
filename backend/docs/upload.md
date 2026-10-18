@@ -1,6 +1,7 @@
 # Transcription Flow Overview
 
-This diagram illustrates the backend process for handling meeting audio file uploads and triggering transcription.
+This diagram illustrates audio transcription and transcript ingestion. A provided VTT and a
+server-generated VTT both reach the same chunking and persistent Chroma indexing path.
 
 ```mermaid
 flowchart TD
@@ -13,6 +14,7 @@ flowchart TD
         B --> C{Is file type valid?}
         C -->|Yes| D[Save file to disk]
         D --> DB1[Create RawFile entry in DB]
+        DB1 -->|Provided VTT| IQ[Queue transcript_processing job]
         C -->|No| ERR1[400: Invalid file type]
     end
 
@@ -29,7 +31,12 @@ flowchart TD
         WORKER --> J[Load audio file]
         J --> K[Run transcription engine]
         K --> L[Save transcript to disk or DB]
-        L --> DB2[Update RawFile.processed_date]
+        L --> IDX[index_transcript]
+        IQ --> IDX
+        IDX --> VTT[Verify, parse, and chunk VTT]
+        VTT --> EMB[Embed chunks with local model]
+        EMB --> CH[(Persistent ChromaDB)]
+        IDX --> DB2[Update transcript/job metadata]
     end
 
     subgraph Status Checking

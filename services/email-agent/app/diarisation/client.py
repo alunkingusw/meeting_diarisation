@@ -9,12 +9,16 @@ endpoints don't exist.
 """
 from __future__ import annotations
 
+import json
+import time
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Optional
+from datetime import date, datetime
+from typing import Callable, Optional
 
 import httpx
 from tenacity import Retrying, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+from app.reports.models import ReportEvidence
 
 
 class DiarisationApiError(Exception):
@@ -39,6 +43,14 @@ class ClientError(DiarisationApiError):
 
 class TransientError(DiarisationApiError):
     """Timeouts and 5xx - retried internally with backoff."""
+
+
+class JobFailedError(DiarisationApiError):
+    """A backend job ended in the failed state. Not retried: re-submitting would redo the work."""
+
+
+class JobCancelledError(DiarisationApiError):
+    """The backend job was cancelled."""
 
 
 @dataclass
@@ -106,6 +118,42 @@ class TranscriptChunk:
         return f"[{self.meeting_title}, {self.meeting_date}, {self.start_ts}-{self.end_ts}, {self.speaker}]"
 
 
+@dataclass
+class WeeklyReportResult:
+    report_text: str
+    evidence: list[ReportEvidence]
+    unavailable: list[str] = field(default_factory=list)
+
+
+@dataclass
+class BackendJob:
+    id: str
+    kind: str
+    state: str
+    progress: Optional[str] = None
+    result: Optional[dict] = None
+    error: Optional[str] = None
+    error_type: Optional[str] = None
+    meeting_id: Optional[int] = None
+
+    @property
+    def finished(self) -> bool:
+        return self.state in ("completed", "failed", "cancelled")
+
+
+@dataclass
+class QueryAnswer:
+    answer: str
+    sources_used: list[str]
+    # Per-source failures the backend tolerated because another source still answered.
+    errors: dict[str, str] = field(default_factory=dict)
+    evidence: list[dict] = field(default_factory=list)
+    stats: Optional[dict] = None
+    transcript_stats: Optional[dict] = None
+    results: dict[str, dict] = field(default_factory=dict)
+    model: Optional[str] = None
+
+
 class DiarisationClient:
     def __init__(
         self,
@@ -114,7 +162,11 @@ class DiarisationClient:
         max_retry_attempts: int = 3,
         retry_backoff_seconds: float = 1.0,
         service_api_key: Optional[str] = None,
+        query_timeout: float = 180.0,
+        job_poll_seconds: float = 2.0,
     ):
+        self._query_timeout = query_timeout
+        self._job_poll_seconds = job_poll_seconds
         self._client = httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout)
         self._retryer = Retrying(
             reraise=True,
@@ -254,22 +306,228 @@ class DiarisationClient:
     def search_transcripts(
         self, token: str, group_id: int, query: str, meeting_id: Optional[int] = None
     ) -> list[TranscriptChunk]:
-        """POST /groups/{id}/transcripts/search - semantic search over this group's already
-        submitted/transcribed meetings. Retrieval only, no LLM involved on the backend side."""
-        hits = self._retryer(self._generated.search_transcripts, token, group_id, query, meeting_id)
+        """POST /groups/{id}/conversation/query (retrieve_only) - semantic search over this group's
+        submitted meetings, returning chunks with no LLM answer."""
+        body = _query_body(query, None)
+        body["retrieve_only"] = True
+        if meeting_id is not None:
+            body["meeting_id"] = meeting_id
+        try:
+            resp = self._request(
+                "POST",
+                f"/groups/{group_id}/conversation/query",
+                headers=_auth(token),
+                json=body,
+                timeout=self._query_timeout,
+            )
+        except NotFoundError:
+            return []
         return [
             TranscriptChunk(
-                chunk_id=r["chunk_id"],
-                meeting_id=r["meeting_id"],
-                meeting_title=r["meeting_title"],
-                meeting_date=r["meeting_date"],
-                speaker=r["speaker"],
-                text=r["text"],
-                start_ts=r["start_ts"],
-                end_ts=r["end_ts"],
+                chunk_id=item["id"],
+                meeting_id=str(item["metadata"].get("meeting_id", "")),
+                meeting_title=item["metadata"].get("meeting_title", ""),
+                meeting_date=item["metadata"].get("meeting_date", ""),
+                speaker=item["metadata"].get("speaker", ""),
+                text=item["text"],
+                start_ts=item["metadata"].get("start_ts", ""),
+                end_ts=item["metadata"].get("end_ts", ""),
             )
-            for r in hits
+            for item in resp.json()["evidence"]
         ]
+
+    def query_source(
+        self,
+        token: str,
+        group_id: int,
+        source: str,
+        question: str,
+        since: Optional[date] = None,
+        on_job: Optional[Callable[[str], None]] = None,
+        until: Optional[date] = None,
+    ) -> QueryAnswer:
+        """POST /groups/{id}/{conversation|github|trello}/query - an answer from one source.
+
+        With `on_job` the query runs as a backend job (so it can be cancelled and inspected); the
+        callback receives the job id as soon as it exists, and this call waits for the result."""
+        data = self._query(
+            token,
+            f"/groups/{group_id}/{source}/query",
+            _query_body(question, since, until),
+            on_job,
+        )
+        return QueryAnswer(
+            answer=data["answer"],
+            sources_used=[source],
+            evidence=data.get("evidence", []),
+            stats=data.get("stats"),
+            transcript_stats=data.get("transcript_stats"),
+            model=data.get("model"),
+        )
+
+    def query_unified(
+        self,
+        token: str,
+        group_id: int,
+        question: str,
+        sources: Optional[list[str]] = None,
+        since: Optional[date] = None,
+        on_job: Optional[Callable[[str], None]] = None,
+        until: Optional[date] = None,
+        source_questions: Optional[dict[str, str]] = None,
+    ) -> QueryAnswer:
+        """POST /groups/{id}/query - the parent routes validated source-specific questions."""
+        body = _query_body(question, since, until)
+        if sources is not None:
+            body["sources"] = sources
+        if source_questions:
+            body["source_questions"] = source_questions
+        data = self._query(token, f"/groups/{group_id}/query", body, on_job)
+        return QueryAnswer(
+            answer=data["answer"],
+            sources_used=data["sources_used"],
+            errors=data.get("errors", {}),
+            results=data.get("results", {}),
+            model=data.get("model"),
+        )
+
+    def _query(self, token: str, path: str, body: dict, on_job: Optional[Callable[[str], None]]) -> dict:
+        if on_job is None:
+            return self._request(
+                "POST", path, headers=_auth(token), json=body, timeout=self._query_timeout
+            ).json()
+        resp = self._request("POST", f"{path}?async=true", headers=_auth(token), json=body)
+        job_id = resp.json()["job_id"]
+        on_job(job_id)
+        job = self._wait_for_job(token, job_id)
+        return job.result or {}
+
+    def _wait_for_job(self, token: str, job_id: str) -> BackendJob:
+        deadline = time.monotonic() + self._query_timeout
+        while True:
+            job = self.get_job(token, job_id)
+            if job.state == "completed":
+                return job
+            if job.state == "cancelled":
+                raise JobCancelledError(f"Backend job {job_id} was cancelled")
+            if job.state == "failed":
+                # The backend reports "nothing to answer from" as a ValueError, as the sync API does with a 404.
+                if job.error_type == "ValueError":
+                    raise NotFoundError(job.error or "No matching data")
+                raise JobFailedError(job.error or "Backend job failed")
+            if time.monotonic() >= deadline:
+                raise TransientError(f"Timed out waiting for backend job {job_id}")
+            time.sleep(self._job_poll_seconds)
+
+    def get_job(self, token: str, job_id: str) -> BackendJob:
+        """GET /jobs/{id}"""
+        return _job_from_api(self._request("GET", f"/jobs/{job_id}", headers=_auth(token)).json())
+
+    def list_jobs(
+        self, token: str, kind: Optional[str] = None, meeting_id: Optional[int] = None, limit: int = 1
+    ) -> list[BackendJob]:
+        """GET /jobs/ - newest first."""
+        params: dict = {"limit": limit}
+        if kind is not None:
+            params["kind"] = kind
+        if meeting_id is not None:
+            params["meeting_id"] = meeting_id
+        resp = self._request("GET", "/jobs/", headers=_auth(token), params=params)
+        return [_job_from_api(item) for item in resp.json()]
+
+    def cancel_job(self, token: str, job_id: str) -> BackendJob:
+        """POST /jobs/{id}/cancel - ConflictError if the job already finished."""
+        return _job_from_api(self._request("POST", f"/jobs/{job_id}/cancel", headers=_auth(token)).json())
+
+    def compose_weekly_report(
+        self, token: str, group_id: int, period_start: date, period_end: date
+    ) -> WeeklyReportResult:
+        """POST /groups/{id}/reports/weekly - the backend gathers cited evidence from meetings,
+        GitHub and Trello and writes the report; nothing is stored or sent."""
+        resp = self._request(
+            "POST",
+            f"/groups/{group_id}/reports/weekly",
+            headers=_auth(token),
+            json={"period_start": period_start.isoformat(), "period_end": period_end.isoformat()},
+            timeout=self._query_timeout,
+        )
+        data = resp.json()
+        return WeeklyReportResult(
+            report_text=data["report_text"],
+            evidence=[_evidence_from_api(item) for item in data["evidence"]],
+            unavailable=data.get("unavailable", []),
+        )
+
+    def answer_report_question(
+        self,
+        token: str,
+        group_id: int,
+        question: str,
+        evidence: list[ReportEvidence],
+        period_start: date,
+        period_end: date,
+    ) -> str:
+        """POST /groups/{id}/reports/answer - answers from the saved evidence only."""
+        resp = self._request(
+            "POST",
+            f"/groups/{group_id}/reports/answer",
+            headers=_auth(token),
+            json={
+                "question": question,
+                "period_start": period_start.isoformat(),
+                "period_end": period_end.isoformat(),
+                "evidence": [
+                    {
+                        "source": e.source, "evidence_id": e.evidence_id, "title": e.title,
+                        "event_date": e.event_date, "content": e.content, "citation": e.citation,
+                    }
+                    for e in evidence
+                ],
+            },
+            timeout=self._query_timeout,
+        )
+        return resp.json()["answer"]
+
+    def run_weekly_reports(self, period_start: date, period_end: date) -> dict:
+        """POST /admin/weekly-reports/run - ask the backend to process every owner-linked group."""
+        if not self._service_api_key:
+            raise AuthError("DIARISATION_SERVICE_API_KEY is not configured")
+        response = self._request(
+            "POST",
+            "/admin/weekly-reports/run",
+            headers={"X-Service-Key": self._service_api_key},
+            json={"period_start": period_start.isoformat(), "period_end": period_end.isoformat()},
+            timeout=self._query_timeout,
+        )
+        return response.json()
+
+    def run_group_nudger(self, period_start: date, period_end: date) -> dict:
+        """POST /admin/group-nudger/run - ask the backend to nudge opted-in inactive groups."""
+        if not self._service_api_key:
+            raise AuthError("DIARISATION_SERVICE_API_KEY is not configured")
+        response = self._request(
+            "POST",
+            "/admin/group-nudger/run",
+            headers={"X-Service-Key": self._service_api_key},
+            json={"period_start": period_start.isoformat(), "period_end": period_end.isoformat()},
+            timeout=self._query_timeout,
+        )
+        return response.json()
+
+    def answer_scheduled_report(
+        self, report_id: str, sender_email: str, question: str
+    ) -> str:
+        """POST a report follow-up to the backend, which verifies the recipient and saved evidence."""
+        if not self._service_api_key:
+            raise AuthError("DIARISATION_SERVICE_API_KEY is not configured")
+        response = self._request(
+            "POST",
+            f"/admin/weekly-reports/{report_id}/answer",
+            headers={"X-Service-Key": self._service_api_key},
+            json={"sender_email": sender_email, "question": question},
+            timeout=self._query_timeout,
+        )
+        return response.json()["answer"]
 
     # --- request plumbing --------------------------------------------------
 
@@ -284,18 +542,54 @@ class DiarisationClient:
         except httpx.TransportError as e:
             raise TransientError(f"Transport error calling {method} {path}: {e}") from e
 
-        if resp.status_code >= 500:
-            raise TransientError(f"{method} {path} returned {resp.status_code}: {resp.text[:200]}")
-        if resp.status_code in (401, 403):
-            raise AuthError(f"{method} {path} returned {resp.status_code}: {resp.text[:200]}")
-        if resp.status_code == 404:
-            raise NotFoundError(f"{method} {path} returned 404: {resp.text[:200]}")
-        if resp.status_code == 409:
-            raise ConflictError(f"{method} {path} returned 409: {resp.text[:200]}")
-        if resp.status_code >= 400:
-            raise ClientError(f"{method} {path} returned {resp.status_code}: {resp.text[:200]}")
+        raise_for_status(resp.status_code, f"{method} {path}", resp.text)
         return resp
+
+
+def raise_for_status(status_code: int, operation: str, body: str = "") -> None:
+    """Map an HTTP error status to the matching DiarisationApiError (no-op below 400)."""
+    if status_code < 400:
+        return
+    message = f"{operation} returned {status_code}" + (f": {body[:200]}" if body else "")
+    if status_code >= 500:
+        raise TransientError(message)
+    if status_code in (401, 403):
+        raise AuthError(message)
+    if status_code == 404:
+        raise NotFoundError(message)
+    if status_code == 409:
+        raise ConflictError(message)
+    raise ClientError(message)
 
 
 def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
+
+
+def _query_body(question: str, since: Optional[date], until: Optional[date] = None) -> dict:
+    body: dict = {"question": question}
+    if since is not None:
+        body["since"] = since.isoformat()
+    if until is not None:
+        body["until"] = until.isoformat()
+    return body
+
+
+def _evidence_from_api(item: dict) -> ReportEvidence:
+    return ReportEvidence(
+        source=item["source"],
+        evidence_id=item["evidence_id"],
+        title=item["title"],
+        event_date=item.get("event_date"),
+        content=item["content"],
+        citation=item["citation"],
+        raw_json=json.dumps(item, sort_keys=True),
+    )
+
+
+def _job_from_api(item: dict) -> BackendJob:
+    return BackendJob(
+        id=item["id"], kind=item["kind"], state=item["state"], progress=item.get("progress"),
+        result=item.get("result"), error=item.get("error"), error_type=item.get("error_type"),
+        meeting_id=item.get("meeting_id"),
+    )

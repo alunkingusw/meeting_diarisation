@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     sender_email TEXT NOT NULL,
     backend_user_id INTEGER,
     source_message_id TEXT NOT NULL,
+    original_subject TEXT,
+    original_body_text TEXT,
     operation TEXT NOT NULL DEFAULT 'submit_transcript',
     status TEXT NOT NULL,
     group_hint TEXT,
@@ -33,6 +35,9 @@ CREATE TABLE IF NOT EXISTS jobs (
     github_focus TEXT,
     trello_focus TEXT,
     comment_text TEXT,
+    backend_job_id TEXT,
+    query_conversation_id TEXT,
+    query_parent_job_id TEXT,
     error TEXT,
     retry_count INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
@@ -44,6 +49,22 @@ CREATE TABLE IF NOT EXISTS jobs (
 
 CREATE INDEX IF NOT EXISTS idx_jobs_sender ON jobs (sender_email);
 CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
+
+CREATE TABLE IF NOT EXISTS query_turns (
+    job_id TEXT PRIMARY KEY REFERENCES jobs(job_id) ON DELETE CASCADE,
+    conversation_id TEXT NOT NULL,
+    group_id INTEGER NOT NULL,
+    source_questions_json TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    selected_sources_json TEXT NOT NULL,
+    evidence_refs_json TEXT NOT NULL,
+    failed_sources_json TEXT NOT NULL,
+    model TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_query_turns_conversation
+    ON query_turns (conversation_id, created_at);
 
 CREATE TABLE IF NOT EXISTS processed_messages (
     message_id TEXT PRIMARY KEY,
@@ -93,40 +114,6 @@ CREATE TABLE IF NOT EXISTS pending_clarifications (
     created_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS weekly_reports (
-    report_id TEXT PRIMARY KEY,
-    group_id INTEGER NOT NULL,
-    group_name TEXT NOT NULL,
-    owner_email TEXT NOT NULL,
-    backend_user_id INTEGER NOT NULL,
-    period_start TEXT NOT NULL,
-    period_end TEXT NOT NULL,
-    status TEXT NOT NULL,
-    report_text TEXT,
-    last_error TEXT,
-    created_at TEXT NOT NULL,
-    completed_at TEXT
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_reports_period_group
-    ON weekly_reports (group_id, period_start, period_end);
-
-CREATE TABLE IF NOT EXISTS report_evidence (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    report_id TEXT NOT NULL,
-    source TEXT NOT NULL,
-    evidence_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    event_date TEXT,
-    content TEXT NOT NULL,
-    citation TEXT NOT NULL,
-    raw_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    UNIQUE(report_id, source, evidence_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_report_evidence_report ON report_evidence (report_id);
-
 CREATE TABLE IF NOT EXISTS admin_alerts (
     category TEXT PRIMARY KEY,
     last_sent_at TEXT NOT NULL
@@ -151,8 +138,31 @@ def init_db(db_path: Path) -> None:
     try:
         conn.executescript(SCHEMA)
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(jobs)")}
+        if "backend_job_id" not in columns:
+            conn.execute("ALTER TABLE jobs ADD COLUMN backend_job_id TEXT")
+            columns.add("backend_job_id")
         if "comment_text" not in columns:
             conn.execute("ALTER TABLE jobs ADD COLUMN comment_text TEXT")
+            columns.add("comment_text")
+        for column in ("query_conversation_id", "query_parent_job_id"):
+            if column not in columns:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
+                columns.add(column)
+        for column in ("original_subject", "original_body_text"):
+            if column not in columns:
+                conn.execute(f"ALTER TABLE jobs ADD COLUMN {column} TEXT")
+                columns.add(column)
+        query_turn_columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(query_turns)")
+        }
+        if "source_questions_json" not in query_turn_columns:
+            conn.execute(
+                "ALTER TABLE query_turns ADD COLUMN source_questions_json TEXT NOT NULL DEFAULT '{}'"
+            )
+        if "answer" not in query_turn_columns:
+            conn.execute(
+                "ALTER TABLE query_turns ADD COLUMN answer TEXT NOT NULL DEFAULT ''"
+            )
         backend_user_column = next(
             row for row in conn.execute("PRAGMA table_info(jobs)")
             if row["name"] == "backend_user_id"
@@ -166,6 +176,8 @@ def init_db(db_path: Path) -> None:
                     sender_email TEXT NOT NULL,
                     backend_user_id INTEGER,
                     source_message_id TEXT NOT NULL,
+                    original_subject TEXT,
+                    original_body_text TEXT,
                     operation TEXT NOT NULL DEFAULT 'submit_transcript',
                     status TEXT NOT NULL,
                     group_hint TEXT,
@@ -184,6 +196,9 @@ def init_db(db_path: Path) -> None:
                     github_focus TEXT,
                     trello_focus TEXT,
                     comment_text TEXT,
+                    backend_job_id TEXT,
+                    query_conversation_id TEXT,
+                    query_parent_job_id TEXT,
                     error TEXT,
                     retry_count INTEGER NOT NULL DEFAULT 0,
                     created_at TEXT NOT NULL,

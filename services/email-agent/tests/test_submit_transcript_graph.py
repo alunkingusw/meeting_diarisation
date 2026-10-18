@@ -9,6 +9,8 @@ from app.llm.submit_transcript_graph import build_submit_transcript_graph
 class FakeClient:
     def __init__(self, groups):
         self.groups = groups
+        self.uploaded = []
+        self.attendees = []
 
     def login_for_email(self, email: str):
         return f"token-for-{email}"
@@ -23,6 +25,17 @@ class FakeClient:
         assert idempotency_key == "DIAR-2026-0921-0001"
         return type("Meeting", (), {"id": 42})()
 
+    def upload_file(self, token: str, group_id: int, meeting_id: int, filename: str, content: bytes):
+        self.uploaded.append((group_id, meeting_id, filename, content))
+        return type("RawFile", (), {"id": 43})()
+
+    def resolve_aliases(self, token: str, group_id: int, names: list[str]):
+        return {name: 101 if name == "Alice" else None for name in names}
+
+    def add_attendee(self, token: str, group_id: int, meeting_id: int, member_id: int):
+        self.attendees.append((group_id, meeting_id, member_id))
+        return type("Attendee", (), {"id": member_id})()
+
 
 def _state(path: Path, group_hint=None):
     return {
@@ -34,6 +47,7 @@ def _state(path: Path, group_hint=None):
         "max_attachment_size_bytes": 10000,
         "group_hint": group_hint,
         "meeting_date": "2026-09-21T10:00:00+00:00",
+        "speakers": ["Alice", "Bob"],
     }
 
 
@@ -42,10 +56,13 @@ def test_submit_graph_validates_logs_in_and_resolves_group(tmp_path: Path):
     path.write_text(
         "WEBVTT\n\n"
         "00:00:00.000 --> 00:00:02.000\n"
-        "Alice: hello there\n",
+        "Alice: hello there\n\n"
+        "00:00:02.000 --> 00:00:04.000\n"
+        "Bob: goodbye\n",
         encoding="utf-8",
     )
-    graph = build_submit_transcript_graph(FakeClient([GroupSummary(id=7, name="Team A")]))
+    client = FakeClient([GroupSummary(id=7, name="Team A")])
+    graph = build_submit_transcript_graph(client)
 
     result = graph.invoke(_state(path))
 
@@ -53,6 +70,11 @@ def test_submit_graph_validates_logs_in_and_resolves_group(tmp_path: Path):
     assert result["group_name"] == "Team A"
     assert result.get("clarification_question") is None
     assert result["meeting_id"] == 42
+    assert result["raw_file_id"] == 43
+    assert result["resolved_attendees"] == ["Alice"]
+    assert result["unresolved_speakers"] == ["Bob"]
+    assert client.uploaded == [(7, 42, "meeting.vtt", path.read_bytes())]
+    assert client.attendees == [(7, 42, 101)]
     assert [event["event"] for event in result["audit_events"]] == [
         "validate_trusted_state",
         "meeting_date_present",
@@ -62,6 +84,9 @@ def test_submit_graph_validates_logs_in_and_resolves_group(tmp_path: Path):
         "group_matched",
         "create_meeting_start",
         "create_meeting_result",
+        "transcript_uploaded",
+        "attendees_resolved",
+        "attendees_added",
     ]
 
 

@@ -12,7 +12,8 @@ from app.jobs.store import Outbox
 logger = logging.getLogger(__name__)
 
 _EMAIL_RE = re.compile(r"^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$")
-_REQUEST_FIELDS = {"to", "subject", "body"}
+_REQUIRED_FIELDS = {"to", "subject", "body"}
+_OPTIONAL_FIELDS = {"job_id"}
 _MAX_SUBJECT_LENGTH = 998
 
 
@@ -55,6 +56,7 @@ class EmailRequestHandler(BaseHTTPRequestHandler):
             to_email=request["to"],
             subject=request["subject"],
             body_text=request["body"],
+            job_id=request.get("job_id"),
         )
         self._send_json(HTTPStatus.ACCEPTED, {"outbox_id": outbox_id, "status": "queued"})
 
@@ -97,10 +99,15 @@ class EmailApiServer(ThreadingHTTPServer):
 def _validate_request(payload: object, max_body_chars: int) -> dict[str, str]:
     if not isinstance(payload, dict):
         raise ValueError("request body must be a JSON object")
-    if set(payload) != _REQUEST_FIELDS:
-        raise ValueError("request must contain exactly: to, subject, body")
-    if not all(isinstance(payload[field], str) for field in _REQUEST_FIELDS):
+    if not _REQUIRED_FIELDS.issubset(payload) or not set(payload).issubset(
+        _REQUIRED_FIELDS | _OPTIONAL_FIELDS
+    ):
+        raise ValueError("request must contain to, subject, body and no unsupported fields")
+    if not all(isinstance(payload[field], str) for field in _REQUIRED_FIELDS):
         raise ValueError("to, subject, and body must be strings")
+    job_id = payload.get("job_id")
+    if job_id is not None and (not isinstance(job_id, str) or not job_id.strip() or len(job_id) > 128):
+        raise ValueError("job_id must be a non-empty string of at most 128 characters")
 
     recipient = payload["to"].strip()
     subject = payload["subject"].strip()
@@ -116,4 +123,7 @@ def _validate_request(payload: object, max_body_chars: int) -> dict[str, str]:
     if len(body) > max_body_chars:
         raise ValueError("body is too long")
 
-    return {"to": recipient, "subject": subject, "body": body}
+    request = {"to": recipient, "subject": subject, "body": body}
+    if job_id is not None:
+        request["job_id"] = job_id.strip()
+    return request

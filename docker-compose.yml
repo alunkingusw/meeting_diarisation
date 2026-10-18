@@ -12,6 +12,7 @@ services:
     volumes:
       - ./uploads:/backend/uploads
       - ./transcript_chroma:/backend/transcript_chroma
+      - ./cloned_repos:/backend/cloned_repos
     depends_on:
       - db
     env_file:
@@ -22,6 +23,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   agent:
     build:
@@ -92,9 +95,9 @@ volumes:
   postgres_data:
     name: meeting_diarisation_postgres_data
 
-# Shared with GitHub-RAGinator and GroupAssessmentAgent's own docker-compose.yml files - see
+# Shared with GroupAssessmentAgent's own docker-compose.yml file - see
 # the matching comment there for why. Created once with `docker network create project_net`
-# before any of the three projects are brought up.
+# before either project is brought up.
 networks:
   default:
     name: project_net

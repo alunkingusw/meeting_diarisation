@@ -32,11 +32,15 @@ from app.diarisation.client import (
     GroupSummary,
     MeetingComment,
     MeetingSummary,
+    BackendJob,
+    JobCancelledError,
+    NotFoundError,
+    QueryAnswer,
     RawFileSummary,
+    WeeklyReportResult,
     TranscriptChunk,
     TransientError,
 )
-from app.github_raginator.client import QueryResult, RepoSummary, TransientError as GithubTransientError
 
 
 class FakeDiarisationClient:
@@ -49,7 +53,23 @@ class FakeDiarisationClient:
         member_by_name: Optional[dict[str, Optional[int]]] = None,
         fail_on: Optional[str] = None,
         transcript_chunks: Optional[list[TranscriptChunk]] = None,
+        source_answers: Optional[dict[str, str]] = None,
+        unlinked_sources: Optional[set[str]] = None,
     ):
+        # source -> canned answer; a source in `unlinked_sources` raises NotFoundError like the backend's 404.
+        self.backend_jobs: dict[str, BackendJob] = {}
+        self.cancelled_backend_jobs: list[str] = []
+        self.announced_jobs: list[str] = []
+        self.cancel_queries = False
+        self.composed_reports: list = []
+        self.report_questions: list = []
+        self.report_text = "The team agreed to ship. [Planning]"
+        self.report_evidence: list = []
+        self.report_answer = "The team agreed to ship. [Planning]"
+        self.source_answers = source_answers or {}
+        self.unlinked_sources = unlinked_sources or set()
+        self.queries: list[tuple[str, str]] = []
+        self.source_question_requests: list[dict[str, str]] = []
         self.groups = groups
         self.transcript_chunks = transcript_chunks or []
         self.member_by_name = member_by_name or {}
@@ -119,28 +139,75 @@ class FakeDiarisationClient:
         self._maybe_fail("search_transcripts")
         return self.transcript_chunks
 
+    def compose_weekly_report(self, token: str, group_id: int, period_start, period_end) -> WeeklyReportResult:
+        self._maybe_fail("compose_weekly_report")
+        self.composed_reports.append((group_id, period_start, period_end))
+        return WeeklyReportResult(report_text=self.report_text, evidence=list(self.report_evidence))
 
-class FakeGithubRaginatorClient:
-    """Duck-type stand-in for GithubRaginatorClient - no HTTP involved."""
+    def answer_report_question(self, token, group_id, question, evidence, period_start, period_end) -> str:
+        self._maybe_fail("answer_report_question")
+        self.report_questions.append((group_id, question, list(evidence)))
+        return self.report_answer
 
-    def __init__(
+    def get_job(self, token: str, job_id: str) -> BackendJob:
+        self._maybe_fail("get_job")
+        return self.backend_jobs[job_id]
+
+    def list_jobs(self, token: str, kind=None, meeting_id=None, limit: int = 1) -> list[BackendJob]:
+        self._maybe_fail("list_jobs")
+        return [
+            j for j in self.backend_jobs.values()
+            if (kind is None or j.kind == kind) and (meeting_id is None or j.meeting_id == meeting_id)
+        ][:limit]
+
+    def cancel_job(self, token: str, job_id: str) -> BackendJob:
+        self._maybe_fail("cancel_job")
+        self.cancelled_backend_jobs.append(job_id)
+        return self.backend_jobs[job_id]
+
+    def _announce_job(self, on_job) -> None:
+        if on_job is None:
+            return
+        if self.cancel_queries:
+            raise JobCancelledError("cancelled")
+        job_id = f"backend-job-{len(self.announced_jobs) + 1}"
+        self.announced_jobs.append(job_id)
+        on_job(job_id)
+
+    def query_source(self, token: str, group_id: int, source: str, question: str, since=None, on_job=None) -> QueryAnswer:
+        self._maybe_fail(f"query_{source}")
+        self._announce_job(on_job)
+        if source in self.unlinked_sources:
+            raise NotFoundError(f"no {source} source linked")
+        self.queries.append((source, question))
+        return QueryAnswer(answer=self.source_answers.get(source, f"{source} answer"), sources_used=[source])
+
+    def query_unified(
         self,
-        repo_by_group_name: Optional[dict[str, RepoSummary]] = None,
-        answer: str = "Alice made most of the recent commits.",
-        fail_on: Optional[str] = None,
-    ):
-        self.repo_by_group_name = repo_by_group_name or {}
-        self.answer = answer
-        self.fail_on = fail_on
-        self.questions_asked: list[str] = []
-
-    def find_repo_by_group_name(self, group_name: str) -> Optional[RepoSummary]:
-        if self.fail_on == "find_repo_by_group_name":
-            raise GithubTransientError("simulated failure in find_repo_by_group_name")
-        return self.repo_by_group_name.get(group_name)
-
-    def query(self, repo_id: int, question: str) -> QueryResult:
-        if self.fail_on == "query":
-            raise GithubTransientError("simulated failure in query")
-        self.questions_asked.append(question)
-        return QueryResult(answer=self.answer)
+        token: str,
+        group_id: int,
+        question: str,
+        sources=None,
+        since=None,
+        on_job=None,
+        until=None,
+        source_questions=None,
+    ) -> QueryAnswer:
+        self._maybe_fail("query_unified")
+        for source in sources or []:
+            self._maybe_fail(f"query_{source}")
+        self._announce_job(on_job)
+        used = [s for s in (sources or []) if s not in self.unlinked_sources]
+        if not used:
+            raise NotFoundError("no sources linked")
+        self.queries.append(("unified:" + ",".join(used), question))
+        self.source_question_requests.append(source_questions or {})
+        return QueryAnswer(
+            answer=" ".join(self.source_answers.get(s, f"{s} answer") for s in used),
+            sources_used=used,
+            errors={
+                s: f"This group has no {s} source linked"
+                for s in sources or []
+                if s in self.unlinked_sources
+            },
+        )

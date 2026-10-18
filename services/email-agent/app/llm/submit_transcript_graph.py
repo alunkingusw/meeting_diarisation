@@ -12,7 +12,7 @@ from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from app.diarisation.client import DiarisationClient
-from app.diarisation.group_matching import Ambiguous, Matched, NoMatch, group_clarification_question, match_group
+from app.diarisation.group_matching import Matched, group_clarification_question, match_group
 
 
 class SubmitTranscriptGraphState(TypedDict, total=False):
@@ -28,8 +28,16 @@ class SubmitTranscriptGraphState(TypedDict, total=False):
     group_id: int | None
     group_name: str | None
     meeting_date: str | None
+    meeting_date_source: str | None
     meeting_id: int | None
+    raw_file_id: int | None
+    speakers: list[str]
+    resolved_attendees: list[str]
+    unresolved_speakers: list[str]
+    resolved_member_ids: dict[str, int]
     clarification_question: str | None
+    clarification_expected_field: str | None
+    clarification_options: list[str]
     audit_events: list[dict[str, Any]]
 
 
@@ -70,11 +78,21 @@ def _resolve_meeting_date(state: SubmitTranscriptGraphState) -> SubmitTranscript
             source=parsed_vtt.meeting_date_source,
             meeting_date=parsed_vtt.meeting_date.isoformat(),
         )
-        return {**state, "meeting_date": parsed_vtt.meeting_date.isoformat(), "audit_events": state["audit_events"]}
+        return {
+            **state,
+            "meeting_date": parsed_vtt.meeting_date.isoformat(),
+            "meeting_date_source": parsed_vtt.meeting_date_source,
+            "speakers": state.get("speakers") or parsed_vtt.speakers,
+            "audit_events": state["audit_events"],
+        }
 
     if state.get("meeting_date"):
         _audit(state, "meeting_date_present", meeting_date=state["meeting_date"])
-        return {**state, "audit_events": state["audit_events"]}
+        return {
+            **state,
+            "speakers": state.get("speakers") or parsed_vtt.speakers,
+            "audit_events": state["audit_events"],
+        }
 
     question = (
         "I couldn't find a meeting date in the transcript or your email. What date was "
@@ -88,6 +106,9 @@ def _resolve_meeting_date(state: SubmitTranscriptGraphState) -> SubmitTranscript
         "group_name": None,
         "meeting_id": None,
         "clarification_question": question,
+        "clarification_expected_field": "meeting_date",
+        "clarification_options": [],
+        "speakers": state.get("speakers") or parsed_vtt.speakers,
         "audit_events": state["audit_events"],
     }
 
@@ -128,6 +149,8 @@ def _resolve_group(state: SubmitTranscriptGraphState) -> SubmitTranscriptGraphSt
         "group_name": None,
         "meeting_id": None,
         "clarification_question": question,
+        "clarification_expected_field": "group_hint",
+        "clarification_options": [group.name for group in groups],
         "audit_events": state["audit_events"],
     }
 
@@ -157,6 +180,64 @@ def _create_meeting(state: SubmitTranscriptGraphState, client: DiarisationClient
     return {**state, "meeting_id": meeting.id, "audit_events": state["audit_events"]}
 
 
+def _upload_transcript(
+    state: SubmitTranscriptGraphState, client: DiarisationClient
+) -> SubmitTranscriptGraphState:
+    content = Path(state["attachment_path"]).read_bytes()
+    raw_file = client.upload_file(
+        state["token"],
+        state["group_id"],
+        state["meeting_id"],
+        state["attachment_filename"],
+        content,
+    )
+    _audit(state, "transcript_uploaded", raw_file_id=raw_file.id)
+    return {**state, "raw_file_id": raw_file.id, "audit_events": state["audit_events"]}
+
+
+def _resolve_attendees(
+    state: SubmitTranscriptGraphState, client: DiarisationClient
+) -> SubmitTranscriptGraphState:
+    speakers = state.get("speakers", [])
+    resolved_attendees: list[str] = []
+    unresolved_speakers: list[str] = []
+    if speakers:
+        aliases = client.resolve_aliases(state["token"], state["group_id"], speakers)
+        for speaker in speakers:
+            if aliases.get(speaker) is None:
+                unresolved_speakers.append(speaker)
+            else:
+                resolved_attendees.append(speaker)
+    _audit(
+        state,
+        "attendees_resolved",
+        resolved_count=len(resolved_attendees),
+        unresolved_count=len(unresolved_speakers),
+    )
+    return {
+        **state,
+        "resolved_attendees": resolved_attendees,
+        "unresolved_speakers": unresolved_speakers,
+        "resolved_member_ids": {
+            speaker: aliases[speaker]
+            for speaker in resolved_attendees
+        } if speakers else {},
+        "audit_events": state["audit_events"],
+    }
+
+
+def _add_attendees(
+    state: SubmitTranscriptGraphState, client: DiarisationClient
+) -> SubmitTranscriptGraphState:
+    member_ids = state.get("resolved_member_ids", {})
+    for speaker in state.get("resolved_attendees", []):
+        client.add_attendee(
+            state["token"], state["group_id"], state["meeting_id"], member_ids[speaker]
+        )
+    _audit(state, "attendees_added", count=len(member_ids))
+    return {**state, "audit_events": state["audit_events"]}
+
+
 def build_submit_transcript_graph(client: DiarisationClient):
     builder = StateGraph(SubmitTranscriptGraphState)
     builder.add_node("validate_trusted_state", _validate_trusted_state)
@@ -165,6 +246,9 @@ def build_submit_transcript_graph(client: DiarisationClient):
     builder.add_node("list_groups", lambda state: _list_groups(state, client))
     builder.add_node("resolve_group", _resolve_group)
     builder.add_node("create_meeting", lambda state: _create_meeting(state, client))
+    builder.add_node("upload_transcript", lambda state: _upload_transcript(state, client))
+    builder.add_node("resolve_attendees", lambda state: _resolve_attendees(state, client))
+    builder.add_node("add_attendees", lambda state: _add_attendees(state, client))
     builder.add_edge(START, "validate_trusted_state")
     builder.add_edge("validate_trusted_state", "resolve_meeting_date")
     builder.add_conditional_edges(
@@ -179,5 +263,8 @@ def build_submit_transcript_graph(client: DiarisationClient):
         _route_after_group_resolution,
         {"create_meeting": "create_meeting", END: END},
     )
-    builder.add_edge("create_meeting", END)
+    builder.add_edge("create_meeting", "upload_transcript")
+    builder.add_edge("upload_transcript", "resolve_attendees")
+    builder.add_edge("resolve_attendees", "add_attendees")
+    builder.add_edge("add_attendees", END)
     return builder.compile()

@@ -64,7 +64,7 @@ def test_ambiguous_request_asks_for_clarification_or_stays_safe(parser):
     assert cmd.requires_clarification or cmd.attachment in (None, "meeting.vtt", "other.vtt")
 
 
-# Source-routing corpus for the dry-run assess_query operation: this is the actual capability
+# Source-routing corpus for the assess_query operation: this is the actual capability
 # test - can the model correctly decide, from a natural-language request alone, which of the
 # three information sources (conversation transcripts, GitHub repo, Trello board) are relevant,
 # in any combination? Only presence/absence of each *_focus field is asserted, never its text,

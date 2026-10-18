@@ -23,7 +23,7 @@ from .parsing import parse_vtt_cues, extract_speaker_and_text
 from .chunker import merge_cues_into_turns, build_chunks, chunk_vtt_file
 from .stats import compute_speaker_stats, meeting_stats_summary, SpeakerStats
 from .models import Cue, Turn, Chunk
-from .pipeline import process_vtt_file, process_vtt_directory
+from .pipeline import process_vtt_file
 
 __all__ = [
     "verify_vtt",
@@ -40,5 +40,4 @@ __all__ = [
     "Turn",
     "Chunk",
     "process_vtt_file",
-    "process_vtt_directory",
 ]

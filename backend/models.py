@@ -17,16 +17,17 @@
 # python -m alembic revision --autogenerate -m "Describe your changes here"
 # then apply to the database using the following command
 # python -m alembic upgrade head
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
-from datetime import datetime
+from datetime import date, datetime
 from backend.config import settings
 
 from enum import Enum
 
 from sqlalchemy import (
-    Column, Integer, String, Text, DateTime, Boolean, ForeignKey, Table, JSON, Index, func, text,
+    Column, Integer, String, Text, DateTime, Date, Boolean, ForeignKey, Table, JSON, Index, func, text,
     Enum as SQLEnum,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 from backend.db import Base
@@ -90,6 +91,7 @@ class Group(Base):
     github_repo_url = Column(String(512), nullable=True)
     trello_board_id = Column(String(24), nullable=True)
     notify = Column(Boolean, nullable=False, default=False)
+    project_expiry = Column(Date, nullable=True)
     created = Column(DateTime, nullable=False, default=func.now())
 
     users = relationship("User", secondary=users_groups, back_populates="groups")
@@ -164,6 +166,99 @@ class RawFile(Base):
     meeting=relationship("Meeting", back_populates="media_files")
     status=Column(Text, nullable=True)
 
+class Job(Base):
+    """A long-running piece of work (see backend/jobs). State lives here so any API client can poll it."""
+
+    __tablename__ = "jobs"
+    id = Column(String(36), primary_key=True)
+    kind = Column(String(40), nullable=False, index=True)
+    state = Column(String(20), nullable=False, default="queued", index=True)
+    # Who asked for it: a user, or a group member who emailed a transcript in.
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    group_member_id = Column(Integer, ForeignKey("group_members.id"), nullable=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True, index=True)
+    meeting_id = Column(Integer, ForeignKey("meetings.id"), nullable=True, index=True)
+    params = Column(JSON, nullable=False, default=dict)
+    result = Column(JSON, nullable=True)
+    progress = Column(String(255), nullable=True)
+    error = Column(Text, nullable=True)
+    error_type = Column(String(80), nullable=True)
+    cancel_requested = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+
+class WeeklyReport(Base):
+    """Backend-owned report snapshot used for scheduled delivery and email follow-ups."""
+
+    __tablename__ = "weekly_reports"
+    __table_args__ = (
+        UniqueConstraint("group_id", "period_start", "period_end", name="uq_weekly_report_period"),
+    )
+
+    report_id = Column(String(64), primary_key=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False, index=True)
+    group_name = Column(String(255), nullable=False)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    report_text = Column(Text, nullable=True)
+    model = Column(String(255), nullable=True)
+    evidence = Column(JSON, nullable=True)
+    unavailable = Column(JSON, nullable=False, default=list)
+    recipients = Column(JSON, nullable=False, default=list)
+    queued_recipients = Column(JSON, nullable=False, default=list)
+    status = Column(String(20), nullable=False, default="pending", server_default="pending")
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+
+
+class QueryConversationTurn(Base):
+    """Evaluation history for explicitly continued, user- and group-scoped queries."""
+
+    __tablename__ = "query_conversation_turns"
+    __table_args__ = (
+        Index(
+            "ix_query_conversation_scope_created",
+            "conversation_id", "user_id", "group_id", "created_at",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    conversation_id = Column(String(36), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+    question = Column(Text, nullable=False)
+    source_questions = Column(JSON, nullable=False, default=dict)
+    answer = Column(Text, nullable=False)
+    sources_used = Column(JSON, nullable=False, default=list)
+    evidence_refs = Column(JSON, nullable=False, default=dict)
+    errors = Column(JSON, nullable=False, default=dict)
+    model = Column(String(255), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+
+
+class GroupNudge(Base):
+    """Tracks reminder delivery per member and reporting period for retry-safe weekly runs."""
+
+    __tablename__ = "group_nudges"
+    __table_args__ = (
+        UniqueConstraint(
+            "group_id", "period_start", "period_end", "recipient_email",
+            name="uq_group_nudge_recipient_period",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False, index=True)
+    period_start = Column(Date, nullable=False)
+    period_end = Column(Date, nullable=False)
+    recipient_email = Column(String(320), nullable=False)
+    status = Column(String(16), nullable=False, default="pending", server_default="pending")
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=func.now())
+
+
 class GroupMemberOut(BaseModel):
     id: int
     name: str
@@ -180,17 +275,16 @@ class GroupOut(BaseModel):
     created: datetime
     github_repo_url: Optional[str] = None
     trello_board_id: Optional[str] = None
+    github_connected: bool = False
+    trello_connected: bool = False
     notify: bool = False
+    project_expiry: Optional[date] = Field(
+        default=None,
+        description="Last active day, inclusive; scheduled batches skip the group when period_end is later.",
+    )
     members: List[GroupMemberOut]  # Include related members
     class Config:
         from_attributes = True
-
-class RawFileCreate(BaseModel):
-    file_name: str
-    human_name: str
-    description: Optional[str]
-    type: RawFileType
-    meeting_id: int
 
 class RawFileOut(BaseModel):
     id: int
@@ -199,6 +293,8 @@ class RawFileOut(BaseModel):
     description:Optional[str]
     processed_date:Optional[datetime]
     type:RawFileType
+    # Set for a transcript upload: poll GET /jobs/{id} for indexing and summarising.
+    processing_job_id: Optional[str] = None
     class Config:
         from_attributes =True
 

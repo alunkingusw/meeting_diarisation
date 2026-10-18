@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from app.jobs.models import ALLOWED_TRANSITIONS, Job, JobState, utcnow_iso
+from app.jobs.models import ALLOWED_TRANSITIONS, Job, JobState, QueryTurn, utcnow_iso
 from app.storage.db import get_connection
 
 _JSON_FIELDS = {"speakers", "resolved_attendees", "unresolved_speakers"}
@@ -115,6 +115,129 @@ class JobStore:
         if job is None or job.sender_email.lower() != sender_email.lower():
             return None
         return job
+
+    def record_query_turn(
+        self,
+        job_id: str,
+        source_questions: dict[str, str],
+        answer: str,
+        selected_sources: list[str],
+        evidence_refs: list[dict[str, str]],
+        failed_sources: list[str],
+        model: Optional[str],
+    ) -> None:
+        """Persist validated source questions and the answer without copying the email body."""
+        conn = self._conn()
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            job = conn.execute(
+                """SELECT operation, query_conversation_id, resolved_group_id
+                   FROM jobs WHERE job_id = ?""",
+                (job_id,),
+            ).fetchone()
+            if (
+                job is None
+                or job["operation"] != "assess_query"
+                or not job["query_conversation_id"]
+                or job["resolved_group_id"] is None
+            ):
+                raise ValueError("Query turn requires an assess_query job with resolved scope")
+
+            conn.execute(
+                """INSERT INTO query_turns (
+                       job_id, conversation_id, group_id, source_questions_json, answer,
+                       selected_sources_json, evidence_refs_json, failed_sources_json, model,
+                       created_at
+                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(job_id) DO UPDATE SET
+                       conversation_id = excluded.conversation_id,
+                       group_id = excluded.group_id,
+                       source_questions_json = excluded.source_questions_json,
+                       answer = excluded.answer,
+                       selected_sources_json = excluded.selected_sources_json,
+                       evidence_refs_json = excluded.evidence_refs_json,
+                       failed_sources_json = excluded.failed_sources_json,
+                       model = excluded.model""",
+                (
+                    job_id,
+                    job["query_conversation_id"],
+                    job["resolved_group_id"],
+                    json.dumps(source_questions),
+                    answer,
+                    json.dumps(selected_sources),
+                    json.dumps(evidence_refs),
+                    json.dumps(failed_sources),
+                    model,
+                    utcnow_iso(),
+                ),
+            )
+            conn.execute("COMMIT")
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        finally:
+            conn.close()
+
+    def list_query_turns(
+        self,
+        conversation_id: str,
+        sender_email: str,
+        backend_user_id: int,
+        group_id: int,
+        limit: int = 100,
+    ) -> list[QueryTurn]:
+        """List turns only for the exact authenticated sender, user, group, and conversation."""
+        conn = self._conn()
+        try:
+            rows = conn.execute(
+                """SELECT turns.* FROM query_turns AS turns
+                   JOIN jobs ON jobs.job_id = turns.job_id
+                   WHERE turns.conversation_id = ?
+                     AND jobs.query_conversation_id = turns.conversation_id
+                     AND jobs.sender_email = ? COLLATE NOCASE
+                     AND jobs.backend_user_id = ?
+                     AND jobs.resolved_group_id = ?
+                   ORDER BY turns.created_at, turns.job_id
+                   LIMIT ?""",
+                (conversation_id, sender_email, backend_user_id, group_id, limit),
+            ).fetchall()
+            return [QueryTurn.from_row(row) for row in rows]
+        finally:
+            conn.close()
+
+    def get_latest_query_turn(
+        self,
+        conversation_id: str,
+        sender_email: str,
+        backend_user_id: int,
+        group_id: int,
+    ) -> Optional[QueryTurn]:
+        """Return the latest completed turn for this authenticated conversation scope."""
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                """SELECT turns.* FROM query_turns AS turns
+                   JOIN jobs ON jobs.job_id = turns.job_id
+                   WHERE turns.conversation_id = ?
+                     AND jobs.query_conversation_id = turns.conversation_id
+                     AND jobs.sender_email = ? COLLATE NOCASE
+                     AND jobs.backend_user_id = ?
+                     AND jobs.resolved_group_id = ?
+                     AND jobs.status = ?
+                   ORDER BY turns.created_at DESC, turns.job_id DESC
+                   LIMIT 1""",
+                (
+                    conversation_id,
+                    sender_email,
+                    backend_user_id,
+                    group_id,
+                    JobState.COMPLETED.value,
+                ),
+            ).fetchone()
+            return QueryTurn.from_row(row) if row else None
+        finally:
+            conn.close()
 
     def update(self, job_id: str, **fields) -> None:
         if not fields:
@@ -374,6 +497,22 @@ class Outbox:
                 "SELECT * FROM outbox WHERE status = 'PENDING' ORDER BY created_at ASC"
             ).fetchall()
             return [OutboxMessage.from_row(r) for r in rows]
+        finally:
+            conn.close()
+
+    def get_weekly_report_id_by_message_id(self, message_id: str, recipient: str) -> Optional[str]:
+        conn = self._conn()
+        try:
+            row = conn.execute(
+                """SELECT outbox.job_id FROM message_links
+                   JOIN outbox ON outbox.id = message_links.outbox_id
+                   WHERE message_links.message_id = ?
+                     AND LOWER(outbox.to_email) = LOWER(?)
+                     AND outbox.job_id LIKE 'WEEKLY-%'
+                   ORDER BY message_links.created_at DESC LIMIT 1""",
+                (message_id, recipient),
+            ).fetchone()
+            return row["job_id"] if row else None
         finally:
             conn.close()
 

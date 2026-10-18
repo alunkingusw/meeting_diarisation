@@ -14,11 +14,11 @@ from dateutil import parser as dateutil_parser
 from app.admin.notifier import AdminCategory, AdminNotifier
 from app.commands.validator import ValidatedCommand
 from app.diarisation.client import DiarisationApiError, DiarisationClient
-from app.diarisation.group_matching import Matched, group_clarification_question, match_group
 from app.email_templates.render import render_ack, render_clarification, render_completion, render_failure
 from app.handlers.base import HandlerOutcome
 from app.jobs.models import Job, JobState
 from app.jobs.store import JobStore, Outbox, PendingClarificationStore
+from app.llm.submit_transcript_graph import build_submit_transcript_graph
 from app.mail.base import Attachment
 from app.settings import StorageSettings
 from app.storage.attachments import move_to, save_incoming
@@ -40,6 +40,8 @@ def accept(
     in_reply_to: Optional[str] = None,
     references: Optional[str] = None,
     pending_clarifications: Optional[PendingClarificationStore] = None,
+    original_subject: Optional[str] = None,
+    original_body_text: Optional[str] = None,
 ) -> HandlerOutcome:
     pending_clarifications = pending_clarifications or PendingClarificationStore(job_store._db_path)
     assert validated_cmd.attachment is not None  # guaranteed by the validator
@@ -56,6 +58,8 @@ def accept(
         operation="submit_transcript",
         group_hint=validated_cmd.group_hint,
         attachment_filename=validated_cmd.attachment.filename,
+        original_subject=original_subject,
+        original_body_text=original_body_text,
     )
     job_store.set_status(job.job_id, JobState.VALIDATING)
 
@@ -84,7 +88,9 @@ def accept(
             "this meeting (e.g. '11 August 2026')?"
         )
         pending_clarifications.put(job.job_id, question, "meeting_date", [])
-        subject, body = render_clarification(question, job.job_id)
+        subject, body = render_clarification(
+            question, job.job_id, job.original_subject, job.original_body_text
+        )
         outbox.enqueue(
             to_email=sender_email, subject=subject, body_text=body, job_id=job.job_id,
             in_reply_to=in_reply_to, references=references,
@@ -128,51 +134,51 @@ def execute(
         job = job_store.get(job.job_id)  # refresh with the new path
 
     try:
-        token = diarisation_client.login_for_email(job.sender_email)
-        groups = diarisation_client.list_groups(token)
+        graph = build_submit_transcript_graph(diarisation_client)
+        result = graph.invoke(
+            {
+                "job_id": job.job_id,
+                "sender_email": job.sender_email,
+                "attachment_path": job.attachment_storage_path,
+                "attachment_filename": job.attachment_filename,
+                "attachment_size_bytes": Path(job.attachment_storage_path).stat().st_size,
+                "group_hint": job.group_hint,
+                "meeting_date": job.meeting_date,
+                "meeting_date_source": job.meeting_date_source,
+                "speakers": job.speakers,
+            }
+        )
+        logger.info(
+            "Job %s submit graph steps: %s", job.job_id,
+            [e["event"] for e in result.get("audit_events", [])],
+        )
 
-        match = match_group(job.group_hint, groups)
-        if not isinstance(match, Matched):
-            question = group_clarification_question(match, groups, "this transcript")
+        if result.get("clarification_question"):
+            question = result["clarification_question"]
             job_store.set_status(job.job_id, JobState.NEEDS_CLARIFICATION)
-            pending_clarifications.put(job.job_id, question, "group_hint", [g.name for g in groups])
-            subject, body = render_clarification(question, job.job_id)
+            pending_clarifications.put(
+                job.job_id,
+                question,
+                result.get("clarification_expected_field", "group_hint"),
+                result.get("clarification_options", []),
+            )
+            subject, body = render_clarification(
+                question, job.job_id, job.original_subject, job.original_body_text
+            )
             outbox.enqueue(
                 to_email=job.sender_email, subject=subject, body_text=body, job_id=job.job_id,
                 in_reply_to=parent_message_id, references=parent_references,
             )
             return
 
-        group = match.group
-        meeting_date = datetime.fromisoformat(job.meeting_date)
-        meeting = diarisation_client.create_meeting(
-            token, group.id, meeting_date, idempotency_key=job.job_id
-        )
-
-        content = Path(job.attachment_storage_path).read_bytes()
-        raw_file = diarisation_client.upload_file(
-            token, group.id, meeting.id, job.attachment_filename, content
-        )
-
-        resolved_attendees: list[str] = []
-        unresolved_speakers: list[str] = []
-        if job.speakers:
-            resolved = diarisation_client.resolve_aliases(token, group.id, job.speakers)
-            for name, member_id in resolved.items():
-                if member_id is not None:
-                    diarisation_client.add_attendee(token, group.id, meeting.id, member_id)
-                    resolved_attendees.append(name)
-                else:
-                    unresolved_speakers.append(name)
-
         job_store.update(
             job.job_id,
-            resolved_group_id=group.id,
-            resolved_group_name=group.name,
-            backend_meeting_id=meeting.id,
-            backend_raw_file_id=raw_file.id,
-            resolved_attendees=resolved_attendees,
-            unresolved_speakers=unresolved_speakers,
+            resolved_group_id=result["group_id"],
+            resolved_group_name=result["group_name"],
+            backend_meeting_id=result["meeting_id"],
+            backend_raw_file_id=result["raw_file_id"],
+            resolved_attendees=result.get("resolved_attendees", []),
+            unresolved_speakers=result.get("unresolved_speakers", []),
         )
         job_store.set_status(job.job_id, JobState.COMPLETED)
 
@@ -181,7 +187,11 @@ def execute(
             job_store.update(job.job_id, attachment_storage_path=str(moved))
 
         subject, body = render_completion(
-            job.job_id, group.name, job.meeting_date, resolved_attendees, unresolved_speakers
+            job.job_id,
+            result["group_name"],
+            job.meeting_date,
+            result.get("resolved_attendees", []),
+            result.get("unresolved_speakers", []),
         )
         outbox.enqueue(
             to_email=job.sender_email, subject=subject, body_text=body, job_id=job.job_id,
@@ -189,6 +199,7 @@ def execute(
         )
 
     except DiarisationApiError as e:
+        logger.exception("Backend API error executing job %s", job.job_id)
         _handle_execute_failure(job, str(e), job_store, outbox, admin_notifier, storage)
     except Exception as e:  # unexpected - still must not crash the worker loop
         logger.exception("Unexpected error executing job %s", job.job_id)

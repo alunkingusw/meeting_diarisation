@@ -12,16 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, exists
 from backend.config import settings
-from backend.models import RawFile, RawFileType, GroupMember, User, Group, Meeting
+from backend.models import RawFile, RawFileOut, RawFileType, GroupMember, User, Group, Meeting
 from werkzeug.utils import secure_filename
-from backend.db import SessionLocal
 from backend.db_dependency import get_db
-from backend.transcript_rag.indexer import index_transcript
-from backend.summarization.summariser import summarise_meeting_task
+from backend.jobs.service import submit_job
 from fastapi.responses import FileResponse
 import logging
 from backend.auth import (
@@ -56,40 +54,10 @@ def validate_filename(filename: str) -> str:
     return filename
 
 
-def _process_uploaded_transcript(
-    group_id: int,
-    meeting_id: int,
-    transcript_path: str,
-    group_name: str,
-    meeting_date: str,
-) -> None:
-    db = SessionLocal()
-    try:
-        try:
-            index_transcript(
-                group_id=group_id,
-                group_name=group_name,
-                meeting_id=meeting_id,
-                vtt_path=Path(transcript_path),
-                meeting_title=group_name,
-                meeting_date=meeting_date,
-            )
-        except Exception:
-            logger.exception("Transcript indexing failed for meeting %s", meeting_id)
-        else:
-            try:
-                summarise_meeting_task(group_id, meeting_id, db)
-            except Exception:
-                logger.exception("Automatic summarisation failed for meeting %s", meeting_id)
-    finally:
-        db.close()
-
-
-@router.post("/groups/{group_id}/meetings/{meeting_id}/upload/", tags=["meetings"])
+@router.post("/groups/{group_id}/meetings/{meeting_id}/upload/", tags=["meetings"], response_model=RawFileOut)
 async def upload_file(
         group_id:int,
         meeting_id:int,
-        background_tasks: BackgroundTasks,
         file: UploadFile = File(...),
         db: Session = Depends(get_db),
         principal: EmailPrincipal = Depends(is_email_workflow_group_member)
@@ -161,14 +129,16 @@ async def upload_file(
         group = db.query(Group).get(group_id)
         meeting = db.query(Meeting).get(meeting_id)
         if group is not None and meeting is not None:
-            background_tasks.add_task(
-                _process_uploaded_transcript,
-                group_id,
-                meeting_id,
-                str(file_path),
-                group.name,
-                meeting.date.date().isoformat(),
+            job = submit_job(
+                db, "transcript_processing",
+                {
+                    "group_id": group_id, "meeting_id": meeting_id, "transcript_path": str(file_path),
+                    "group_name": group.name, "meeting_date": meeting.date.date().isoformat(),
+                },
+                user_id=principal.user_id, group_member_id=principal.scoped_group_member_id,
+                group_id=group_id, meeting_id=meeting_id,
             )
+            raw_file.processing_job_id = job.id
 
     return raw_file
 

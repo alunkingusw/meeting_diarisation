@@ -19,18 +19,11 @@ from sqlalchemy import text
 from datetime import datetime
 import os
 
-from backend.db import SessionLocal
+from backend.db_dependency import get_db
 from backend.startup import START_TIME
 
 router = APIRouter()
 HUGGING_FACE_TOKEN = os.getenv("HUGGING_FACE_TOKEN")
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @router.get("/status")
 def get_status(db: Session = Depends(get_db)):

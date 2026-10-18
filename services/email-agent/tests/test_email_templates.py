@@ -23,6 +23,21 @@ def test_clarification_includes_the_question():
     assert _INTERNAL_OPERATION_NAME not in body
 
 
+def test_clarification_preserves_original_subject_and_quotes_original_email():
+    subject, body = render.render_clarification(
+        "What date was the meeting?",
+        job_id="DIAR-2026-1002-0001",
+        original_subject="Project sync notes",
+        original_body_text="We agreed to begin the pilot.\nPlease log this meeting.",
+    )
+
+    assert subject == "Re: Project sync notes [Clarification needed | DIAR-2026-1002-0001]"
+    assert "What date was the meeting?" in body
+    assert "Subject: Project sync notes" in body
+    assert "> We agreed to begin the pilot." in body
+    assert "> Please log this meeting." in body
+
+
 def test_failure_with_job_id():
     subject, body = render.render_failure("The file was empty.", job_id="DIAR-2026-0811-0002")
     assert "DIAR-2026-0811-0002" in subject
@@ -112,3 +127,31 @@ def test_assess_result_includes_unavailable_notes():
     )
     assert "Bob opened issue #4." in body
     assert "couldn't check past meeting transcripts" in body
+
+
+def test_assess_result_renders_parent_answer_as_one_findings_section():
+    _, body = render.render_assess_result(
+        "DIAR-2026-0811-0017",
+        group_name="Team A",
+        transcript_answer=None,
+        github_trello_answer=None,
+        trello_checked=False,
+        unavailable_notes=["I couldn't check the Trello board right now."],
+        unified_answer="The API decision is recorded in the transcript [meeting-42].",
+    )
+
+    assert "Findings:" in body
+    assert "The API decision is recorded in the transcript [meeting-42]." in body
+    assert "From your group's GitHub" not in body
+    assert "couldn't check the Trello board" in body
+
+
+def test_failure_explains_admin_actions_are_not_available_over_email():
+    from app.email_templates.render import render_failure
+
+    _, body = render_failure(
+        "GET /users/ returned 403: Administrator actions are not available over email", job_id="DIAR-2026-1007-0001"
+    )
+
+    assert "can't be performed by email" in body
+    assert "returned 403" not in body

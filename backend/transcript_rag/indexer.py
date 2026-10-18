@@ -13,23 +13,45 @@
 # limitations under the License.
 
 """Chunks a transcript .vtt via the vendored vtt_rag pipeline and embeds the
-result into a per-group Chroma collection, so it can later be semantically
-searched (see backend/routes/transcripts.py). Two call sites feed this: a
-directly-uploaded .vtt (backend/routes/upload.py) and a server-transcribed
-one (backend/processing/transcribe.py) - both produce the same chunk/stats
-shape, so one indexing path covers both.
+result into a per-group Chroma collection for semantic search through the
+conversation-query workflow. Two call sites feed this: a directly-uploaded
+.vtt (backend/routes/upload.py) and a server-transcribed one
+(backend/processing/transcribe.py); both produce the same chunk/stats shape,
+so one indexing path covers both.
 """
 
 import json
 import logging
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import Any
 
 from backend.transcript_rag.vtt_rag import process_vtt_file
 from backend.config import settings
-from backend.transcript_rag.vectorstore import replace_meeting_chunks, search_chunks, transcripts_collection_name
+from backend.transcript_rag.vectorstore import (
+    get_chunks_in_window,
+    replace_meeting_chunks,
+    search_chunks,
+    transcripts_collection_name,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def meeting_date_ts(meeting_date: str) -> int | None:
+    """UTC-midnight epoch seconds for a 'YYYY-MM-DD...' meeting date, or None if unparseable.
+
+    Chroma can only range-filter numbers, so the date string is mirrored as `meeting_ts`.
+    """
+    try:
+        day = date.fromisoformat(str(meeting_date)[:10])
+    except ValueError:
+        return None
+    return int(datetime.combine(day, time.min, tzinfo=timezone.utc).timestamp())
+
+
+def date_to_ts(day: date | None) -> int | None:
+    return None if day is None else meeting_date_ts(day.isoformat())
 
 
 def index_transcript(
@@ -55,6 +77,10 @@ def index_transcript(
 
     chunks_path = Path(summary["chunks_path"])
     chunks = [json.loads(line) for line in chunks_path.read_text(encoding="utf-8").splitlines() if line]
+    ts = meeting_date_ts(meeting_date)
+    if ts is not None:
+        for chunk in chunks:
+            chunk["meeting_ts"] = ts
 
     replace_meeting_chunks(
         collection_name=transcripts_collection_name(group_name),
@@ -71,12 +97,50 @@ def search_transcripts(
     query: str,
     n_results: int = 5,
     meeting_id: int | None = None,
+    since: date | None = None,
+    until: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Semantic search over one group's indexed transcript chunks. Returns
-    an empty list if the group has nothing indexed yet, rather than raising."""
+    """Semantic search over one group's indexed transcript chunks, optionally limited to meetings
+    dated in [since, until). Returns an empty list if nothing is indexed, rather than raising."""
     return search_chunks(
         collection_name=transcripts_collection_name(group_name),
         query=query,
         n_results=n_results,
         meeting_id=meeting_id,
+        since_ts=date_to_ts(since),
+        until_ts=date_to_ts(until),
     )
+
+
+def transcripts_in_window(
+    group_name: str, since: date | None, until: date | None, limit: int
+) -> list[dict[str, Any]] | None:
+    """All chunks of meetings dated in [since, until), or None if there are more than `limit`."""
+    return get_chunks_in_window(
+        transcripts_collection_name(group_name), date_to_ts(since), date_to_ts(until), limit
+    )
+
+
+def load_transcript_stats(
+    group_id: int, meeting_ids: list[int]
+) -> tuple[list[dict[str, Any]], list[int]]:
+    """Load persisted deterministic statistics for expected transcript meetings.
+
+    Missing or unreadable artifacts are reported explicitly so callers never present partial
+    aggregates as complete.
+    """
+    stats_dir = settings.EMBEDDING_DIR / "transcripts" / str(group_id)
+    records: list[dict[str, Any]] = []
+    missing: list[int] = []
+    for meeting_id in meeting_ids:
+        stats_path = stats_dir / str(meeting_id) / "stats.json"
+        try:
+            record = json.loads(stats_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            missing.append(meeting_id)
+            continue
+        if str(record.get("meeting_id")) != str(meeting_id):
+            missing.append(meeting_id)
+            continue
+        records.append(record)
+    return records, missing

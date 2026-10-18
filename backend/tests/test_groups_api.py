@@ -10,9 +10,14 @@ def test_create_and_list_group(client, make_user, auth_header_for):
     user = make_user()
     headers = auth_header_for(user.id)
 
-    create_response = client.post("/groups/", json={"name": "Team A"}, headers=headers)
+    create_response = client.post(
+        "/groups/",
+        json={"name": "Team A", "project_expiry": "2027-06-30"},
+        headers=headers,
+    )
     assert create_response.status_code == 200
     assert create_response.json()["name"] == "Team A"
+    assert create_response.json()["project_expiry"] == "2027-06-30"
 
     list_response = client.get("/groups/", headers=headers)
     assert list_response.status_code == 200
@@ -50,6 +55,46 @@ def test_get_group_allowed_for_member(client, make_user, make_group, auth_header
     response = client.get(f"/groups/{group.id}", headers=auth_header_for(owner.id))
     assert response.status_code == 200
     assert response.json()["name"] == "Team A"
+    assert response.json()["github_connected"] is False
+    assert response.json()["trello_connected"] is False
+
+
+def test_get_group_reports_provider_access(client, db_session, make_user, make_group, auth_header_for, monkeypatch):
+    import backend.integrations as integrations
+
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    group.github_repo_url = "https://github.com/example/project"
+    group.trello_board_id = "board-id"
+    db_session.commit()
+
+    monkeypatch.setattr(integrations.GitHubClient, "check_repo_access", lambda self, url: True)
+    monkeypatch.setattr(integrations.TrelloClient, "check_board_access", lambda self, board_id: True)
+
+    response = client.get(f"/groups/{group.id}", headers=auth_header_for(owner.id))
+
+    assert response.status_code == 200
+    assert response.json()["github_connected"] is True
+    assert response.json()["trello_connected"] is True
+
+
+def test_get_group_reports_denied_provider_access(client, db_session, make_user, make_group, auth_header_for, monkeypatch):
+    import backend.integrations as integrations
+
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    group.github_repo_url = "https://github.com/example/project"
+    group.trello_board_id = "board-id"
+    db_session.commit()
+
+    monkeypatch.setattr(integrations.GitHubClient, "check_repo_access", lambda self, url: False)
+    monkeypatch.setattr(integrations.TrelloClient, "check_board_access", lambda self, board_id: False)
+
+    response = client.get(f"/groups/{group.id}", headers=auth_header_for(owner.id))
+
+    assert response.status_code == 200
+    assert response.json()["github_connected"] is False
+    assert response.json()["trello_connected"] is False
 
 
 def test_get_group_not_found(client, make_user, auth_header_for):
@@ -66,12 +111,15 @@ def test_update_group(client, make_user, make_group, auth_header_for):
     response = client.put(
         f"/groups/{group.id}",
         params={"name": "Team B"},
-        json={"name": "Team B"},
+        json={"name": "Team B", "project_expiry": "2027-06-30"},
         headers=headers,
     )
     assert response.status_code == 200
     assert response.json()["name"] == "Team B"
-    assert client.get(f"/groups/{group.id}", headers=headers).json()["name"] == "Team B"
+    assert response.json()["project_expiry"] == "2027-06-30"
+    details = client.get(f"/groups/{group.id}", headers=headers).json()
+    assert details["name"] == "Team B"
+    assert details["project_expiry"] == "2027-06-30"
 
 
 def test_delete_group(client, make_user, make_group, auth_header_for):

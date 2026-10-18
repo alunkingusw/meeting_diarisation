@@ -27,12 +27,18 @@ numpy
 # Transcript chunking + retrieval (backend/transcript_rag)
 # Keep the Chroma adapter and client on the same API generation as LangChain Core.
 chromadb==1.5.9
+langchain==1.3.9
 langchain-core==1.6.3
 langchain-chroma==0.2.6
+langchain-ollama==1.1.0
+langgraph==1.2.11
 sentence-transformers==3.1.1
 
 # Meeting summarisation (backend/summarization) - local Ollama server client
 httpx
+
+# GitHub ingestion (backend/project_rag) - clones group repos and reads commit history
+GitPython==3.1.43
 
 # Transcript format conversion
 pysubs2

@@ -48,6 +48,18 @@ def test_send_request_is_queued(db_path: Path):
     assert pending[0].body_text == "Message"
 
 
+def test_send_request_preserves_report_job_id(db_path: Path):
+    status, _ = _request(
+        _server(db_path),
+        "POST",
+        "/internal/email",
+        {"to": "alice@example.com", "subject": "Weekly report", "body": "Report", "job_id": "WEEKLY-2026-10-05-0007"},
+    )
+
+    assert status == 202
+    assert Outbox(db_path).pending()[0].job_id == "WEEKLY-2026-10-05-0007"
+
+
 def test_send_request_requires_token(db_path: Path):
     status, result = _request(
         _server(db_path),
@@ -67,9 +79,9 @@ def test_send_request_rejects_extra_fields_and_invalid_recipient(db_path: Path):
         _server(db_path),
         "POST",
         "/internal/email",
-        {"to": "not-an-email", "subject": "Hello", "body": "Message", "job_id": "x"},
+        {"to": "not-an-email", "subject": "Hello", "body": "Message", "extra": "x"},
     )
 
     assert status == 400
-    assert "exactly" in result["error"]
+    assert "unsupported" in result["error"]
     assert Outbox(db_path).pending() == []

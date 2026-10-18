@@ -70,6 +70,7 @@ def execute(
             references=parent_message_id,
         )
     except DiarisationApiError as exc:
+        logger.exception("Backend API error adding comment for job %s", job.job_id)
         _fail(job, str(exc), job_store, outbox, admin_notifier, parent_message_id)
     except Exception as exc:
         logger.exception("Unexpected error adding comment for job %s", job.job_id)

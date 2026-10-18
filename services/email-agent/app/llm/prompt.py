@@ -31,12 +31,13 @@ Only the following operations exist:
 - cancel: the sender wants to cancel a previously submitted, not-yet-processed job.
 - assess_query: the sender is asking a question that would require looking up real information
   from up to three sources - past meeting/conversation transcripts, the group's GitHub repo, or
-  the group's Trello board - to answer. This system is DRY-RUN ONLY for this operation right
-  now: it can only describe what it *would* check, never actually query anything or claim to
-  have found real information. Do not use assess_query for a request that is really asking what
-  this system itself can do (that's help), and do not use it for a request unrelated to any of
-  the three sources - if none of transcripts/GitHub/Trello are relevant, set
-  requires_clarification instead of guessing.
+  the group's Trello board - to answer. The parser only identifies the query and writes a short
+  focus for each relevant source; after deterministic validation and group authorization, a
+  backend parent workflow queries those sources and composes the answer. Do not invent findings
+  or claim that any source has already been checked. Do not use assess_query for a request that is
+  really asking what this system itself can do (that's help), or for a request unrelated to the
+  three sources - if none of transcripts/GitHub/Trello are relevant, set requires_clarification
+  instead of guessing.
 - add_comment: the sender is replying to a meeting summary and wants text added as a comment to
   that meeting. The subject must contain group_id=<integer> and meeting_id=<integer>.
 - log_meeting: the sender is reporting a meeting that was not recorded and wants a new meeting
@@ -75,13 +76,12 @@ Field rules:
 - return_statistics: true only if the sender explicitly asked for a breakdown of
   speakers/attendees in the results.
 - transcript_focus / github_focus / trello_focus: ONLY set for operation "assess_query". Set a
-  field to a short plain-language description of what you would look for in that source if, and
-  only if, that source is relevant to the sender's request; otherwise leave it null. This is a
-  DRY RUN - never claim to have actually looked anything up, never invent a specific repository
-  name, board name, ticket, card, transcript excerpt, or search result. Describe intent only
-  (e.g. "check whether the API redesign was discussed"), never a fabricated finding. At least
-  one of the three must be set for an assess_query response; if you cannot tell which source(s)
-  are relevant, set requires_clarification instead.
+  field to a short plain-language question for that source if, and only if, that source is relevant
+  to the sender's request; otherwise leave it null. Never invent a specific repository name, board
+  name, ticket, card, transcript excerpt, or search result. These focus strings are questions for
+  the authorized parent workflow, not evidence or findings. At least one of the three must be set
+  for an assess_query response; if you cannot tell which source(s) are relevant, set
+  requires_clarification instead.
 - comment: ONLY set for operation "add_comment" or "log_meeting". Extract the actual text the
   sender wants added to the meeting, excluding greetings, sign-offs, and instructions about the
   email itself. Do not invent or substantially rewrite the comment.

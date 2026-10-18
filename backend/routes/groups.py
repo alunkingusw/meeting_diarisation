@@ -17,27 +17,39 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from backend.models import Group, GroupMember, User, GroupOut
-from backend.db_dependency import get_db
+from backend.db_dependency import get_db, get_group_or_404
 from backend.auth import (
+    ADMIN_OVER_EMAIL_DETAIL,
+    EMAIL_CHANNEL,
     get_current_user_id,
+    get_token_channel,
     get_email_principal,
     is_group_member,
     is_group_owner,
     EmailPrincipal,
 )
+from backend.integrations import check_group_connections
+from backend.project_rag.group_service import delete_group_index
 from backend.validation import GroupCreateEdit
 
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
 @router.post("/")
-def create_group(group_data: GroupCreateEdit, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)):
+def create_group(
+    group_data: GroupCreateEdit,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+    channel: str | None = Depends(get_token_channel),
+):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
     owner = user
     if group_data.owner_user_id is not None and group_data.owner_user_id != user_id:
+        if channel == EMAIL_CHANNEL:
+            raise HTTPException(status_code=403, detail=ADMIN_OVER_EMAIL_DETAIL)
         if not user.is_admin:
             raise HTTPException(status_code=403, detail="Administrator permission required to assign a different owner")
         owner = db.query(User).filter(User.id == group_data.owner_user_id).first()
@@ -49,6 +61,7 @@ def create_group(group_data: GroupCreateEdit, db: Session = Depends(get_db), use
         github_repo_url=group_data.github_repo_url,
         trello_board_id=group_data.trello_board_id,
         notify=group_data.notify,
+        project_expiry=group_data.project_expiry,
     )
     new_group.users.append(owner)  # Associate this group with the owner
     db.add(new_group)
@@ -63,6 +76,8 @@ def list_groups(
         all_groups: bool = Query(False, description="Admins only: list every group, not just ones you belong to"),
     ):
     if all_groups:
+        if principal.channel == EMAIL_CHANNEL:
+            raise HTTPException(status_code=403, detail=ADMIN_OVER_EMAIL_DETAIL)
         user = db.query(User).filter(User.id == principal.user_id).first()
         if not user or not user.is_admin:
             raise HTTPException(status_code=403, detail="Administrator permission required")
@@ -84,23 +99,33 @@ def list_groups(
 
 @router.get("/{group_id}", response_model=GroupOut)
 def get_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_member)):
-    group = db.query(Group).get(group_id)
-    return group
+    group = get_group_or_404(db, group_id)
+    group_out = GroupOut.model_validate(group)
+    github_connected, trello_connected = check_group_connections(
+        group.github_repo_url,
+        group.trello_board_id,
+    )
+    return group_out.model_copy(update={
+        "github_connected": github_connected,
+        "trello_connected": trello_connected,
+    })
 
 @router.put("/{group_id}")
 def update_group(group_id: int, group_data: GroupCreateEdit, db: Session = Depends(get_db), user_id:int = Depends(is_group_owner)):
-    group = db.query(Group).get(group_id)
+    group = get_group_or_404(db, group_id)
     group.name = group_data.name
     group.github_repo_url = group_data.github_repo_url
     group.trello_board_id = group_data.trello_board_id
     group.notify = group_data.notify
+    group.project_expiry = group_data.project_expiry
     db.commit()
     db.refresh(group)
     return group
 
 @router.delete("/{group_id}")
 def delete_group(group_id: int, db: Session = Depends(get_db), user_id:int = Depends(is_group_owner)):
-    group = db.query(Group).get(group_id)
+    group = get_group_or_404(db, group_id)
+    delete_group_index(db, group_id)
     db.delete(group)
     db.commit()
     return {"message": "Group deleted"}

@@ -1,0 +1,95 @@
+{
+  "dataset_id": "query_agent_synthetic_v1",
+  "synthetic": true,
+  "description": "Deterministic, fabricated group activity for query-agent contract and baseline tests.",
+  "group": {
+    "id": 9101,
+    "name": "Synthetic Release Team",
+    "repo_name": "group_9101",
+    "trello_board_id": "boardSynthetic9101"
+  },
+  "additional_groups": [
+    {"id": 9102, "name": "Synthetic Operations Team", "has_indexed_data": false}
+  ],
+  "meetings": [
+    {
+      "id": 12,
+      "title": "Release Planning",
+      "date": "2026-09-14",
+      "vtt_file": "meeting_12_release_planning.vtt",
+      "expected_chunk_count": 6,
+      "expected_stats": {
+        "total_duration_sec": 240.0,
+        "speakers": {
+          "Ada": {"total_duration_sec": 150.0, "pct_of_meeting_time": 62.5, "total_words": 35, "turn_count": 3},
+          "Ben": {"total_duration_sec": 60.0, "pct_of_meeting_time": 25.0, "total_words": 14, "turn_count": 2},
+          "Cy": {"total_duration_sec": 30.0, "pct_of_meeting_time": 12.5, "total_words": 7, "turn_count": 1}
+        }
+      },
+      "gold_claims": [
+        {
+          "claim": "The team decided to freeze release scope and ship the API redesign the following Friday.",
+          "evidence": ["12_00000"]
+        },
+        {
+          "claim": "Ada recommended adding a rollback switch and documenting the migration plan.",
+          "evidence": ["12_00002"]
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "title": "Launch Review",
+      "date": "2026-09-21",
+      "vtt_file": "meeting_13_launch_review.vtt",
+      "expected_chunk_count": 3,
+      "expected_stats": {
+        "total_duration_sec": 60.0,
+        "speakers": {
+          "Ada": {"total_duration_sec": 35.0, "pct_of_meeting_time": 58.3, "total_words": 20, "turn_count": 2},
+          "Ben": {"total_duration_sec": 25.0, "pct_of_meeting_time": 41.7, "total_words": 11, "turn_count": 1}
+        }
+      },
+      "gold_claims": [
+        {
+          "claim": "The monitoring dashboard showed a delayed worker, not an API failure.",
+          "evidence": ["13_00001"]
+        }
+      ]
+    }
+  ],
+  "github_commits": [
+    {"sha": "a100000100000000000000000000000000000001", "author_name": "Ada", "author_email": "ada@example.invalid", "committed_at": "2026-09-02T10:00:00Z", "message": "Add API response cache and release metric", "files_changed": 2, "additions": 35, "deletions": 4, "diff_text": "+ release metric\n+ cache response"},
+    {"sha": "b200000000000000000000000000000000000002", "author_name": "Ben", "author_email": "ben@example.invalid", "committed_at": "2026-09-10T11:00:00Z", "message": "Document API migration and rollout steps", "files_changed": 1, "additions": 18, "deletions": 2, "diff_text": "+ migration steps"},
+    {"sha": "a100000300000000000000000000000000000003", "author_name": "Ada", "author_email": "ada@example.invalid", "committed_at": "2026-09-17T09:00:00Z", "message": "Add rollback switch for release", "files_changed": 3, "additions": 42, "deletions": 5, "diff_text": "+ rollback switch"},
+    {"sha": "c300000000000000000000000000000000000004", "author_name": "Cy", "author_email": "cy@example.invalid", "committed_at": "2026-09-22T14:00:00Z", "message": "Add alert for delayed workers", "files_changed": 2, "additions": 21, "deletions": 1, "diff_text": "+ delayed worker alert"},
+    {"sha": "a100000500000000000000000000000000000005", "author_name": "Ada", "author_email": "ada@example.invalid", "committed_at": "2026-10-02T08:00:00Z", "message": "Tune post-release alert threshold", "files_changed": 1, "additions": 6, "deletions": 1, "diff_text": "+ alert threshold"}
+  ],
+  "trello_actions": [
+    {"trello_action_id": "910100000000000000000001", "action_type": "commentCard", "card_id": "910100000000000000000101", "card_name": "Release checklist", "member_creator": "Ada", "text": "Rollback switch is ready for review.", "created_at": "2026-09-03T10:00:00Z"},
+    {"trello_action_id": "910100000000000000000002", "action_type": "updateCard", "card_id": "910100000000000000000102", "card_name": "API migration guide", "member_creator": "Ben", "text": "Ben moved card 'API migration guide' from 'In progress' to 'Review'", "created_at": "2026-09-11T12:00:00Z"},
+    {"trello_action_id": "910100000000000000000003", "action_type": "createCard", "card_id": "910100000000000000000103", "card_name": "Delayed worker alert", "member_creator": "Cy", "text": "Cy created card 'Delayed worker alert' in list 'To do'", "created_at": "2026-09-22T15:00:00Z"},
+    {"trello_action_id": "910100000000000000000004", "action_type": "commentCard", "card_id": "910100000000000000000104", "card_name": "Launch review", "member_creator": "Ada", "text": "Document the alert threshold before the next launch.", "created_at": "2026-09-23T09:00:00Z"},
+    {"trello_action_id": "910100000000000000000005", "action_type": "commentCard", "card_id": "910100000000000000000101", "card_name": "Release checklist", "member_creator": "Ben", "text": "Post-release checks are complete.", "created_at": "2026-10-03T09:00:00Z"}
+  ],
+  "expected_facts": {
+    "github_september": {
+      "total_commits": 4,
+      "contributors": {"Ada": 2, "Ben": 1, "Cy": 1},
+      "total_additions": 116,
+      "total_deletions": 12
+    },
+    "trello_september": {
+      "total_actions": 4,
+      "contributors": {"Ada": 2, "Ben": 1, "Cy": 1}
+    },
+    "github_all_time": {"total_commits": 5, "Ada": 3, "Ben": 1, "Cy": 1},
+    "trello_all_time": {"total_actions": 5}
+  },
+  "email_group_access": {
+    "principal_id": 501,
+    "accessible_group_ids": [9101, 9102],
+    "inaccessible_group_id": 9103,
+    "note": "The principal can access both fixture groups; group 9103 is outside the principal's memberships."
+  }
+}

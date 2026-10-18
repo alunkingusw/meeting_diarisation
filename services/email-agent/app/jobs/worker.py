@@ -13,11 +13,9 @@ import threading
 
 from app.admin.notifier import AdminNotifier
 from app.diarisation.client import DiarisationClient
-from app.github_raginator.client import GithubRaginatorClient
 from app.handlers import add_comment, assess_query, log_meeting, submit_transcript
 from app.jobs.models import Job
 from app.jobs.store import JobStore, Outbox
-from app.llm.ollama_client import OllamaClient
 from app.settings import StorageSettings
 
 logger = logging.getLogger(__name__)
@@ -31,16 +29,12 @@ class JobWorker:
         outbox: Outbox,
         admin_notifier: AdminNotifier,
         storage: StorageSettings,
-        github_raginator_client: GithubRaginatorClient,
-        ollama_client: OllamaClient,
     ):
         self._job_store = job_store
         self._diarisation_client = diarisation_client
         self._outbox = outbox
         self._admin_notifier = admin_notifier
         self._storage = storage
-        self._github_raginator_client = github_raginator_client
-        self._ollama_client = ollama_client
 
     def run_once(self) -> int:
         jobs = self._job_store.list_queued()
@@ -63,8 +57,6 @@ class JobWorker:
                 assess_query.execute(
                     job,
                     self._diarisation_client,
-                    self._github_raginator_client,
-                    self._ollama_client,
                     self._job_store,
                     self._outbox,
                     self._admin_notifier,

@@ -1,0 +1,2123 @@
+{
+  "dataset_id": "query_agent_synthetic_v1",
+  "captured_at": "2026-10-13T16:30:35.429446+00:00",
+  "code_revision": "842ac4e23e205bf5f35a16b1a8dddc294e2b3447",
+  "working_tree_dirty": false,
+  "python_version": "3.13.1",
+  "ollama_endpoint_redacted": true,
+  "ollama_model": "llama3.1:8b",
+  "ollama_model_digest": "46e0c10c039e019119339687c3c1757cc81b9da49709a3b3924863ba87ca666e",
+  "ollama_quantization": "Q4_K_M",
+  "ollama_temperature": 0.2,
+  "transcript_embedding_model": "all-MiniLM-L6-v2",
+  "transcript_embedding_device": "cpu",
+  "transcript_retrieval_mode": "date-bounded complete Chroma window; fixture vectors are not used for similarity",
+  "effective_retrieval_settings": {
+    "retrieval_top_k": 8,
+    "max_context_chars": 24000,
+    "project_complete_window_limit": 50,
+    "transcript_window_chunk_limit": 80
+  },
+  "dependency_versions": {
+    "fastapi": "0.143.0",
+    "sqlalchemy": "2.1.4",
+    "pydantic": "2.14.1",
+    "langchain": "1.3.9",
+    "langchain-core": "1.6.3",
+    "langchain-ollama": "1.1.0",
+    "langgraph": "1.2.11",
+    "chromadb": "1.5.9",
+    "sentence-transformers": "3.1.1"
+  },
+  "prompt_sha256": {
+    "conversation": "79603cb69d98086902f7b1532b849404f40c8705d5b9f61b103fc46e10e660b7",
+    "project": "0f8c1bf1992f4d43774fd55bb019f86f32064175056702318b407067c47322d1",
+    "router": "ac8498bc6b804901e2afa8f91e085f780924f950999185af7ecea8e7db6c0190"
+  },
+  "composition_strategy": "deterministic_source_sections_v1",
+  "cases": {
+    "conversation_qualitative": {
+      "request": {
+        "path": "/groups/9101/conversation/query",
+        "payload": {
+          "question": "What decision did the team make about the API redesign?",
+          "meeting_id": 12,
+          "since": "2026-09-01",
+          "until": "2026-10-01"
+        }
+      },
+      "status_code": 200,
+      "body": {
+        "source": "conversation",
+        "question": "What decision did the team make about the API redesign?",
+        "answer": "The team decided to freeze the release scope today and ship the API redesign next Friday [12_00000].",
+        "model": "llama3.1:8b",
+        "evidence": [
+          {
+            "id": "12_00000",
+            "source_type": "transcript",
+            "author": "Ada",
+            "timestamp": "00:00:00.000",
+            "distance": null,
+            "text": "We should freeze the release scope today and ship the API redesign next Friday.",
+            "metadata": {
+              "next_chunk_id": "12_00001",
+              "meeting_ts": 1789344000,
+              "start_ts": "00:00:00.000",
+              "meeting_title": "Release Planning",
+              "chunk_id": "12_00000",
+              "end_sec": 60.0,
+              "group_id": 9101,
+              "meeting_id": "12",
+              "source_file": "meeting_12_release_planning.vtt",
+              "duration_sec": 60.0,
+              "meeting_date": "2026-09-14",
+              "word_count": 14,
+              "start_sec": 0.0,
+              "turn_index": 0,
+              "speaker": "Ada",
+              "end_ts": "00:01:00.000"
+            }
+          },
+          {
+            "id": "12_00001",
+            "source_type": "transcript",
+            "author": "Ben",
+            "timestamp": "00:01:00.000",
+            "distance": null,
+            "text": "The load tests pass at expected traffic.",
+            "metadata": {
+              "meeting_id": "12",
+              "start_sec": 60.0,
+              "group_id": 9101,
+              "meeting_ts": 1789344000,
+              "turn_index": 1,
+              "source_file": "meeting_12_release_planning.vtt",
+              "start_ts": "00:01:00.000",
+              "duration_sec": 30.0,
+              "meeting_date": "2026-09-14",
+              "end_ts": "00:01:30.000",
+              "next_chunk_id": "12_00002",
+              "meeting_title": "Release Planning",
+              "chunk_id": "12_00001",
+              "end_sec": 90.0,
+              "speaker": "Ben",
+              "word_count": 7,
+              "prev_chunk_id": "12_00000"
+            }
+          },
+          {
+            "id": "12_00002",
+            "source_type": "transcript",
+            "author": "Ada",
+            "timestamp": "00:01:30.000",
+            "distance": null,
+            "text": "I recommend adding a rollback switch before release, then documenting the migration plan.",
+            "metadata": {
+              "chunk_id": "12_00002",
+              "turn_index": 2,
+              "start_sec": 90.0,
+              "end_ts": "00:02:30.000",
+              "start_ts": "00:01:30.000",
+              "source_file": "meeting_12_release_planning.vtt",
+              "next_chunk_id": "12_00003",
+              "end_sec": 150.0,
+              "speaker": "Ada",
+              "word_count": 13,
+              "duration_sec": 60.0,
+              "meeting_title": "Release Planning",
+              "group_id": 9101,
+              "prev_chunk_id": "12_00001",
+              "meeting_date": "2026-09-14",
+              "meeting_id": "12",
+              "meeting_ts": 1789344000
+            }
+          },
+          {
+            "id": "12_00003",
+            "source_type": "transcript",
+            "author": "Cy",
+            "timestamp": "00:02:30.000",
+            "distance": null,
+            "text": "We need the monitoring alert before rollout.",
+            "metadata": {
+              "speaker": "Cy",
+              "end_ts": "00:03:00.000",
+              "turn_index": 3,
+              "source_file": "meeting_12_release_planning.vtt",
+              "prev_chunk_id": "12_00002",
+              "word_count": 7,
+              "next_chunk_id": "12_00004",
+              "meeting_title": "Release Planning",
+              "meeting_ts": 1789344000,
+              "start_ts": "00:02:30.000",
+              "meeting_date": "2026-09-14",
+              "meeting_id": "12",
+              "chunk_id": "12_00003",
+              "start_sec": 150.0,
+              "end_sec": 180.0,
+              "duration_sec": 30.0,
+              "group_id": 9101
+            }
+          },
+          {
+            "id": "12_00004",
+            "source_type": "transcript",
+            "author": "Ben",
+            "timestamp": "00:03:00.000",
+            "distance": null,
+            "text": "I can review the rollback switch tomorrow.",
+            "metadata": {
+              "duration_sec": 30.0,
+              "meeting_date": "2026-09-14",
+              "meeting_title": "Release Planning",
+              "prev_chunk_id": "12_00003",
+              "next_chunk_id": "12_00005",
+              "speaker": "Ben",
+              "start_sec": 180.0,
+              "turn_index": 4,
+              "start_ts": "00:03:00.000",
+              "meeting_id": "12",
+              "group_id": 9101,
+              "chunk_id": "12_00004",
+              "word_count": 7,
+              "end_ts": "00:03:30.000",
+              "source_file": "meeting_12_release_planning.vtt",
+              "meeting_ts": 1789344000,
+              "end_sec": 210.0
+            }
+          },
+          {
+            "id": "12_00005",
+            "source_type": "transcript",
+            "author": "Ada",
+            "timestamp": "00:03:30.000",
+            "distance": null,
+            "text": "I will draft the rollout checklist after review.",
+            "metadata": {
+              "word_count": 8,
+              "meeting_date": "2026-09-14",
+              "meeting_title": "Release Planning",
+              "duration_sec": 30.0,
+              "chunk_id": "12_00005",
+              "prev_chunk_id": "12_00004",
+              "meeting_id": "12",
+              "source_file": "meeting_12_release_planning.vtt",
+              "start_ts": "00:03:30.000",
+              "meeting_ts": 1789344000,
+              "start_sec": 210.0,
+              "end_ts": "00:04:00.000",
+              "end_sec": 240.0,
+              "group_id": 9101,
+              "speaker": "Ada",
+              "turn_index": 5
+            }
+          }
+        ],
+        "truncated_evidence": 0,
+        "complete_window": true,
+        "stats": null,
+        "transcript_stats": {
+          "complete": true,
+          "total_meetings": 1,
+          "total_duration_sec": 240.0,
+          "missing_meeting_ids": [],
+          "speakers": [
+            {
+              "speaker": "Ada",
+              "total_duration_sec": 150.0,
+              "total_words": 35,
+              "turn_count": 3,
+              "avg_words_per_turn": 11.7,
+              "meeting_time_share_pct": 62.5,
+              "meetings_spoken": 1
+            },
+            {
+              "speaker": "Ben",
+              "total_duration_sec": 60.0,
+              "total_words": 14,
+              "turn_count": 2,
+              "avg_words_per_turn": 7.0,
+              "meeting_time_share_pct": 25.0,
+              "meetings_spoken": 1
+            },
+            {
+              "speaker": "Cy",
+              "total_duration_sec": 30.0,
+              "total_words": 7,
+              "turn_count": 1,
+              "avg_words_per_turn": 7.0,
+              "meeting_time_share_pct": 12.5,
+              "meetings_spoken": 1
+            }
+          ],
+          "meetings": [
+            {
+              "meeting_id": 12,
+              "meeting_title": "Release Planning",
+              "meeting_date": "2026-09-14",
+              "total_duration_sec": 240.0,
+              "speakers": [
+                {
+                  "speaker": "Ada",
+                  "total_duration_sec": 150.0,
+                  "total_words": 35,
+                  "turn_count": 3,
+                  "avg_words_per_turn": 11.7,
+                  "meeting_time_share_pct": 62.5,
+                  "meetings_spoken": 1
+                },
+                {
+                  "speaker": "Ben",
+                  "total_duration_sec": 60.0,
+                  "total_words": 14,
+                  "turn_count": 2,
+                  "avg_words_per_turn": 7.0,
+                  "meeting_time_share_pct": 25.0,
+                  "meetings_spoken": 1
+                },
+                {
+                  "speaker": "Cy",
+                  "total_duration_sec": 30.0,
+                  "total_words": 7,
+                  "turn_count": 1,
+                  "avg_words_per_turn": 7.0,
+                  "meeting_time_share_pct": 12.5,
+                  "meetings_spoken": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "conversation_speaker_metrics": {
+      "request": {
+        "path": "/groups/9101/conversation/query",
+        "payload": {
+          "question": "Who spoke most in meeting 12, and how much of the meeting did they speak?",
+          "meeting_id": 12,
+          "since": "2026-09-01",
+          "until": "2026-10-01"
+        }
+      },
+      "status_code": 200,
+      "body": {
+        "source": "conversation",
+        "question": "Who spoke most in meeting 12, and how much of the meeting did they speak?",
+        "answer": "According to the transcript statistics, Ada spoke most in meeting 12 and accounted for 62.5% of the meeting time share.",
+        "model": "llama3.1:8b",
+        "evidence": [
+          {
+            "id": "12_00000",
+            "source_type": "transcript",
+            "author": "Ada",
+            "timestamp": "00:00:00.000",
+            "distance": null,
+            "text": "We should freeze the release scope today and ship the API redesign next Friday.",
+            "metadata": {
+              "next_chunk_id": "12_00001",
+              "word_count": 14,
+              "speaker": "Ada",
+              "meeting_id": "12",
+              "start_sec": 0.0,
+              "meeting_ts": 1789344000,
+              "turn_index": 0,
+              "end_sec": 60.0,
+              "start_ts": "00:00:00.000",
+              "group_id": 9101,
+              "duration_sec": 60.0,
+              "chunk_id": "12_00000",
+              "meeting_date": "2026-09-14",
+              "end_ts": "00:01:00.000",
+              "meeting_title": "Release Planning",
+              "source_file": "meeting_12_release_planning.vtt"
+            }
+          },
+          {
+            "id": "12_00001",
+            "source_type": "transcript",
+            "author": "Ben",
+            "timestamp": "00:01:00.000",
+            "distance": null,
+            "text": "The load tests pass at expected traffic.",
+            "metadata": {
+              "start_sec": 60.0,
+              "end_ts": "00:01:30.000",
+              "speaker": "Ben",
+              "meeting_date": "2026-09-14",
+              "turn_index": 1,
+              "end_sec": 90.0,
+              "chunk_id": "12_00001",
+              "source_file": "meeting_12_release_planning.vtt",
+              "group_id": 9101,
+              "meeting_ts": 1789344000,
+              "prev_chunk_id": "12_00000",
+              "next_chunk_id": "12_00002",
+              "duration_sec": 30.0,
+              "meeting_title": "Release Planning",
+              "word_count": 7,
+              "start_ts": "00:01:00.000",
+              "meeting_id": "12"
+            }
+          },
+          {
+            "id": "12_00002",
+            "source_type": "transcript",
+            "author": "Ada",
+            "timestamp": "00:01:30.000",
+            "distance": null,
+            "text": "I recommend adding a rollback switch before release, then documenting the migration plan.",
+            "metadata": {
+              "meeting_id": "12",
+              "meeting_date": "2026-09-14",
+              "duration_sec": 60.0,
+              "prev_chunk_id": "12_00001",
+              "chunk_id": "12_00002",
+              "end_ts": "00:02:30.000",
+              "start_sec": 90.0,
+              "next_chunk_id": "12_00003",
+              "source_file": "meeting_12_release_planning.vtt",
+              "end_sec": 150.0,
+              "start_ts": "00:01:30.000",
+              "speaker": "Ada",
+              "group_id": 9101,
+              "turn_index": 2,
+              "meeting_ts": 1789344000,
+              "word_count": 13,
+              "meeting_title": "Release Planning"
+            }
+          },
+          {
+            "id": "12_00003",
+            "source_type": "transcript",
+            "author": "Cy",
+            "timestamp": "00:02:30.000",
+            "distance": null,
+            "text": "We need the monitoring alert before rollout.",
+            "metadata": {
+              "source_file": "meeting_12_release_planning.vtt",
+              "meeting_id": "12",
+              "end_sec": 180.0,
+              "end_ts": "00:03:00.000",
+              "start_sec": 150.0,
+              "speaker": "Cy",
+              "chunk_id": "12_00003",
+              "prev_chunk_id": "12_00002",
+              "meeting_date": "2026-09-14",
+              "next_chunk_id": "12_00004",
+              "duration_sec": 30.0,
+              "turn_index": 3,
+              "group_id": 9101,
+              "start_ts": "00:02:30.000",
+              "meeting_title": "Release Planning",
+              "meeting_ts": 1789344000,
+              "word_count": 7
+            }
+          },
+          {
+            "id": "12_00004",
+            "source_type": "transcript",
+            "author": "Ben",
+            "timestamp": "00:03:00.000",
+            "distance": null,
+            "text": "I can review the rollback switch tomorrow.",
+            "metadata": {
+              "speaker": "Ben",
+              "word_count": 7,
+              "prev_chunk_id": "12_00003",
+              "start_sec": 180.0,
+              "end_sec": 210.0,
+              "start_ts": "00:03:00.000",
+              "meeting_id": "12",
+              "meeting_ts": 1789344000,
+              "turn_index": 4,
+              "chunk_id": "12_00004",
+              "end_ts": "00:03:30.000",
+              "next_chunk_id": "12_00005",
+              "duration_sec": 30.0,
+              "group_id": 9101,
+              "source_file": "meeting_12_release_planning.vtt",
+              "meeting_date": "2026-09-14",
+              "meeting_title": "Release Planning"
+            }
+          },
+          {
+            "id": "12_00005",
+            "source_type": "transcript",
+            "author": "Ada",
+            "timestamp": "00:03:30.000",
+            "distance": null,
+            "text": "I will draft the rollout checklist after review.",
+            "metadata": {
+              "end_ts": "00:04:00.000",
+              "source_file": "meeting_12_release_planning.vtt",
+              "start_sec": 210.0,
+              "meeting_date": "2026-09-14",
+              "group_id": 9101,
+              "duration_sec": 30.0,
+              "meeting_title": "Release Planning",
+              "word_count": 8,
+              "end_sec": 240.0,
+              "turn_index": 5,
+              "speaker": "Ada",
+              "meeting_ts": 1789344000,
+              "prev_chunk_id": "12_00004",
+              "meeting_id": "12",
+              "start_ts": "00:03:30.000",
+              "chunk_id": "12_00005"
+            }
+          }
+        ],
+        "truncated_evidence": 0,
+        "complete_window": true,
+        "stats": null,
+        "transcript_stats": {
+          "complete": true,
+          "total_meetings": 1,
+          "total_duration_sec": 240.0,
+          "missing_meeting_ids": [],
+          "speakers": [
+            {
+              "speaker": "Ada",
+              "total_duration_sec": 150.0,
+              "total_words": 35,
+              "turn_count": 3,
+              "avg_words_per_turn": 11.7,
+              "meeting_time_share_pct": 62.5,
+              "meetings_spoken": 1
+            },
+            {
+              "speaker": "Ben",
+              "total_duration_sec": 60.0,
+              "total_words": 14,
+              "turn_count": 2,
+              "avg_words_per_turn": 7.0,
+              "meeting_time_share_pct": 25.0,
+              "meetings_spoken": 1
+            },
+            {
+              "speaker": "Cy",
+              "total_duration_sec": 30.0,
+              "total_words": 7,
+              "turn_count": 1,
+              "avg_words_per_turn": 7.0,
+              "meeting_time_share_pct": 12.5,
+              "meetings_spoken": 1
+            }
+          ],
+          "meetings": [
+            {
+              "meeting_id": 12,
+              "meeting_title": "Release Planning",
+              "meeting_date": "2026-09-14",
+              "total_duration_sec": 240.0,
+              "speakers": [
+                {
+                  "speaker": "Ada",
+                  "total_duration_sec": 150.0,
+                  "total_words": 35,
+                  "turn_count": 3,
+                  "avg_words_per_turn": 11.7,
+                  "meeting_time_share_pct": 62.5,
+                  "meetings_spoken": 1
+                },
+                {
+                  "speaker": "Ben",
+                  "total_duration_sec": 60.0,
+                  "total_words": 14,
+                  "turn_count": 2,
+                  "avg_words_per_turn": 7.0,
+                  "meeting_time_share_pct": 25.0,
+                  "meetings_spoken": 1
+                },
+                {
+                  "speaker": "Cy",
+                  "total_duration_sec": 30.0,
+                  "total_words": 7,
+                  "turn_count": 1,
+                  "avg_words_per_turn": 7.0,
+                  "meeting_time_share_pct": 12.5,
+                  "meetings_spoken": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "conversation_mixed": {
+      "request": {
+        "path": "/groups/9101/conversation/query",
+        "payload": {
+          "question": "What did the most active speaker recommend, and how many turns did they take?",
+          "meeting_id": 12,
+          "since": "2026-09-01",
+          "until": "2026-10-01"
+        }
+      },
+      "status_code": 200,
+      "body": {
+        "source": "conversation",
+        "question": "What did the most active speaker recommend, and how many turns did they take?",
+        "answer": "The most active speaker was Ada, who took 3 turns and recommended adding a rollback switch before release and documenting the migration plan. [12_00000], [12_00002].",
+        "model": "llama3.1:8b",
+        "evidence": [
+          {
+            "id": "12_00000",
+            "source_type": "transcript",
+            "author": "Ada",
+            "timestamp": "00:00:00.000",
+            "distance": null,
+            "text": "We should freeze the release scope today and ship the API redesign next Friday.",
+            "metadata": {
+              "turn_index": 0,
+              "start_sec": 0.0,
+              "end_sec": 60.0,
+              "word_count": 14,
+              "meeting_ts": 1789344000,
+              "meeting_title": "Release Planning",
+              "end_ts": "00:01:00.000",
+              "source_file": "meeting_12_release_planning.vtt",
+              "chunk_id": "12_00000",
+              "next_chunk_id": "12_00001",
+              "meeting_id": "12",
+              "group_id": 9101,
+              "duration_sec": 60.0,
+              "start_ts": "00:00:00.000",
+              "speaker": "Ada",
+              "meeting_date": "2026-09-14"
+            }
+          },
+          {
+            "id": "12_00001",
+            "source_type": "transcript",
+            "author": "Ben",
+            "timestamp": "00:01:00.000",
+            "distance": null,
+            "text": "The load tests pass at expected traffic.",
+            "metadata": {
+              "prev_chunk_id": "12_00000",
+              "start_sec": 60.0,
+              "end_ts": "00:01:30.000",
+              "group_id": 9101,
+              "chunk_id": "12_00001",
+              "meeting_id": "12",
+              "speaker": "Ben",
+              "duration_sec": 30.0,
+              "meeting_ts": 1789344000,
+              "word_count": 7,
+              "meeting_title": "Release Planning",
+              "next_chunk_id": "12_00002",
+              "start_ts": "00:01:00.000",
+              "turn_index": 1,
+              "source_file": "meeting_12_release_planning.vtt",
+              "end_sec": 90.0,
+              "meeting_date": "2026-09-14"
+            }
+          },
+          {
+            "id": "12_00002",
+            "source_type": "transcript",
+            "author": "Ada",
+            "timestamp": "00:01:30.000",
+            "distance": null,
+            "text": "I recommend adding a rollback switch before release, then documenting the migration plan.",
+            "metadata": {
+              "meeting_ts": 1789344000,
+              "meeting_id": "12",
+              "end_ts": "00:02:30.000",
+              "chunk_id": "12_00002",
+              "end_sec": 150.0,
+              "meeting_title": "Release Planning",
+              "group_id": 9101,
+              "source_file": "meeting_12_release_planning.vtt",
+              "speaker": "Ada",
+              "meeting_date": "2026-09-14",
+              "prev_chunk_id": "12_00001",
+              "turn_index": 2,
+              "start_ts": "00:01:30.000",
+              "next_chunk_id": "12_00003",
+              "duration_sec": 60.0,
+              "start_sec": 90.0,
+              "word_count": 13
+            }
+          },
+          {
+            "id": "12_00003",
+            "source_type": "transcript",
+            "author": "Cy",
+            "timestamp": "00:02:30.000",
+            "distance": null,
+            "text": "We need the monitoring alert before rollout.",
+            "metadata": {
+              "group_id": 9101,
+              "turn_index": 3,
+              "duration_sec": 30.0,
+              "meeting_date": "2026-09-14",
+              "start_sec": 150.0,
+              "meeting_title": "Release Planning",
+              "end_sec": 180.0,
+              "meeting_id": "12",
+              "word_count": 7,
+              "source_file": "meeting_12_release_planning.vtt",
+              "prev_chunk_id": "12_00002",
+              "end_ts": "00:03:00.000",
+              "meeting_ts": 1789344000,
+              "start_ts": "00:02:30.000",
+              "speaker": "Cy",
+              "next_chunk_id": "12_00004",
+              "chunk_id": "12_00003"
+            }
+          },
+          {
+            "id": "12_00004",
+            "source_type": "transcript",
+            "author": "Ben",
+            "timestamp": "00:03:00.000",
+            "distance": null,
+            "text": "I can review the rollback switch tomorrow.",
+            "metadata": {
+              "start_sec": 180.0,
+              "speaker": "Ben",
+              "meeting_id": "12",
+              "end_sec": 210.0,
+              "meeting_ts": 1789344000,
+              "meeting_date": "2026-09-14",
+              "word_count": 7,
+              "prev_chunk_id": "12_00003",
+              "group_id": 9101,
+              "source_file": "meeting_12_release_planning.vtt",
+              "end_ts": "00:03:30.000",
+              "meeting_title": "Release Planning",
+              "next_chunk_id": "12_00005",
+              "chunk_id": "12_00004",
+              "duration_sec": 30.0,
+              "start_ts": "00:03:00.000",
+              "turn_index": 4
+            }
+          },
+          {
+            "id": "12_00005",
+            "source_type": "transcript",
+            "author": "Ada",
+            "timestamp": "00:03:30.000",
+            "distance": null,
+            "text": "I will draft the rollout checklist after review.",
+            "metadata": {
+              "chunk_id": "12_00005",
+              "meeting_id": "12",
+              "end_ts": "00:04:00.000",
+              "source_file": "meeting_12_release_planning.vtt",
+              "start_sec": 210.0,
+              "duration_sec": 30.0,
+              "meeting_ts": 1789344000,
+              "group_id": 9101,
+              "end_sec": 240.0,
+              "speaker": "Ada",
+              "meeting_title": "Release Planning",
+              "prev_chunk_id": "12_00004",
+              "meeting_date": "2026-09-14",
+              "word_count": 8,
+              "turn_index": 5,
+              "start_ts": "00:03:30.000"
+            }
+          }
+        ],
+        "truncated_evidence": 0,
+        "complete_window": true,
+        "stats": null,
+        "transcript_stats": {
+          "complete": true,
+          "total_meetings": 1,
+          "total_duration_sec": 240.0,
+          "missing_meeting_ids": [],
+          "speakers": [
+            {
+              "speaker": "Ada",
+              "total_duration_sec": 150.0,
+              "total_words": 35,
+              "turn_count": 3,
+              "avg_words_per_turn": 11.7,
+              "meeting_time_share_pct": 62.5,
+              "meetings_spoken": 1
+            },
+            {
+              "speaker": "Ben",
+              "total_duration_sec": 60.0,
+              "total_words": 14,
+              "turn_count": 2,
+              "avg_words_per_turn": 7.0,
+              "meeting_time_share_pct": 25.0,
+              "meetings_spoken": 1
+            },
+            {
+              "speaker": "Cy",
+              "total_duration_sec": 30.0,
+              "total_words": 7,
+              "turn_count": 1,
+              "avg_words_per_turn": 7.0,
+              "meeting_time_share_pct": 12.5,
+              "meetings_spoken": 1
+            }
+          ],
+          "meetings": [
+            {
+              "meeting_id": 12,
+              "meeting_title": "Release Planning",
+              "meeting_date": "2026-09-14",
+              "total_duration_sec": 240.0,
+              "speakers": [
+                {
+                  "speaker": "Ada",
+                  "total_duration_sec": 150.0,
+                  "total_words": 35,
+                  "turn_count": 3,
+                  "avg_words_per_turn": 11.7,
+                  "meeting_time_share_pct": 62.5,
+                  "meetings_spoken": 1
+                },
+                {
+                  "speaker": "Ben",
+                  "total_duration_sec": 60.0,
+                  "total_words": 14,
+                  "turn_count": 2,
+                  "avg_words_per_turn": 7.0,
+                  "meeting_time_share_pct": 25.0,
+                  "meetings_spoken": 1
+                },
+                {
+                  "speaker": "Cy",
+                  "total_duration_sec": 30.0,
+                  "total_words": 7,
+                  "turn_count": 1,
+                  "avg_words_per_turn": 7.0,
+                  "meeting_time_share_pct": 12.5,
+                  "meetings_spoken": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "github_activity_counts": {
+      "request": {
+        "path": "/groups/9101/github/query",
+        "payload": {
+          "question": "How many commits did each contributor make in September?",
+          "since": "2026-09-01",
+          "until": "2026-10-01"
+        }
+      },
+      "status_code": 200,
+      "body": {
+        "source": "github",
+        "question": "How many commits did each contributor make in September?",
+        "answer": "Based on the evidence, here are the number of commits each contributor made in September:\n\n* Ada: 2\n* Ben: 1\n* Cy: 1\n\nNote that this information is based on a snapshot of the repository's commit history from September. The actual number of commits may have changed since then.",
+        "model": "llama3.1:8b",
+        "evidence": [
+          {
+            "id": "group_9101:commit:c300000000000000000000000000000000000004",
+            "source_type": "commit",
+            "author": "Cy",
+            "timestamp": "2026-09-22T14:00:00+00:00",
+            "distance": 0.0,
+            "text": "Commit c3000000 by Cy on 2026-09-22\nMessage: Add alert for delayed workers\nFiles changed: 2, +21/-1\nDiff:\n",
+            "metadata": {
+              "source_type": "commit",
+              "source_id": "c300000000000000000000000000000000000004",
+              "author": "Cy",
+              "timestamp": "2026-09-22T14:00:00+00:00",
+              "repo_name": "group_9101",
+              "files_changed": 2,
+              "additions": 21,
+              "deletions": 1
+            }
+          },
+          {
+            "id": "group_9101:commit:a100000300000000000000000000000000000003",
+            "source_type": "commit",
+            "author": "Ada",
+            "timestamp": "2026-09-17T09:00:00+00:00",
+            "distance": 0.0,
+            "text": "Commit a1000003 by Ada on 2026-09-17\nMessage: Add rollback switch for release\nFiles changed: 3, +42/-5\nDiff:\n",
+            "metadata": {
+              "source_type": "commit",
+              "source_id": "a100000300000000000000000000000000000003",
+              "author": "Ada",
+              "timestamp": "2026-09-17T09:00:00+00:00",
+              "repo_name": "group_9101",
+              "files_changed": 3,
+              "additions": 42,
+              "deletions": 5
+            }
+          },
+          {
+            "id": "group_9101:commit:b200000000000000000000000000000000000002",
+            "source_type": "commit",
+            "author": "Ben",
+            "timestamp": "2026-09-10T11:00:00+00:00",
+            "distance": 0.0,
+            "text": "Commit b2000000 by Ben on 2026-09-10\nMessage: Document API migration and rollout steps\nFiles changed: 1, +18/-2\nDiff:\n",
+            "metadata": {
+              "source_type": "commit",
+              "source_id": "b200000000000000000000000000000000000002",
+              "author": "Ben",
+              "timestamp": "2026-09-10T11:00:00+00:00",
+              "repo_name": "group_9101",
+              "files_changed": 1,
+              "additions": 18,
+              "deletions": 2
+            }
+          },
+          {
+            "id": "group_9101:commit:a100000100000000000000000000000000000001",
+            "source_type": "commit",
+            "author": "Ada",
+            "timestamp": "2026-09-02T10:00:00+00:00",
+            "distance": 0.0,
+            "text": "Commit a1000001 by Ada on 2026-09-02\nMessage: Add API response cache and release metric\nFiles changed: 2, +35/-4\nDiff:\n",
+            "metadata": {
+              "source_type": "commit",
+              "source_id": "a100000100000000000000000000000000000001",
+              "author": "Ada",
+              "timestamp": "2026-09-02T10:00:00+00:00",
+              "repo_name": "group_9101",
+              "files_changed": 2,
+              "additions": 35,
+              "deletions": 4
+            }
+          }
+        ],
+        "truncated_evidence": 0,
+        "complete_window": true,
+        "stats": {
+          "repo_id": 1,
+          "repo_name": "Synthetic Release Team",
+          "total_commits": 4,
+          "total_issues": 0,
+          "open_issues": 0,
+          "closed_issues": 0,
+          "total_issue_comments": 0,
+          "total_review_comments": 0,
+          "total_trello_actions": 0,
+          "first_activity_at": "2026-09-02T10:00:00Z",
+          "last_activity_at": "2026-09-22T14:00:00Z",
+          "last_synced_at": null,
+          "contributors": [
+            {
+              "name": "Ada",
+              "commits": 2,
+              "additions": 77,
+              "deletions": 9,
+              "issues_opened": 0,
+              "issue_comments": 0,
+              "review_comments": 0,
+              "trello_actions": 0,
+              "first_commit_at": "2026-09-02T10:00:00Z",
+              "last_commit_at": "2026-09-17T09:00:00Z"
+            },
+            {
+              "name": "Ben",
+              "commits": 1,
+              "additions": 18,
+              "deletions": 2,
+              "issues_opened": 0,
+              "issue_comments": 0,
+              "review_comments": 0,
+              "trello_actions": 0,
+              "first_commit_at": "2026-09-10T11:00:00Z",
+              "last_commit_at": "2026-09-10T11:00:00Z"
+            },
+            {
+              "name": "Cy",
+              "commits": 1,
+              "additions": 21,
+              "deletions": 1,
+              "issues_opened": 0,
+              "issue_comments": 0,
+              "review_comments": 0,
+              "trello_actions": 0,
+              "first_commit_at": "2026-09-22T14:00:00Z",
+              "last_commit_at": "2026-09-22T14:00:00Z"
+            }
+          ],
+          "weekly_activity": [
+            {
+              "week_starting": "2026-08-31T00:00:00Z",
+              "commits": 1,
+              "authors": 1
+            },
+            {
+              "week_starting": "2026-09-07T00:00:00Z",
+              "commits": 1,
+              "authors": 1
+            },
+            {
+              "week_starting": "2026-09-14T00:00:00Z",
+              "commits": 1,
+              "authors": 1
+            },
+            {
+              "week_starting": "2026-09-21T00:00:00Z",
+              "commits": 1,
+              "authors": 1
+            }
+          ]
+        },
+        "transcript_stats": null
+      }
+    },
+    "trello_activity_counts": {
+      "request": {
+        "path": "/groups/9101/trello/query",
+        "payload": {
+          "question": "How many Trello card actions happened in September?",
+          "since": "2026-09-01",
+          "until": "2026-10-01"
+        }
+      },
+      "status_code": 200,
+      "body": {
+        "source": "trello",
+        "question": "How many Trello card actions happened in September?",
+        "answer": "According to the evidence, there were 4 Trello card actions in September. \n\n[910100000000000000000004] [910100000000000000000003] [910100000000000000000002] and [910100000000000000000001] are the IDs of these actions.",
+        "model": "llama3.1:8b",
+        "evidence": [
+          {
+            "id": "group_9101:trello_action:910100000000000000000004",
+            "source_type": "trello_action",
+            "author": "Ada",
+            "timestamp": "2026-09-23T09:00:00+00:00",
+            "distance": 0.0,
+            "text": "Trello commentCard by Ada on card 'Launch review' on 2026-09-23\nDocument the alert threshold before the next launch.",
+            "metadata": {
+              "source_type": "trello_action",
+              "source_id": "910100000000000000000004",
+              "author": "Ada",
+              "timestamp": "2026-09-23T09:00:00+00:00",
+              "repo_name": "group_9101",
+              "action_type": "commentCard",
+              "card_name": "Launch review"
+            }
+          },
+          {
+            "id": "group_9101:trello_action:910100000000000000000003",
+            "source_type": "trello_action",
+            "author": "Cy",
+            "timestamp": "2026-09-22T15:00:00+00:00",
+            "distance": 0.0,
+            "text": "Trello createCard by Cy on card 'Delayed worker alert' on 2026-09-22\nCy created card 'Delayed worker alert' in list 'To do'",
+            "metadata": {
+              "source_type": "trello_action",
+              "source_id": "910100000000000000000003",
+              "author": "Cy",
+              "timestamp": "2026-09-22T15:00:00+00:00",
+              "repo_name": "group_9101",
+              "action_type": "createCard",
+              "card_name": "Delayed worker alert"
+            }
+          },
+          {
+            "id": "group_9101:trello_action:910100000000000000000002",
+            "source_type": "trello_action",
+            "author": "Ben",
+            "timestamp": "2026-09-11T12:00:00+00:00",
+            "distance": 0.0,
+            "text": "Trello updateCard by Ben on card 'API migration guide' on 2026-09-11\nBen moved card 'API migration guide' from 'In progress' to 'Review'",
+            "metadata": {
+              "source_type": "trello_action",
+              "source_id": "910100000000000000000002",
+              "author": "Ben",
+              "timestamp": "2026-09-11T12:00:00+00:00",
+              "repo_name": "group_9101",
+              "action_type": "updateCard",
+              "card_name": "API migration guide"
+            }
+          },
+          {
+            "id": "group_9101:trello_action:910100000000000000000001",
+            "source_type": "trello_action",
+            "author": "Ada",
+            "timestamp": "2026-09-03T10:00:00+00:00",
+            "distance": 0.0,
+            "text": "Trello commentCard by Ada on card 'Release checklist' on 2026-09-03\nRollback switch is ready for review.",
+            "metadata": {
+              "source_type": "trello_action",
+              "source_id": "910100000000000000000001",
+              "author": "Ada",
+              "timestamp": "2026-09-03T10:00:00+00:00",
+              "repo_name": "group_9101",
+              "action_type": "commentCard",
+              "card_name": "Release checklist"
+            }
+          }
+        ],
+        "truncated_evidence": 0,
+        "complete_window": true,
+        "stats": {
+          "repo_id": 1,
+          "repo_name": "Synthetic Release Team",
+          "total_commits": 0,
+          "total_issues": 0,
+          "open_issues": 0,
+          "closed_issues": 0,
+          "total_issue_comments": 0,
+          "total_review_comments": 0,
+          "total_trello_actions": 4,
+          "first_activity_at": "2026-09-03T10:00:00Z",
+          "last_activity_at": "2026-09-23T09:00:00Z",
+          "last_synced_at": null,
+          "contributors": [
+            {
+              "name": "Ada",
+              "commits": 0,
+              "additions": 0,
+              "deletions": 0,
+              "issues_opened": 0,
+              "issue_comments": 0,
+              "review_comments": 0,
+              "trello_actions": 2,
+              "first_commit_at": null,
+              "last_commit_at": null
+            },
+            {
+              "name": "Ben",
+              "commits": 0,
+              "additions": 0,
+              "deletions": 0,
+              "issues_opened": 0,
+              "issue_comments": 0,
+              "review_comments": 0,
+              "trello_actions": 1,
+              "first_commit_at": null,
+              "last_commit_at": null
+            },
+            {
+              "name": "Cy",
+              "commits": 0,
+              "additions": 0,
+              "deletions": 0,
+              "issues_opened": 0,
+              "issue_comments": 0,
+              "review_comments": 0,
+              "trello_actions": 1,
+              "first_commit_at": null,
+              "last_commit_at": null
+            }
+          ],
+          "weekly_activity": []
+        },
+        "transcript_stats": null
+      }
+    },
+    "cross_source_mixed": {
+      "request": {
+        "path": "/groups/9101/query",
+        "payload": {
+          "question": "What did meeting discussions say about the release, and how many commits did each contributor make in September?",
+          "since": "2026-09-01",
+          "until": "2026-10-01",
+          "sources": [
+            "conversation",
+            "github"
+          ],
+          "source_questions": {
+            "conversation": "What release decision is recorded in the meeting transcript?",
+            "github": "How many commits did each contributor make in September?"
+          }
+        }
+      },
+      "status_code": 200,
+      "body": {
+        "question": "What did meeting discussions say about the release, and how many commits did each contributor make in September?",
+        "answer": "Conversation findings:\nThe release decision recorded in the meeting transcript is to ship the API redesign next Friday after freezing the release scope that day [12_00000].\nEvidence IDs: [12_00000], [12_00001], [12_00002], [12_00003], [12_00004], [12_00005], [13_00000], [13_00001], [13_00002]\n\nGitHub findings:\nBased on the evidence, here are the number of commits each contributor made in September:\n\n* Ada: 2\n* Ben: 1\n* Cy: 1\n\nNote that this information is based on the provided evidence and may not be a comprehensive list of all contributors or their commit counts.\nEvidence IDs: [group_9101:commit:c300000000000000000000000000000000000004], [group_9101:commit:a100000300000000000000000000000000000003], [group_9101:commit:b200000000000000000000000000000000000002], [group_9101:commit:a100000100000000000000000000000000000001]",
+        "model": "llama3.1:8b",
+        "sources_used": [
+          "conversation",
+          "github"
+        ],
+        "results": {
+          "conversation": {
+            "source": "conversation",
+            "question": "What release decision is recorded in the meeting transcript?",
+            "answer": "The release decision recorded in the meeting transcript is to ship the API redesign next Friday after freezing the release scope that day [12_00000].",
+            "model": "llama3.1:8b",
+            "evidence": [
+              {
+                "id": "12_00000",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:00:00.000",
+                "distance": null,
+                "text": "We should freeze the release scope today and ship the API redesign next Friday.",
+                "metadata": {
+                  "meeting_ts": 1789344000,
+                  "meeting_title": "Release Planning",
+                  "end_ts": "00:01:00.000",
+                  "turn_index": 0,
+                  "speaker": "Ada",
+                  "meeting_date": "2026-09-14",
+                  "chunk_id": "12_00000",
+                  "start_sec": 0.0,
+                  "meeting_id": "12",
+                  "duration_sec": 60.0,
+                  "group_id": 9101,
+                  "start_ts": "00:00:00.000",
+                  "end_sec": 60.0,
+                  "word_count": 14,
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "next_chunk_id": "12_00001"
+                }
+              },
+              {
+                "id": "12_00001",
+                "source_type": "transcript",
+                "author": "Ben",
+                "timestamp": "00:01:00.000",
+                "distance": null,
+                "text": "The load tests pass at expected traffic.",
+                "metadata": {
+                  "end_sec": 90.0,
+                  "next_chunk_id": "12_00002",
+                  "word_count": 7,
+                  "speaker": "Ben",
+                  "end_ts": "00:01:30.000",
+                  "duration_sec": 30.0,
+                  "prev_chunk_id": "12_00000",
+                  "meeting_title": "Release Planning",
+                  "meeting_id": "12",
+                  "turn_index": 1,
+                  "start_ts": "00:01:00.000",
+                  "meeting_ts": 1789344000,
+                  "meeting_date": "2026-09-14",
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "start_sec": 60.0,
+                  "chunk_id": "12_00001",
+                  "group_id": 9101
+                }
+              },
+              {
+                "id": "12_00002",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:01:30.000",
+                "distance": null,
+                "text": "I recommend adding a rollback switch before release, then documenting the migration plan.",
+                "metadata": {
+                  "start_ts": "00:01:30.000",
+                  "turn_index": 2,
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "meeting_date": "2026-09-14",
+                  "next_chunk_id": "12_00003",
+                  "group_id": 9101,
+                  "speaker": "Ada",
+                  "duration_sec": 60.0,
+                  "end_ts": "00:02:30.000",
+                  "meeting_id": "12",
+                  "word_count": 13,
+                  "prev_chunk_id": "12_00001",
+                  "meeting_ts": 1789344000,
+                  "start_sec": 90.0,
+                  "end_sec": 150.0,
+                  "meeting_title": "Release Planning",
+                  "chunk_id": "12_00002"
+                }
+              },
+              {
+                "id": "12_00003",
+                "source_type": "transcript",
+                "author": "Cy",
+                "timestamp": "00:02:30.000",
+                "distance": null,
+                "text": "We need the monitoring alert before rollout.",
+                "metadata": {
+                  "prev_chunk_id": "12_00002",
+                  "start_ts": "00:02:30.000",
+                  "group_id": 9101,
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "word_count": 7,
+                  "meeting_date": "2026-09-14",
+                  "next_chunk_id": "12_00004",
+                  "start_sec": 150.0,
+                  "duration_sec": 30.0,
+                  "speaker": "Cy",
+                  "end_sec": 180.0,
+                  "chunk_id": "12_00003",
+                  "end_ts": "00:03:00.000",
+                  "meeting_ts": 1789344000,
+                  "meeting_id": "12",
+                  "meeting_title": "Release Planning",
+                  "turn_index": 3
+                }
+              },
+              {
+                "id": "12_00004",
+                "source_type": "transcript",
+                "author": "Ben",
+                "timestamp": "00:03:00.000",
+                "distance": null,
+                "text": "I can review the rollback switch tomorrow.",
+                "metadata": {
+                  "word_count": 7,
+                  "start_ts": "00:03:00.000",
+                  "turn_index": 4,
+                  "next_chunk_id": "12_00005",
+                  "chunk_id": "12_00004",
+                  "group_id": 9101,
+                  "speaker": "Ben",
+                  "meeting_date": "2026-09-14",
+                  "prev_chunk_id": "12_00003",
+                  "end_sec": 210.0,
+                  "meeting_ts": 1789344000,
+                  "meeting_id": "12",
+                  "start_sec": 180.0,
+                  "meeting_title": "Release Planning",
+                  "duration_sec": 30.0,
+                  "end_ts": "00:03:30.000",
+                  "source_file": "meeting_12_release_planning.vtt"
+                }
+              },
+              {
+                "id": "12_00005",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:03:30.000",
+                "distance": null,
+                "text": "I will draft the rollout checklist after review.",
+                "metadata": {
+                  "turn_index": 5,
+                  "group_id": 9101,
+                  "start_sec": 210.0,
+                  "meeting_date": "2026-09-14",
+                  "word_count": 8,
+                  "prev_chunk_id": "12_00004",
+                  "start_ts": "00:03:30.000",
+                  "end_sec": 240.0,
+                  "meeting_ts": 1789344000,
+                  "chunk_id": "12_00005",
+                  "end_ts": "00:04:00.000",
+                  "duration_sec": 30.0,
+                  "meeting_title": "Release Planning",
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "speaker": "Ada",
+                  "meeting_id": "12"
+                }
+              },
+              {
+                "id": "13_00000",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:00:00.000",
+                "distance": null,
+                "text": "Shipping the API after the rollback check reduced release risk.",
+                "metadata": {
+                  "source_file": "meeting_13_launch_review.vtt",
+                  "duration_sec": 20.0,
+                  "meeting_title": "Launch Review",
+                  "meeting_date": "2026-09-21",
+                  "start_ts": "00:00:00.000",
+                  "turn_index": 0,
+                  "end_sec": 20.0,
+                  "end_ts": "00:00:20.000",
+                  "speaker": "Ada",
+                  "group_id": 9101,
+                  "word_count": 10,
+                  "meeting_id": "13",
+                  "chunk_id": "13_00000",
+                  "meeting_ts": 1789948800,
+                  "start_sec": 0.0,
+                  "next_chunk_id": "13_00001"
+                }
+              },
+              {
+                "id": "13_00001",
+                "source_type": "transcript",
+                "author": "Ben",
+                "timestamp": "00:00:20.000",
+                "distance": null,
+                "text": "The monitoring dashboard showed a delayed worker, not an API failure.",
+                "metadata": {
+                  "meeting_date": "2026-09-21",
+                  "meeting_ts": 1789948800,
+                  "end_ts": "00:00:45.000",
+                  "start_sec": 20.0,
+                  "source_file": "meeting_13_launch_review.vtt",
+                  "meeting_id": "13",
+                  "chunk_id": "13_00001",
+                  "speaker": "Ben",
+                  "next_chunk_id": "13_00002",
+                  "start_ts": "00:00:20.000",
+                  "duration_sec": 25.0,
+                  "meeting_title": "Launch Review",
+                  "turn_index": 1,
+                  "prev_chunk_id": "13_00000",
+                  "end_sec": 45.0,
+                  "group_id": 9101,
+                  "word_count": 11
+                }
+              },
+              {
+                "id": "13_00002",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:00:45.000",
+                "distance": null,
+                "text": "We should document the alert threshold before the next launch.",
+                "metadata": {
+                  "group_id": 9101,
+                  "source_file": "meeting_13_launch_review.vtt",
+                  "meeting_title": "Launch Review",
+                  "meeting_id": "13",
+                  "duration_sec": 15.0,
+                  "start_sec": 45.0,
+                  "end_sec": 60.0,
+                  "meeting_date": "2026-09-21",
+                  "meeting_ts": 1789948800,
+                  "speaker": "Ada",
+                  "start_ts": "00:00:45.000",
+                  "prev_chunk_id": "13_00001",
+                  "turn_index": 2,
+                  "chunk_id": "13_00002",
+                  "end_ts": "00:01:00.000",
+                  "word_count": 10
+                }
+              }
+            ],
+            "truncated_evidence": 0,
+            "complete_window": true,
+            "stats": null,
+            "transcript_stats": {
+              "complete": true,
+              "total_meetings": 2,
+              "total_duration_sec": 300.0,
+              "missing_meeting_ids": [],
+              "speakers": [
+                {
+                  "speaker": "Ada",
+                  "total_duration_sec": 185.0,
+                  "total_words": 55,
+                  "turn_count": 5,
+                  "avg_words_per_turn": 11.0,
+                  "meeting_time_share_pct": 61.7,
+                  "meetings_spoken": 2
+                },
+                {
+                  "speaker": "Ben",
+                  "total_duration_sec": 85.0,
+                  "total_words": 25,
+                  "turn_count": 3,
+                  "avg_words_per_turn": 8.3,
+                  "meeting_time_share_pct": 28.3,
+                  "meetings_spoken": 2
+                },
+                {
+                  "speaker": "Cy",
+                  "total_duration_sec": 30.0,
+                  "total_words": 7,
+                  "turn_count": 1,
+                  "avg_words_per_turn": 7.0,
+                  "meeting_time_share_pct": 10.0,
+                  "meetings_spoken": 1
+                }
+              ],
+              "meetings": [
+                {
+                  "meeting_id": 12,
+                  "meeting_title": "Release Planning",
+                  "meeting_date": "2026-09-14",
+                  "total_duration_sec": 240.0,
+                  "speakers": [
+                    {
+                      "speaker": "Ada",
+                      "total_duration_sec": 150.0,
+                      "total_words": 35,
+                      "turn_count": 3,
+                      "avg_words_per_turn": 11.7,
+                      "meeting_time_share_pct": 62.5,
+                      "meetings_spoken": 1
+                    },
+                    {
+                      "speaker": "Ben",
+                      "total_duration_sec": 60.0,
+                      "total_words": 14,
+                      "turn_count": 2,
+                      "avg_words_per_turn": 7.0,
+                      "meeting_time_share_pct": 25.0,
+                      "meetings_spoken": 1
+                    },
+                    {
+                      "speaker": "Cy",
+                      "total_duration_sec": 30.0,
+                      "total_words": 7,
+                      "turn_count": 1,
+                      "avg_words_per_turn": 7.0,
+                      "meeting_time_share_pct": 12.5,
+                      "meetings_spoken": 1
+                    }
+                  ]
+                },
+                {
+                  "meeting_id": 13,
+                  "meeting_title": "Launch Review",
+                  "meeting_date": "2026-09-21",
+                  "total_duration_sec": 60.0,
+                  "speakers": [
+                    {
+                      "speaker": "Ada",
+                      "total_duration_sec": 35.0,
+                      "total_words": 20,
+                      "turn_count": 2,
+                      "avg_words_per_turn": 10.0,
+                      "meeting_time_share_pct": 58.3,
+                      "meetings_spoken": 1
+                    },
+                    {
+                      "speaker": "Ben",
+                      "total_duration_sec": 25.0,
+                      "total_words": 11,
+                      "turn_count": 1,
+                      "avg_words_per_turn": 11.0,
+                      "meeting_time_share_pct": 41.7,
+                      "meetings_spoken": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "github": {
+            "source": "github",
+            "question": "How many commits did each contributor make in September?",
+            "answer": "Based on the evidence, here are the number of commits each contributor made in September:\n\n* Ada: 2\n* Ben: 1\n* Cy: 1\n\nNote that this information is based on the provided evidence and may not be a comprehensive list of all contributors or their commit counts.",
+            "model": "llama3.1:8b",
+            "evidence": [
+              {
+                "id": "group_9101:commit:c300000000000000000000000000000000000004",
+                "source_type": "commit",
+                "author": "Cy",
+                "timestamp": "2026-09-22T14:00:00+00:00",
+                "distance": 0.0,
+                "text": "Commit c3000000 by Cy on 2026-09-22\nMessage: Add alert for delayed workers\nFiles changed: 2, +21/-1\nDiff:\n",
+                "metadata": {
+                  "source_type": "commit",
+                  "source_id": "c300000000000000000000000000000000000004",
+                  "author": "Cy",
+                  "timestamp": "2026-09-22T14:00:00+00:00",
+                  "repo_name": "group_9101",
+                  "files_changed": 2,
+                  "additions": 21,
+                  "deletions": 1
+                }
+              },
+              {
+                "id": "group_9101:commit:a100000300000000000000000000000000000003",
+                "source_type": "commit",
+                "author": "Ada",
+                "timestamp": "2026-09-17T09:00:00+00:00",
+                "distance": 0.0,
+                "text": "Commit a1000003 by Ada on 2026-09-17\nMessage: Add rollback switch for release\nFiles changed: 3, +42/-5\nDiff:\n",
+                "metadata": {
+                  "source_type": "commit",
+                  "source_id": "a100000300000000000000000000000000000003",
+                  "author": "Ada",
+                  "timestamp": "2026-09-17T09:00:00+00:00",
+                  "repo_name": "group_9101",
+                  "files_changed": 3,
+                  "additions": 42,
+                  "deletions": 5
+                }
+              },
+              {
+                "id": "group_9101:commit:b200000000000000000000000000000000000002",
+                "source_type": "commit",
+                "author": "Ben",
+                "timestamp": "2026-09-10T11:00:00+00:00",
+                "distance": 0.0,
+                "text": "Commit b2000000 by Ben on 2026-09-10\nMessage: Document API migration and rollout steps\nFiles changed: 1, +18/-2\nDiff:\n",
+                "metadata": {
+                  "source_type": "commit",
+                  "source_id": "b200000000000000000000000000000000000002",
+                  "author": "Ben",
+                  "timestamp": "2026-09-10T11:00:00+00:00",
+                  "repo_name": "group_9101",
+                  "files_changed": 1,
+                  "additions": 18,
+                  "deletions": 2
+                }
+              },
+              {
+                "id": "group_9101:commit:a100000100000000000000000000000000000001",
+                "source_type": "commit",
+                "author": "Ada",
+                "timestamp": "2026-09-02T10:00:00+00:00",
+                "distance": 0.0,
+                "text": "Commit a1000001 by Ada on 2026-09-02\nMessage: Add API response cache and release metric\nFiles changed: 2, +35/-4\nDiff:\n",
+                "metadata": {
+                  "source_type": "commit",
+                  "source_id": "a100000100000000000000000000000000000001",
+                  "author": "Ada",
+                  "timestamp": "2026-09-02T10:00:00+00:00",
+                  "repo_name": "group_9101",
+                  "files_changed": 2,
+                  "additions": 35,
+                  "deletions": 4
+                }
+              }
+            ],
+            "truncated_evidence": 0,
+            "complete_window": true,
+            "stats": {
+              "repo_id": 1,
+              "repo_name": "Synthetic Release Team",
+              "total_commits": 4,
+              "total_issues": 0,
+              "open_issues": 0,
+              "closed_issues": 0,
+              "total_issue_comments": 0,
+              "total_review_comments": 0,
+              "total_trello_actions": 0,
+              "first_activity_at": "2026-09-02T10:00:00Z",
+              "last_activity_at": "2026-09-22T14:00:00Z",
+              "last_synced_at": null,
+              "contributors": [
+                {
+                  "name": "Ada",
+                  "commits": 2,
+                  "additions": 77,
+                  "deletions": 9,
+                  "issues_opened": 0,
+                  "issue_comments": 0,
+                  "review_comments": 0,
+                  "trello_actions": 0,
+                  "first_commit_at": "2026-09-02T10:00:00Z",
+                  "last_commit_at": "2026-09-17T09:00:00Z"
+                },
+                {
+                  "name": "Ben",
+                  "commits": 1,
+                  "additions": 18,
+                  "deletions": 2,
+                  "issues_opened": 0,
+                  "issue_comments": 0,
+                  "review_comments": 0,
+                  "trello_actions": 0,
+                  "first_commit_at": "2026-09-10T11:00:00Z",
+                  "last_commit_at": "2026-09-10T11:00:00Z"
+                },
+                {
+                  "name": "Cy",
+                  "commits": 1,
+                  "additions": 21,
+                  "deletions": 1,
+                  "issues_opened": 0,
+                  "issue_comments": 0,
+                  "review_comments": 0,
+                  "trello_actions": 0,
+                  "first_commit_at": "2026-09-22T14:00:00Z",
+                  "last_commit_at": "2026-09-22T14:00:00Z"
+                }
+              ],
+              "weekly_activity": [
+                {
+                  "week_starting": "2026-08-31T00:00:00Z",
+                  "commits": 1,
+                  "authors": 1
+                },
+                {
+                  "week_starting": "2026-09-07T00:00:00Z",
+                  "commits": 1,
+                  "authors": 1
+                },
+                {
+                  "week_starting": "2026-09-14T00:00:00Z",
+                  "commits": 1,
+                  "authors": 1
+                },
+                {
+                  "week_starting": "2026-09-21T00:00:00Z",
+                  "commits": 1,
+                  "authors": 1
+                }
+              ]
+            },
+            "transcript_stats": null
+          }
+        },
+        "errors": {}
+      }
+    },
+    "empty_evidence": {
+      "request": {
+        "path": "/groups/9101/conversation/query",
+        "payload": {
+          "question": "What deployment decision was recorded on 1 January 2020?",
+          "meeting_id": 12,
+          "since": "2020-01-01",
+          "until": "2020-01-02"
+        }
+      },
+      "status_code": 404,
+      "body": {
+        "detail": "No indexed meeting transcripts match this question"
+      }
+    },
+    "partial_source_failure": {
+      "request": {
+        "path": "/groups/9101/query",
+        "payload": {
+          "question": "What was discussed about the launch, and what related Trello work was completed?",
+          "since": "2026-09-01",
+          "until": "2026-10-01",
+          "sources": [
+            "conversation",
+            "trello"
+          ],
+          "source_questions": {
+            "conversation": "What did the Launch Review say about the delayed worker?",
+            "trello": "What Trello work was completed for the launch review?"
+          }
+        }
+      },
+      "status_code": 200,
+      "body": {
+        "question": "What was discussed about the launch, and what related Trello work was completed?",
+        "answer": "Conversation findings:\nThe Launch Review mentioned that the monitoring dashboard showed a delayed worker, not an API failure [13_00001].\nEvidence IDs: [12_00000], [12_00001], [12_00002], [12_00003], [12_00004], [12_00005], [13_00000], [13_00001], [13_00002]\n\nUnavailable sources:\n- trello: unavailable",
+        "model": "llama3.1:8b",
+        "sources_used": [
+          "conversation"
+        ],
+        "results": {
+          "conversation": {
+            "source": "conversation",
+            "question": "What did the Launch Review say about the delayed worker?",
+            "answer": "The Launch Review mentioned that the monitoring dashboard showed a delayed worker, not an API failure [13_00001].",
+            "model": "llama3.1:8b",
+            "evidence": [
+              {
+                "id": "12_00000",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:00:00.000",
+                "distance": null,
+                "text": "We should freeze the release scope today and ship the API redesign next Friday.",
+                "metadata": {
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "next_chunk_id": "12_00001",
+                  "group_id": 9101,
+                  "meeting_ts": 1789344000,
+                  "end_sec": 60.0,
+                  "end_ts": "00:01:00.000",
+                  "start_ts": "00:00:00.000",
+                  "meeting_title": "Release Planning",
+                  "meeting_date": "2026-09-14",
+                  "duration_sec": 60.0,
+                  "chunk_id": "12_00000",
+                  "meeting_id": "12",
+                  "start_sec": 0.0,
+                  "turn_index": 0,
+                  "word_count": 14,
+                  "speaker": "Ada"
+                }
+              },
+              {
+                "id": "12_00001",
+                "source_type": "transcript",
+                "author": "Ben",
+                "timestamp": "00:01:00.000",
+                "distance": null,
+                "text": "The load tests pass at expected traffic.",
+                "metadata": {
+                  "group_id": 9101,
+                  "end_sec": 90.0,
+                  "duration_sec": 30.0,
+                  "meeting_id": "12",
+                  "turn_index": 1,
+                  "next_chunk_id": "12_00002",
+                  "chunk_id": "12_00001",
+                  "speaker": "Ben",
+                  "prev_chunk_id": "12_00000",
+                  "start_ts": "00:01:00.000",
+                  "meeting_ts": 1789344000,
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "meeting_title": "Release Planning",
+                  "start_sec": 60.0,
+                  "word_count": 7,
+                  "end_ts": "00:01:30.000",
+                  "meeting_date": "2026-09-14"
+                }
+              },
+              {
+                "id": "12_00002",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:01:30.000",
+                "distance": null,
+                "text": "I recommend adding a rollback switch before release, then documenting the migration plan.",
+                "metadata": {
+                  "word_count": 13,
+                  "end_ts": "00:02:30.000",
+                  "speaker": "Ada",
+                  "meeting_id": "12",
+                  "start_ts": "00:01:30.000",
+                  "start_sec": 90.0,
+                  "turn_index": 2,
+                  "prev_chunk_id": "12_00001",
+                  "meeting_title": "Release Planning",
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "group_id": 9101,
+                  "meeting_ts": 1789344000,
+                  "end_sec": 150.0,
+                  "duration_sec": 60.0,
+                  "chunk_id": "12_00002",
+                  "meeting_date": "2026-09-14",
+                  "next_chunk_id": "12_00003"
+                }
+              },
+              {
+                "id": "12_00003",
+                "source_type": "transcript",
+                "author": "Cy",
+                "timestamp": "00:02:30.000",
+                "distance": null,
+                "text": "We need the monitoring alert before rollout.",
+                "metadata": {
+                  "start_sec": 150.0,
+                  "end_sec": 180.0,
+                  "speaker": "Cy",
+                  "group_id": 9101,
+                  "prev_chunk_id": "12_00002",
+                  "duration_sec": 30.0,
+                  "meeting_ts": 1789344000,
+                  "end_ts": "00:03:00.000",
+                  "next_chunk_id": "12_00004",
+                  "start_ts": "00:02:30.000",
+                  "meeting_date": "2026-09-14",
+                  "chunk_id": "12_00003",
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "turn_index": 3,
+                  "word_count": 7,
+                  "meeting_id": "12",
+                  "meeting_title": "Release Planning"
+                }
+              },
+              {
+                "id": "12_00004",
+                "source_type": "transcript",
+                "author": "Ben",
+                "timestamp": "00:03:00.000",
+                "distance": null,
+                "text": "I can review the rollback switch tomorrow.",
+                "metadata": {
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "meeting_title": "Release Planning",
+                  "prev_chunk_id": "12_00003",
+                  "next_chunk_id": "12_00005",
+                  "meeting_ts": 1789344000,
+                  "word_count": 7,
+                  "end_ts": "00:03:30.000",
+                  "meeting_date": "2026-09-14",
+                  "speaker": "Ben",
+                  "duration_sec": 30.0,
+                  "start_sec": 180.0,
+                  "group_id": 9101,
+                  "end_sec": 210.0,
+                  "turn_index": 4,
+                  "chunk_id": "12_00004",
+                  "start_ts": "00:03:00.000",
+                  "meeting_id": "12"
+                }
+              },
+              {
+                "id": "12_00005",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:03:30.000",
+                "distance": null,
+                "text": "I will draft the rollout checklist after review.",
+                "metadata": {
+                  "chunk_id": "12_00005",
+                  "turn_index": 5,
+                  "duration_sec": 30.0,
+                  "prev_chunk_id": "12_00004",
+                  "start_ts": "00:03:30.000",
+                  "source_file": "meeting_12_release_planning.vtt",
+                  "speaker": "Ada",
+                  "end_ts": "00:04:00.000",
+                  "word_count": 8,
+                  "group_id": 9101,
+                  "meeting_ts": 1789344000,
+                  "end_sec": 240.0,
+                  "meeting_title": "Release Planning",
+                  "meeting_id": "12",
+                  "meeting_date": "2026-09-14",
+                  "start_sec": 210.0
+                }
+              },
+              {
+                "id": "13_00000",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:00:00.000",
+                "distance": null,
+                "text": "Shipping the API after the rollback check reduced release risk.",
+                "metadata": {
+                  "meeting_date": "2026-09-21",
+                  "meeting_ts": 1789948800,
+                  "end_sec": 20.0,
+                  "group_id": 9101,
+                  "meeting_id": "13",
+                  "source_file": "meeting_13_launch_review.vtt",
+                  "end_ts": "00:00:20.000",
+                  "next_chunk_id": "13_00001",
+                  "start_sec": 0.0,
+                  "chunk_id": "13_00000",
+                  "turn_index": 0,
+                  "duration_sec": 20.0,
+                  "word_count": 10,
+                  "meeting_title": "Launch Review",
+                  "speaker": "Ada",
+                  "start_ts": "00:00:00.000"
+                }
+              },
+              {
+                "id": "13_00001",
+                "source_type": "transcript",
+                "author": "Ben",
+                "timestamp": "00:00:20.000",
+                "distance": null,
+                "text": "The monitoring dashboard showed a delayed worker, not an API failure.",
+                "metadata": {
+                  "meeting_ts": 1789948800,
+                  "start_ts": "00:00:20.000",
+                  "meeting_date": "2026-09-21",
+                  "meeting_title": "Launch Review",
+                  "end_ts": "00:00:45.000",
+                  "source_file": "meeting_13_launch_review.vtt",
+                  "turn_index": 1,
+                  "chunk_id": "13_00001",
+                  "start_sec": 20.0,
+                  "speaker": "Ben",
+                  "duration_sec": 25.0,
+                  "end_sec": 45.0,
+                  "group_id": 9101,
+                  "word_count": 11,
+                  "prev_chunk_id": "13_00000",
+                  "next_chunk_id": "13_00002",
+                  "meeting_id": "13"
+                }
+              },
+              {
+                "id": "13_00002",
+                "source_type": "transcript",
+                "author": "Ada",
+                "timestamp": "00:00:45.000",
+                "distance": null,
+                "text": "We should document the alert threshold before the next launch.",
+                "metadata": {
+                  "start_ts": "00:00:45.000",
+                  "duration_sec": 15.0,
+                  "speaker": "Ada",
+                  "start_sec": 45.0,
+                  "chunk_id": "13_00002",
+                  "meeting_id": "13",
+                  "end_sec": 60.0,
+                  "word_count": 10,
+                  "meeting_date": "2026-09-21",
+                  "turn_index": 2,
+                  "meeting_ts": 1789948800,
+                  "prev_chunk_id": "13_00001",
+                  "source_file": "meeting_13_launch_review.vtt",
+                  "group_id": 9101,
+                  "end_ts": "00:01:00.000",
+                  "meeting_title": "Launch Review"
+                }
+              }
+            ],
+            "truncated_evidence": 0,
+            "complete_window": true,
+            "stats": null,
+            "transcript_stats": {
+              "complete": true,
+              "total_meetings": 2,
+              "total_duration_sec": 300.0,
+              "missing_meeting_ids": [],
+              "speakers": [
+                {
+                  "speaker": "Ada",
+                  "total_duration_sec": 185.0,
+                  "total_words": 55,
+                  "turn_count": 5,
+                  "avg_words_per_turn": 11.0,
+                  "meeting_time_share_pct": 61.7,
+                  "meetings_spoken": 2
+                },
+                {
+                  "speaker": "Ben",
+                  "total_duration_sec": 85.0,
+                  "total_words": 25,
+                  "turn_count": 3,
+                  "avg_words_per_turn": 8.3,
+                  "meeting_time_share_pct": 28.3,
+                  "meetings_spoken": 2
+                },
+                {
+                  "speaker": "Cy",
+                  "total_duration_sec": 30.0,
+                  "total_words": 7,
+                  "turn_count": 1,
+                  "avg_words_per_turn": 7.0,
+                  "meeting_time_share_pct": 10.0,
+                  "meetings_spoken": 1
+                }
+              ],
+              "meetings": [
+                {
+                  "meeting_id": 12,
+                  "meeting_title": "Release Planning",
+                  "meeting_date": "2026-09-14",
+                  "total_duration_sec": 240.0,
+                  "speakers": [
+                    {
+                      "speaker": "Ada",
+                      "total_duration_sec": 150.0,
+                      "total_words": 35,
+                      "turn_count": 3,
+                      "avg_words_per_turn": 11.7,
+                      "meeting_time_share_pct": 62.5,
+                      "meetings_spoken": 1
+                    },
+                    {
+                      "speaker": "Ben",
+                      "total_duration_sec": 60.0,
+                      "total_words": 14,
+                      "turn_count": 2,
+                      "avg_words_per_turn": 7.0,
+                      "meeting_time_share_pct": 25.0,
+                      "meetings_spoken": 1
+                    },
+                    {
+                      "speaker": "Cy",
+                      "total_duration_sec": 30.0,
+                      "total_words": 7,
+                      "turn_count": 1,
+                      "avg_words_per_turn": 7.0,
+                      "meeting_time_share_pct": 12.5,
+                      "meetings_spoken": 1
+                    }
+                  ]
+                },
+                {
+                  "meeting_id": 13,
+                  "meeting_title": "Launch Review",
+                  "meeting_date": "2026-09-21",
+                  "total_duration_sec": 60.0,
+                  "speakers": [
+                    {
+                      "speaker": "Ada",
+                      "total_duration_sec": 35.0,
+                      "total_words": 20,
+                      "turn_count": 2,
+                      "avg_words_per_turn": 10.0,
+                      "meeting_time_share_pct": 58.3,
+                      "meetings_spoken": 1
+                    },
+                    {
+                      "speaker": "Ben",
+                      "total_duration_sec": 25.0,
+                      "total_words": 11,
+                      "turn_count": 1,
+                      "avg_words_per_turn": 11.0,
+                      "meeting_time_share_pct": 41.7,
+                      "meetings_spoken": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "errors": {
+          "trello": "This group has no trello source linked"
+        }
+      }
+    }
+  },
+  "gold_comparisons": {
+    "github_activity_counts": {
+      "expected": {
+        "total_commits": 4,
+        "contributors": {
+          "Ada": 2,
+          "Ben": 1,
+          "Cy": 1
+        }
+      },
+      "observed": {
+        "total_commits": 4,
+        "contributors": {
+          "Ada": 2,
+          "Ben": 1,
+          "Cy": 1
+        }
+      },
+      "matches": true
+    },
+    "trello_activity_counts": {
+      "expected": {
+        "total_actions": 4,
+        "contributors": {
+          "Ada": 2,
+          "Ben": 1,
+          "Cy": 1
+        }
+      },
+      "observed": {
+        "total_actions": 4,
+        "contributors": {
+          "Ada": 2,
+          "Ben": 1,
+          "Cy": 1
+        }
+      },
+      "matches": true
+    },
+    "cross_source_mixed_github_stats": {
+      "expected": {
+        "total_commits": 4,
+        "contributors": {
+          "Ada": 2,
+          "Ben": 1,
+          "Cy": 1
+        }
+      },
+      "observed": {
+        "total_commits": 4,
+        "contributors": {
+          "Ada": 2,
+          "Ben": 1,
+          "Cy": 1
+        }
+      },
+      "matches": true
+    },
+    "conversation_speaker_metrics": {
+      "expected": {
+        "speaker": "Ada",
+        "talk_time_seconds": 150.0,
+        "meeting_time_percent": 62.5
+      },
+      "observed": {
+        "speaker": "Ada",
+        "talk_time_seconds": 150.0,
+        "meeting_time_percent": 62.5
+      },
+      "matches": true
+    }
+  },
+  "not_captured": [
+    "authorization_ambiguity",
+    "unsupported"
+  ]
+}

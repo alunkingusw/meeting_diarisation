@@ -1,0 +1,25 @@
+WEBVTT
+
+1
+00:00:00.000 --> 00:01:00.000
+Ada: We should freeze the release scope today and ship the API redesign next Friday.
+
+2
+00:01:00.000 --> 00:01:30.000
+Ben: The load tests pass at expected traffic.
+
+3
+00:01:30.000 --> 00:02:30.000
+Ada: I recommend adding a rollback switch before release, then documenting the migration plan.
+
+4
+00:02:30.000 --> 00:03:00.000
+Cy: We need the monitoring alert before rollout.
+
+5
+00:03:00.000 --> 00:03:30.000
+Ben: I can review the rollback switch tomorrow.
+
+6
+00:03:30.000 --> 00:04:00.000
+Ada: I will draft the rollout checklist after review.

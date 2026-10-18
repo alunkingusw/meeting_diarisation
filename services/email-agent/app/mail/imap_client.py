@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import imaplib
+import logging
 import re
 import smtplib
 from datetime import datetime, timezone
@@ -22,6 +23,7 @@ from app.mail.base import Attachment, EmailMessage, MailClient
 _DEFAULT_IMAP_HOST = "imap.mailbox.org"
 _DEFAULT_SMTP_HOST = "smtp.mailbox.org"
 _VERDICT_RE = re.compile(r"\b(spf|dkim|dmarc)\s*=\s*([a-zA-Z]+)")
+logger = logging.getLogger(__name__)
 
 
 class ImapMailClient(MailClient):
@@ -107,6 +109,22 @@ class ImapMailClient(MailClient):
 
         with self._smtp_connection() as smtp_client:
             smtp_client.send_message(message)
+
+        try:
+            with self._imap_connection() as imap_client:
+                status, data = imap_client.append(
+                    "Sent", "\\Seen", None, message.as_bytes(policy=policy.SMTP)
+                )
+                if status != "OK":
+                    raise imaplib.IMAP4.error(
+                        f"Could not append message to Sent folder: {data!r}"
+                    )
+        except Exception:
+            logger.warning(
+                "Could not save sent email %s to the IMAP Sent folder",
+                message["Message-ID"],
+                exc_info=True,
+            )
 
         return message["Message-ID"]
 

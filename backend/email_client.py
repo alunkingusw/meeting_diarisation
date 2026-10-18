@@ -9,16 +9,19 @@ class EmailError(RuntimeError):
     """Raised when the internal email service cannot send a message."""
 
 
-def send_email(to: str, subject: str, body: str) -> None:
+def send_email(to: str, subject: str, body: str, job_id: str | None = None) -> None:
     """Send an email through the internal email delivery service."""
     if not settings.email_api_token:
         raise EmailError("EMAIL_API_TOKEN is not configured")
 
     try:
+        payload = {"to": to, "subject": subject, "body": body}
+        if job_id is not None:
+            payload["job_id"] = job_id
         response = httpx.post(
             settings.email_api_url,
             headers={"Authorization": f"Bearer {settings.email_api_token}"},
-            json={"to": to, "subject": subject, "body": body},
+            json=payload,
             timeout=settings.email_timeout_seconds,
         )
         response.raise_for_status()

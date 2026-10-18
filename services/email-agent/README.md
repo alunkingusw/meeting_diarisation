@@ -38,13 +38,13 @@ adjusted as follows:
 - **Mail access is provider-agnostic** via a `MailClient` interface (`app/mail/base.py`). The app
   supports Microsoft Graph and a generic IMAP/SMTP provider implementation (`app/mail/imap_client.py`)
   for dedicated project mailboxes such as `mailbox.org`.
-- **`assess_query` answers real questions from three sources**: past meeting transcripts
-  (meeting_diarisation's `/groups/{id}/transcripts/search`, synthesised into a cited prose answer
-  via a second, narrowly-scoped Ollama call — see `app/llm/transcript_synthesis.py`), and the
-  group's GitHub repo/Trello board (GitHub-RAGinator's `/query`, which returns its own
-  LLM-synthesised answer). The LLM only ever decides *which* sources are relevant
-  (`transcript_focus`/`github_focus`/`trello_focus`) — the queries themselves are deterministic
-  API calls, same trust-boundary pattern as everything else in this codebase. Like
+- **Current `assess_query` answers real questions from three sources**, all through the backend's
+  query API: past meeting transcripts (`/groups/{id}/conversation/query`) and the group's GitHub
+  repo and Trello board (`/github/query`, `/trello/query`, or the unified `/query` when both are
+  asked for). The backend retrieves, answers and cites; the agent does no retrieval itself.
+  Today, the email parser produces source-focus fields and the handler makes deterministic API
+  calls. The planned parent query agent and three read-only specialists are not implemented yet;
+  see the [central roadmap](../../docs/roadmap.md). Like
   `submit_transcript`, it's split into `accept()`/`execute()` so a slow or unreachable source
   never blocks mail polling; a source being unreachable degrades the reply with a note rather
   than failing the whole request, as long as at least one requested source answered. See the
@@ -62,10 +62,10 @@ app/
   auth/          Deterministic sender authorisation and permission precedence
   llm/           Ollama client, system prompt, retry-then-fail command parser
   commands/      The structured command schema and its validator (the trust boundary)
-  vtt/           WEBVTT transcript parser (speaker labels + NOTE meeting-date convention)
+  vtt/           WEBVTT parser (Teams voice tags, speaker labels + NOTE meeting-date convention)
   diarisation/   HTTP client for the real backend (one method per endpoint used)
   jobs/          SQLite job store, inbound-message dedup, outbound mail queue, background worker
-  reports/       LangGraph weekly reports, persisted source evidence, and report replies
+  reports/       weekly report delivery: backend composes (LangGraph), agent persists evidence and queues email
   handlers/      One handler per operation (submit_transcript, status, results, cancel, help)
   email_templates/  Jinja2 templates for every outbound email
   admin/         Rate-limited admin alerting
@@ -247,34 +247,53 @@ doesn't depend on how a real model happens to behave on a given day.
   meeting/attendees). Not a real gap in practice: the actual answer is always emailed
   automatically once the job completes, same as submit_transcript's completion email.
 
-See [ROADMAP.md](ROADMAP.md) for planned follow-on work, including wiring up real source clients
-and a scheduled weekly per-group update.
+See the [central roadmap](../../docs/roadmap.md) for planned query-agent and email-intent work.
 
 ## Weekly project updates
 
-The weekly update is a one-shot command intended to be invoked by cron or a system scheduler:
+The email agent includes an in-process scheduler, so no host cron is needed when the agent is
+running. Scheduled email is opt-in. Copy the example config if you have not already created the
+mounted config file:
 
 ```bash
-weekly-project-update --config config/config.yaml
+cp services/email-agent/config/config.example.yaml services/email-agent/config/config.yaml
 ```
 
-For example, a Monday 08:00 cron entry is:
+Set the timezone under `storage` and enable/configure the schedule under `meeting_report`:
 
-```cron
-0 8 * * 1 /path/to/.venv/bin/weekly-project-update --config /path/to/config/config.yaml
+```yaml
+storage:
+  default_timezone: Europe/London
+
+weekly_update:
+  lookback_days: 7
+
+meeting_report:
+  enabled: true
+  weekday: 0  # Monday=0, Sunday=6
+  hour: 8
+  minute: 0
 ```
 
-Enable it with `weekly_update.enabled: true`. The command discovers each active group for every
-authorised owner, creates one idempotent `WEEKLY-YYYY-MM-DD-GROUP` report per period, and runs a
-LangGraph workflow that collects meeting, GitHub, and Trello evidence, persists that evidence in
-SQLite, synthesises a cited plain-text report, and sends it through the existing outbox.
+Restart the agent after changing the config. On startup it schedules one API trigger for the
+configured weekday and time in `storage.default_timezone`. The backend selects projects with
+email-enabled `owner` users, composes and persists one report per project and period, then queues
+delivery through the agent's existing outbox. `weekly_update.lookback_days` controls the report
+window. The one-shot `weekly-project-update` command always runs when invoked; there is no second
+enable flag. Meeting summaries and comments, transcript chunks, and GitHub/Trello activity are gathered
+by the backend. Report evidence stays in the backend; the agent forwards authenticated replies to
+the backend, which checks that the sender received that report before answering.
 
-The current backend exposes transcript search and GitHub-RAGinator query endpoints rather than
-raw activity feeds. The source adapter therefore records the bounded query and its answer as
-evidence, while filtering transcript chunks by meeting date. When structured GitHub/Trello
-activity endpoints become available, they can replace `app/reports/sources.py` without changing
-the scheduler, report store, graph, or email workflow.
+The same weekly trigger also calls the backend's group nudger. It emails members with saved email
+addresses only when the group has `notify: true` and no meeting is recorded in the lookback window.
+The reminder invites them to send a transcript or email the meeting details if the group did meet.
+Groups with `project_expiry` earlier than the batch's `period_end` are skipped by both scheduled
+reports and nudges; the expiry date itself is inclusive.
+
+The schedule is disabled in `config.example.yaml` to prevent accidental email delivery. To run it
+manually instead, use `weekly-project-update --config config/config.yaml`; this one-shot command can
+also be invoked by a host cron or another system scheduler.
 
 Replies to a weekly report are matched by `In-Reply-To`/`References` or the report ID in the
-subject. They are answered from the persisted evidence snapshot and remain in the same outbound
+subject. They are answered by the backend (`POST /groups/{id}/reports/answer`) from the persisted evidence snapshot and remain in the same outbound
 message-link history; the normal command parser is not used for report questions.

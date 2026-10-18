@@ -13,8 +13,7 @@ from app.mail.thread_matcher import ThreadMatcher
 from app.pipeline import EmailProcessingPipeline
 from app.settings import LimitsSettings, StorageSettings
 
-from app.github_raginator.client import RepoSummary
-from tests.fakes import FakeDiarisationClient, FakeGithubRaginatorClient, StubLLM
+from tests.fakes import FakeDiarisationClient, StubLLM
 
 FIXTURES = Path(__file__).parent / "fixtures" / "vtt"
 PASS = AuthSignals(spf="pass", dkim="pass", dmarc="pass")
@@ -315,16 +314,13 @@ def test_group_member_gets_available_actions_when_parser_fails(db_path: Path, tm
 
 def _worker(
     job_store, storage, outbox, admin, groups, member_by_name=None, transcript_chunks=None,
-    github_raginator_client=None, ollama_client=None,
+    source_answers=None,
 ):
     fake_client = FakeDiarisationClient(
-        groups=groups, member_by_name=member_by_name or {}, transcript_chunks=transcript_chunks
+        groups=groups, member_by_name=member_by_name or {}, transcript_chunks=transcript_chunks,
+        source_answers=source_answers,
     )
-    worker = JobWorker(
-        job_store, fake_client, outbox, admin, storage,
-        github_raginator_client or FakeGithubRaginatorClient(),
-        ollama_client or StubLLM("A synthesised answer."),
-    )
+    worker = JobWorker(job_store, fake_client, outbox, admin, storage)
     return worker, fake_client
 
 
@@ -513,6 +509,8 @@ def test_missing_meeting_date_clarification_reply_resumes_same_job(db_path: Path
     mail = FakeMailClient()
     original = make_test_email(
         "alice@uni.ac.uk", message_id="<original-transcript@mail>",
+        subject="Project sync transcript",
+        body_text="Please submit the transcript from our project sync.",
         attachments=[_vtt_attachment(fixture="valid_no_date.vtt")], auth_signals=PASS,
     )
     mail.add_message(original)
@@ -528,9 +526,18 @@ def test_missing_meeting_date_clarification_reply_resumes_same_job(db_path: Path
 
     clarification = mail.sent[-1]
     assert "date" in clarification.body_text.lower()
-    job_id = clarification.subject.rsplit("—", 1)[-1].strip()
-    assert job_store.get(job_id).status == JobState.NEEDS_CLARIFICATION
-    assert job_store.get(job_id).meeting_date is None
+    assert clarification.subject.startswith(
+        "Re: Project sync transcript [Clarification needed | DIAR-"
+    )
+    assert clarification.subject.endswith("]")
+    assert "Subject: Project sync transcript" in clarification.body_text
+    assert "> Please submit the transcript from our project sync." in clarification.body_text
+    job_id = clarification.subject.split("[Clarification needed | ", 1)[1].split("]", 1)[0]
+    job = job_store.get(job_id)
+    assert job.status == JobState.NEEDS_CLARIFICATION
+    assert job.meeting_date is None
+    assert job.original_subject == "Project sync transcript"
+    assert job.original_body_text == "Please submit the transcript from our project sync."
 
     reply = make_test_email(
         "alice@uni.ac.uk", message_id="<date-answer@mail>", body_text="11 August 2026",
@@ -598,21 +605,38 @@ def test_assess_query_end_to_end_sends_ack_then_answer(db_path: Path, tmp_path: 
     assert job.transcript_focus == "mentions of the API redesign"
     assert job.github_focus == "open API issues"
 
-    worker, _ = _worker(
+    worker, diarisation = _worker(
         job_store, storage, outbox, admin, groups=[GroupSummary(id=1, name="Team A")],
         transcript_chunks=[],
-        github_raginator_client=FakeGithubRaginatorClient(
-            repo_by_group_name={"Team A": RepoSummary(id=1, github_url="https://github.com/org/repo", group_name="Team A")},
-            answer="Alice opened issue #12 about the API redesign.",
-        ),
+        source_answers={"github": "Alice opened issue #12 about the API redesign."},
     )
     worker.run_once()
     pipeline.flush_outbox()
 
     assert job_store.get(job.job_id).status == JobState.COMPLETED
+    assert job_store.get(job.job_id).resolved_group_id == 1
     assert len(mail.sent) == 2
     body = mail.sent[1].body_text
     assert "Alice opened issue #12 about the API redesign." in body
+
+    followup_message = make_test_email(
+        "alice@uni.ac.uk",
+        body_text="What about the related GitHub issues?",
+        auth_signals=PASS,
+        in_reply_to=mail.sent[1].id,
+        references=mail.sent[1].id,
+    )
+    mail.add_message(followup_message)
+    pipeline.poll_once()
+    pipeline.flush_outbox()
+
+    followup_job = job_store.list_queued()[0]
+    assert followup_job.query_parent_job_id == job.job_id
+    assert followup_job.query_conversation_id == job.query_conversation_id
+
+    worker.run_once()
+    assert job_store.get(followup_job.job_id).status == JobState.COMPLETED
+    assert len(diarisation.queries) == 2
 
 
 def test_assess_query_with_no_sources_sends_clarification(db_path: Path, tmp_path: Path):

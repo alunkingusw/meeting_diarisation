@@ -2,6 +2,11 @@ Job ID: {{ job_id }}
 {% if group_name %}
 Group: {{ group_name }}
 {% endif %}
+{% if unified_answer %}
+
+Findings:
+{{ unified_answer }}
+{% else %}
 {% if transcript_answer %}
 
 From past meeting transcripts:
@@ -11,6 +16,7 @@ From past meeting transcripts:
 
 From your group's GitHub{% if trello_checked %} and Trello{% endif %}:
 {{ github_trello_answer }}
+{% endif %}
 {% endif %}
 {% if unavailable_notes %}
 

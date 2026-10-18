@@ -3,13 +3,12 @@ from pathlib import Path
 from app.admin.notifier import AdminNotifier
 from app.commands.schema import Operation
 from app.commands.validator import ValidatedCommand
-from app.diarisation.client import GroupSummary, TranscriptChunk
-from app.github_raginator.client import RepoSummary
+from app.diarisation.client import GroupSummary
 from app.handlers import assess_query
 from app.jobs.models import JobState
 from app.jobs.store import JobStore, Outbox
 
-from tests.fakes import FakeDiarisationClient, FakeGithubRaginatorClient, StubLLM
+from tests.fakes import FakeDiarisationClient
 
 
 def _cmd(transcript_focus=None, github_focus=None, trello_focus=None, group_hint=None):
@@ -39,10 +38,50 @@ def test_accept_creates_queued_job_and_sends_ack(db_path: Path):
     assert job.status == JobState.QUEUED
     assert job.operation == "assess_query"
     assert job.transcript_focus == "the API redesign"
+    assert job.query_conversation_id
+    assert job.query_parent_job_id is None
 
     pending = outbox.pending()
     assert len(pending) == 1
     assert outcome.job_id in pending[0].body_text
+
+
+def test_accept_reuses_owned_parent_query_conversation(db_path: Path):
+    job_store = JobStore(db_path)
+    parent = job_store.create_job(
+        "alice@uni.ac.uk", 12, "<parent@mail>", operation="assess_query",
+        query_conversation_id="conversation-1", resolved_group_id=1,
+    )
+    job_store.set_status(parent.job_id, JobState.VALIDATING)
+    job_store.set_status(parent.job_id, JobState.QUEUED)
+    job_store.set_status(parent.job_id, JobState.PROCESSING)
+    job_store.set_status(parent.job_id, JobState.COMPLETED)
+
+    outcome = assess_query.accept(
+        _cmd(github_focus="open issues"), "alice@uni.ac.uk", 12, "<reply@mail>",
+        job_store, Outbox(db_path), thread_job_id=parent.job_id,
+    )
+
+    followup = job_store.get(outcome.job_id)
+    assert followup.query_conversation_id == "conversation-1"
+    assert followup.query_parent_job_id == parent.job_id
+
+
+def test_accept_does_not_reuse_another_users_query_conversation(db_path: Path):
+    job_store = JobStore(db_path)
+    parent = job_store.create_job(
+        "bob@uni.ac.uk", 13, "<parent@mail>", operation="assess_query",
+        query_conversation_id="conversation-1",
+    )
+
+    outcome = assess_query.accept(
+        _cmd(github_focus="open issues"), "alice@uni.ac.uk", 12, "<reply@mail>",
+        job_store, Outbox(db_path), thread_job_id=parent.job_id,
+    )
+
+    followup = job_store.get(outcome.job_id)
+    assert followup.query_conversation_id != "conversation-1"
+    assert followup.query_parent_job_id is None
 
 
 # --- execute() ---
@@ -54,85 +93,196 @@ def _queued_job(db_path, group_hint=None, transcript_focus=None, github_focus=No
         "alice@uni.ac.uk", 12, "<msg-1@mail>", operation="assess_query",
         group_hint=group_hint, transcript_focus=transcript_focus,
         github_focus=github_focus, trello_focus=trello_focus,
+        query_conversation_id="conversation-1",
     )
     job_store.set_status(job.job_id, JobState.VALIDATING)
     job_store.set_status(job.job_id, JobState.QUEUED)
     return job_store, job_store.get(job.job_id)
 
 
-def _chunk(text="We discussed the API redesign on Tuesday.") -> TranscriptChunk:
-    return TranscriptChunk(
-        chunk_id="1_00000_abc", meeting_id="1", meeting_title="Team A", meeting_date="2026-08-11",
-        speaker="Alice", text=text, start_ts="00:00:01.000", end_ts="00:00:05.000",
-    )
-
-
-def test_execute_transcript_only_synthesizes_answer(db_path: Path):
+def test_execute_transcript_only_uses_conversation_source(db_path: Path):
     job_store, job = _queued_job(db_path, transcript_focus="the API redesign")
     outbox = Outbox(db_path)
     admin = AdminNotifier(db_path, outbox, admin_email=None)
-    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")], transcript_chunks=[_chunk()])
-    github = FakeGithubRaginatorClient()
-    ollama = StubLLM("Alice raised the API redesign on Tuesday.")
+    diarisation = FakeDiarisationClient(
+        groups=[GroupSummary(id=1, name="Team A")],
+        source_answers={"conversation": "Alice raised the API redesign on Tuesday."},
+    )
 
-    assess_query.execute(job, diarisation, github, ollama, job_store, outbox, admin)
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
 
-    updated = job_store.get(job.job_id)
-    assert updated.status == JobState.COMPLETED
-    assert not github.questions_asked  # neither github_focus nor trello_focus was set
-    body = outbox.pending()[0].body_text
-    assert "Alice raised the API redesign on Tuesday." in body
+    assert job_store.get(job.job_id).status == JobState.COMPLETED
+    assert diarisation.queries == [
+        ("unified:conversation", "Answer the sender's request using the source-specific questions provided.")
+    ]
+    assert diarisation.source_question_requests == [{"conversation": "the API redesign"}]
+    assert "Alice raised the API redesign on Tuesday." in outbox.pending()[0].body_text
+    turns = job_store.list_query_turns(
+        job.query_conversation_id, job.sender_email, job.backend_user_id, 1
+    )
+    assert len(turns) == 1
+    assert turns[0].selected_sources == ["conversation"]
+    assert turns[0].group_id == 1
+    assert turns[0].source_questions == {"conversation": "the API redesign"}
+    assert turns[0].answer == "Alice raised the API redesign on Tuesday."
 
 
-def test_execute_no_transcript_chunks_skips_llm_call(db_path: Path):
+def test_followup_uses_latest_turn_only_as_context_and_requeries(db_path: Path):
+    job_store, first_job = _queued_job(db_path, transcript_focus="the API redesign")
+    outbox = Outbox(db_path)
+    admin = AdminNotifier(db_path, outbox, admin_email=None)
+    diarisation = FakeDiarisationClient(
+        groups=[GroupSummary(id=1, name="Team A")],
+        source_answers={"conversation": "The transcript records a rollback recommendation."},
+    )
+
+    assess_query.execute(first_job, diarisation, job_store, outbox, admin)
+
+    followup = job_store.create_job(
+        "alice@uni.ac.uk", 12, "<followup@mail>", operation="assess_query",
+        query_conversation_id=first_job.query_conversation_id,
+        query_parent_job_id=first_job.job_id,
+        transcript_focus="What risks were associated with it?",
+    )
+    job_store.set_status(followup.job_id, JobState.VALIDATING)
+    job_store.set_status(followup.job_id, JobState.QUEUED)
+
+    assess_query.execute(job_store.get(followup.job_id), diarisation, job_store, outbox, admin)
+
+    assert len(diarisation.queries) == 2
+    effective_question = diarisation.source_question_requests[1]["conversation"]
+    assert "Prior context only; not evidence." in effective_question
+    assert "the API redesign" in effective_question
+    assert "The transcript records a rollback recommendation." in effective_question
+    assert "not evidence" in effective_question
+    assert "What risks were associated with it?" in effective_question
+    turns = job_store.list_query_turns(
+        first_job.query_conversation_id, "alice@uni.ac.uk", 12, 1
+    )
+    assert turns[-1].source_questions == {"conversation": "What risks were associated with it?"}
+
+
+def test_prior_context_never_exceeds_backend_source_question_limit():
+    from app.handlers.assess_query import _add_prior_turn_context
+    from app.jobs.models import QueryTurn
+
+    prior_turn = QueryTurn(
+        job_id="DIAR-2026-1014-0001",
+        conversation_id="conversation-1",
+        group_id=1,
+        source_questions={"github": "previous question"},
+        answer="A previous answer. " * 100,
+        selected_sources=["github"],
+        evidence_refs=[],
+        failed_sources=[],
+        model="llama3.1:8b",
+        created_at="2026-10-14T12:00:00+00:00",
+    )
+
+    contextual = _add_prior_turn_context({"github": "x" * 4000}, prior_turn)
+
+    assert contextual["github"] == "x" * 4000
+    contextual = _add_prior_turn_context({"github": "What about it?"}, prior_turn)
+    assert len(contextual["github"]) <= 4000
+    assert "Current follow-up question: What about it?" in contextual["github"]
+
+
+def test_execute_no_transcript_match_says_nothing_found(db_path: Path):
     job_store, job = _queued_job(db_path, transcript_focus="something never discussed")
     outbox = Outbox(db_path)
     admin = AdminNotifier(db_path, outbox, admin_email=None)
-    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")], transcript_chunks=[])
-    ollama = StubLLM("should not be called")
+    diarisation = FakeDiarisationClient(
+        groups=[GroupSummary(id=1, name="Team A")], unlinked_sources={"conversation"}
+    )
 
-    assess_query.execute(job, diarisation, FakeGithubRaginatorClient(), ollama, job_store, outbox, admin)
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
 
-    assert ollama.calls == 0
-    body = outbox.pending()[0].body_text
-    assert "didn't find anything" in body.lower()
+    assert "didn't find anything" in outbox.pending()[0].body_text.lower()
 
 
-def test_execute_github_only_queries_linked_repo(db_path: Path):
+def test_execute_github_only_queries_github_source(db_path: Path):
     job_store, job = _queued_job(db_path, github_focus="open issues about the API")
     outbox = Outbox(db_path)
     admin = AdminNotifier(db_path, outbox, admin_email=None)
-    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")])
-    github = FakeGithubRaginatorClient(
-        repo_by_group_name={"Team A": RepoSummary(id=5, github_url="https://github.com/org/repo", group_name="Team A")},
-        answer="Two open issues mention the API.",
+    diarisation = FakeDiarisationClient(
+        groups=[GroupSummary(id=1, name="Team A")],
+        source_answers={"github": "Two open issues mention the API."},
     )
 
-    assess_query.execute(job, diarisation, github, StubLLM("{}"), job_store, outbox, admin)
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
 
-    updated = job_store.get(job.job_id)
-    assert updated.status == JobState.COMPLETED
-    assert github.questions_asked == ["open issues about the API"]
+    assert job_store.get(job.job_id).status == JobState.COMPLETED
+    assert diarisation.queries == [
+        ("unified:github", "Answer the sender's request using the source-specific questions provided.")
+    ]
+    assert diarisation.source_question_requests == [{"github": "open issues about the API"}]
     assert "Two open issues mention the API." in outbox.pending()[0].body_text
 
 
-def test_execute_no_linked_repo_notes_unavailable_but_still_sends_transcript_answer(db_path: Path):
+def test_execute_github_and_trello_use_unified_query(db_path: Path):
+    job_store, job = _queued_job(db_path, github_focus="open issues", trello_focus="blocked cards")
+    outbox = Outbox(db_path)
+    admin = AdminNotifier(db_path, outbox, admin_email=None)
+    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")])
+
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
+
+    assert diarisation.queries == [
+        ("unified:github,trello", "Answer the sender's request using the source-specific questions provided.")
+    ]
+    assert diarisation.source_question_requests == [
+        {"github": "open issues", "trello": "blocked cards"}
+    ]
+    assert job_store.get(job.job_id).status == JobState.COMPLETED
+
+
+def test_execute_starts_new_conversation_when_parent_group_changes(db_path: Path):
+    job_store = JobStore(db_path)
+    parent = job_store.create_job(
+        "alice@uni.ac.uk", 12, "<parent@mail>", operation="assess_query",
+        query_conversation_id="conversation-1", resolved_group_id=2,
+    )
+    job = job_store.create_job(
+        "alice@uni.ac.uk", 12, "<reply@mail>", operation="assess_query",
+        query_conversation_id="conversation-1", query_parent_job_id=parent.job_id,
+        transcript_focus="the API redesign",
+    )
+    job_store.set_status(job.job_id, JobState.VALIDATING)
+    job_store.set_status(job.job_id, JobState.QUEUED)
+    outbox = Outbox(db_path)
+    admin = AdminNotifier(db_path, outbox, admin_email=None)
+    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")])
+
+    assess_query.execute(job_store.get(job.job_id), diarisation, job_store, outbox, admin)
+
+    updated = job_store.get(job.job_id)
+    assert updated.query_parent_job_id == parent.job_id
+    assert updated.query_conversation_id != "conversation-1"
+    assert updated.resolved_group_id == 1
+
+
+def test_execute_unlinked_repo_notes_unavailable_but_still_sends_transcript_answer(db_path: Path):
     job_store, job = _queued_job(
         db_path, transcript_focus="the API redesign", github_focus="open issues about the API"
     )
     outbox = Outbox(db_path)
     admin = AdminNotifier(db_path, outbox, admin_email=None)
-    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")], transcript_chunks=[_chunk()])
-    github = FakeGithubRaginatorClient(repo_by_group_name={})  # no repo linked for "Team A"
-    ollama = StubLLM("Alice raised the API redesign on Tuesday.")
+    diarisation = FakeDiarisationClient(
+        groups=[GroupSummary(id=1, name="Team A")],
+        source_answers={"conversation": "Alice raised the API redesign on Tuesday."},
+        unlinked_sources={"github"},
+    )
 
-    assess_query.execute(job, diarisation, github, ollama, job_store, outbox, admin)
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
 
-    updated = job_store.get(job.job_id)
-    assert updated.status == JobState.COMPLETED
+    assert job_store.get(job.job_id).status == JobState.COMPLETED
     body = outbox.pending()[0].body_text
     assert "Alice raised the API redesign on Tuesday." in body
     assert "doesn't have a GitHub repo linked" in body
+    turns = job_store.list_query_turns(
+        job.query_conversation_id, job.sender_email, job.backend_user_id, 1
+    )
+    assert turns[0].failed_sources == ["github"]
 
 
 def test_execute_ambiguous_group_asks_for_clarification(db_path: Path):
@@ -143,7 +293,7 @@ def test_execute_ambiguous_group_asks_for_clarification(db_path: Path):
         groups=[GroupSummary(id=1, name="Team A"), GroupSummary(id=2, name="Team B")]
     )
 
-    assess_query.execute(job, diarisation, FakeGithubRaginatorClient(), StubLLM("{}"), job_store, outbox, admin)
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
 
     updated = job_store.get(job.job_id)
     assert updated.status == JobState.NEEDS_CLARIFICATION
@@ -152,17 +302,14 @@ def test_execute_ambiguous_group_asks_for_clarification(db_path: Path):
 
 
 def test_execute_all_sources_fail_marks_job_failed_and_alerts_admin(db_path: Path):
-    job_store, job = _queued_job(
-        db_path, transcript_focus="the API redesign", github_focus="open issues"
-    )
+    job_store, job = _queued_job(db_path, transcript_focus="the API redesign")
     outbox = Outbox(db_path)
     admin = AdminNotifier(db_path, outbox, admin_email="admin@uni.ac.uk")
     diarisation = FakeDiarisationClient(
-        groups=[GroupSummary(id=1, name="Team A")], fail_on="search_transcripts"
+        groups=[GroupSummary(id=1, name="Team A")], fail_on="query_conversation"
     )
-    github = FakeGithubRaginatorClient(fail_on="find_repo_by_group_name")
 
-    assess_query.execute(job, diarisation, github, StubLLM("{}"), job_store, outbox, admin)
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
 
     updated = job_store.get(job.job_id)
     assert updated.status == JobState.FAILED
@@ -179,6 +326,31 @@ def test_execute_backend_login_failure_marks_job_failed(db_path: Path):
     admin = AdminNotifier(db_path, outbox, admin_email=None)
     diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")], fail_on="login")
 
-    assess_query.execute(job, diarisation, FakeGithubRaginatorClient(), StubLLM("{}"), job_store, outbox, admin)
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
 
     assert job_store.get(job.job_id).status == JobState.FAILED
+
+
+def test_execute_records_backend_job_id_and_stops_quietly_when_cancelled(db_path: Path):
+    job_store, job = _queued_job(db_path, transcript_focus="the API redesign")
+    outbox = Outbox(db_path)
+    admin = AdminNotifier(db_path, outbox, admin_email=None)
+    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")])
+
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
+
+    assert job_store.get(job.job_id).backend_job_id == "backend-job-1"
+    assert job_store.get(job.job_id).status == JobState.COMPLETED
+
+
+def test_execute_cancelled_backend_job_marks_job_cancelled_and_sends_nothing(db_path: Path):
+    job_store, job = _queued_job(db_path, transcript_focus="the API redesign")
+    outbox = Outbox(db_path)
+    admin = AdminNotifier(db_path, outbox, admin_email="admin@uni.ac.uk")
+    diarisation = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")])
+    diarisation.cancel_queries = True
+
+    assess_query.execute(job, diarisation, job_store, outbox, admin)
+
+    assert job_store.get(job.job_id).status == JobState.CANCELLED
+    assert outbox.pending() == []

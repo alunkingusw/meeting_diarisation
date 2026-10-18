@@ -1,9 +1,9 @@
-"""Answers a sender's question by querying real sources - past meeting transcripts
-(meeting_diarisation) and/or the group's GitHub repo and Trello board (GitHub-RAGinator) - for
-whichever of transcript_focus/github_focus/trello_focus the LLM set. Split into accept()
-(local-only: create the job, done inline in the mail-polling pipeline) and execute() (all
-external HTTP + LLM calls, run by the job worker thread), mirroring submit_transcript.py's
-split for the same reason: a slow/unavailable source should never block mail polling.
+"""Answers an email query through the backend's unified parent-query API.
+
+The validated command's per-source focuses are passed to one parent request after the sender
+and group have been resolved. Split into accept() (local-only: create the job, done inline in
+the mail-polling pipeline) and execute() (backend API call, run by the job worker thread),
+mirroring submit_transcript.py's split so a slow/unavailable source never blocks mail polling.
 
 A source being unreachable degrades the reply (a note saying so) rather than failing the whole
 job, as long as at least one requested source answered - matching the "still send something
@@ -13,10 +13,11 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+from uuid import uuid4
 
 from app.admin.notifier import AdminCategory, AdminNotifier
 from app.commands.validator import ValidatedCommand
-from app.diarisation.client import DiarisationApiError, DiarisationClient
+from app.diarisation.client import DiarisationApiError, DiarisationClient, JobCancelledError, NotFoundError
 from app.diarisation.group_matching import Matched, group_clarification_question, match_group
 from app.email_templates.render import (
     render_assess_ack,
@@ -24,14 +25,86 @@ from app.email_templates.render import (
     render_clarification,
     render_failure,
 )
-from app.github_raginator.client import GithubRaginatorApiError, GithubRaginatorClient
 from app.handlers.base import HandlerOutcome
 from app.jobs.models import Job, JobState
 from app.jobs.store import JobStore, Outbox, PendingClarificationStore
-from app.llm.ollama_client import OllamaClient
-from app.llm.transcript_synthesis import synthesize_transcript_answer
 
 logger = logging.getLogger(__name__)
+
+_SOURCE_LABELS = {
+    "conversation": "past meeting transcripts",
+    "github": "the GitHub repo",
+    "trello": "the Trello board",
+}
+_MAX_SOURCE_QUESTION_CHARS = 4000
+
+
+def _source_unavailable_note(source: str, detail: str) -> str:
+    message = detail.lower()
+    if source == "github" and "no github source linked" in message:
+        return "Your group doesn't have a GitHub repo linked yet, so I couldn't check it."
+    if source == "trello" and "no trello source linked" in message:
+        return "Your group doesn't have a Trello board linked yet, so I couldn't check it."
+    return f"I couldn't check {_SOURCE_LABELS[source]} right now."
+
+
+def _was_cancelled(job: Job, job_store: JobStore) -> bool:
+    current = job_store.get(job.job_id)
+    return current is not None and current.status == JobState.CANCELLED
+
+
+def _mark_cancelled(job: Job, job_store: JobStore) -> None:
+    """The backend job was cancelled; the cancel email (or the API) already told the user."""
+    if not _was_cancelled(job, job_store):
+        job_store.set_status(job.job_id, JobState.CANCELLED)
+
+
+def _query_evidence_refs(results: dict[str, dict]) -> list[dict[str, str]]:
+    references = []
+    for source, result in results.items():
+        if source not in _SOURCE_LABELS or not isinstance(result, dict):
+            continue
+        for evidence in result.get("evidence", []):
+            evidence_id = evidence.get("id") if isinstance(evidence, dict) else None
+            if evidence_id:
+                references.append({"source": source, "id": str(evidence_id)})
+    return references
+
+
+def _add_prior_turn_context(
+    source_questions: dict[str, str], prior_turn
+) -> dict[str, str]:
+    if prior_turn is None or (not prior_turn.source_questions and not prior_turn.answer):
+        return source_questions
+
+    contextual_questions = {}
+    for source, question in source_questions.items():
+        prefix = "Prior context only; not evidence.\n"
+        prior_question_label = "Previous question: "
+        answer_label = "\nPrevious answer: "
+        current_label = "\nCurrent follow-up question: "
+        available = (
+            _MAX_SOURCE_QUESTION_CHARS
+            - len(prefix)
+            - len(prior_question_label)
+            - len(answer_label)
+            - len(current_label)
+            - len(question)
+        )
+        if available <= 0:
+            contextual_questions[source] = question
+            continue
+
+        previous_question = prior_turn.source_questions.get(source, "")
+        question_budget = min(len(previous_question), 500, available // 3)
+        previous_question = previous_question[-question_budget:] if question_budget else ""
+        answer_budget = max(0, available - len(previous_question))
+        previous_answer = prior_turn.answer[:answer_budget]
+        contextual_questions[source] = (
+            f"{prefix}{prior_question_label}{previous_question}{answer_label}{previous_answer}"
+            f"{current_label}{question}"
+        )
+    return contextual_questions
 
 
 def accept(
@@ -43,7 +116,27 @@ def accept(
     outbox: Outbox,
     in_reply_to: Optional[str] = None,
     references: Optional[str] = None,
+    original_subject: Optional[str] = None,
+    original_body_text: Optional[str] = None,
+    thread_job_id: Optional[str] = None,
 ) -> HandlerOutcome:
+    parent_job = (
+        job_store.get_owned(thread_job_id, sender_email) if thread_job_id else None
+    )
+    if (
+        parent_job is not None
+        and parent_job.operation == "assess_query"
+        and parent_job.status == JobState.COMPLETED
+        and parent_job.resolved_group_id is not None
+        and backend_user_id is not None
+        and parent_job.backend_user_id == backend_user_id
+    ):
+        conversation_id = parent_job.query_conversation_id or str(uuid4())
+        parent_query_job_id = parent_job.job_id
+    else:
+        conversation_id = str(uuid4())
+        parent_query_job_id = None
+
     job = job_store.create_job(
         sender_email,
         backend_user_id,
@@ -53,6 +146,10 @@ def accept(
         transcript_focus=validated_cmd.transcript_focus,
         github_focus=validated_cmd.github_focus,
         trello_focus=validated_cmd.trello_focus,
+        original_subject=original_subject,
+        original_body_text=original_body_text,
+        query_conversation_id=conversation_id,
+        query_parent_job_id=parent_query_job_id,
     )
     job_store.set_status(job.job_id, JobState.VALIDATING)
     job_store.set_status(job.job_id, JobState.QUEUED)
@@ -68,8 +165,6 @@ def accept(
 def execute(
     job: Job,
     diarisation_client: DiarisationClient,
-    github_raginator_client: GithubRaginatorClient,
-    ollama_client: OllamaClient,
     job_store: JobStore,
     outbox: Outbox,
     admin_notifier: AdminNotifier,
@@ -89,7 +184,9 @@ def execute(
             question = group_clarification_question(match, groups, "this question")
             job_store.set_status(job.job_id, JobState.NEEDS_CLARIFICATION)
             pending_clarifications.put(job.job_id, question, "group_hint", [g.name for g in groups])
-            subject, body = render_clarification(question, job.job_id)
+            subject, body = render_clarification(
+                question, job.job_id, job.original_subject, job.original_body_text
+            )
             outbox.enqueue(
                 to_email=job.sender_email, subject=subject, body_text=body, job_id=job.job_id,
                 in_reply_to=parent_message_id, references=parent_references,
@@ -97,47 +194,115 @@ def execute(
             return
 
         group = match.group
-        transcript_answer: Optional[str] = None
-        github_trello_answer: Optional[str] = None
+        conversation_id = job.query_conversation_id
+        job_store.update(
+            job.job_id,
+            resolved_group_id=group.id,
+            resolved_group_name=group.name,
+        )
+        if job.query_parent_job_id:
+            parent_job = job_store.get_owned(job.query_parent_job_id, job.sender_email)
+            if (
+                parent_job is None
+                or parent_job.operation != "assess_query"
+                or parent_job.status != JobState.COMPLETED
+                or parent_job.backend_user_id != job.backend_user_id
+                or parent_job.query_conversation_id != conversation_id
+                or (
+                    parent_job.resolved_group_id is not None
+                    and parent_job.resolved_group_id != group.id
+                )
+            ):
+                conversation_id = str(uuid4())
+                job_store.update(job.job_id, query_conversation_id=conversation_id)
+
+        track = lambda backend_job_id: job_store.update(job.job_id, backend_job_id=backend_job_id)  # noqa: E731
+        source_questions = {
+            name: focus
+            for name, focus in (
+                ("conversation", job.transcript_focus),
+                ("github", job.github_focus),
+                ("trello", job.trello_focus),
+            )
+            if focus
+        }
+        sources = list(source_questions)
+        prior_turn = (
+            job_store.get_latest_query_turn(
+                conversation_id,
+                job.sender_email,
+                job.backend_user_id,
+                group.id,
+            )
+            if job.backend_user_id is not None
+            else None
+        )
+        effective_source_questions = _add_prior_turn_context(source_questions, prior_turn)
+        unified_answer: Optional[str] = None
         unavailable_notes: list[str] = []
+        query_result = None
 
-        if job.transcript_focus:
+        if _was_cancelled(job, job_store):
+            return
+        if sources:
             try:
-                chunks = diarisation_client.search_transcripts(token, group.id, job.transcript_focus)
-                transcript_answer = synthesize_transcript_answer(ollama_client, job.transcript_focus, chunks)
-            except DiarisationApiError:
-                logger.exception("Transcript search failed for job %s", job.job_id)
-                unavailable_notes.append("I couldn't check past meeting transcripts right now.")
-
-        if job.github_focus or job.trello_focus:
-            try:
-                repo = github_raginator_client.find_repo_by_group_name(group.name)
-                if repo is None:
-                    unavailable_notes.append(
-                        "Your group doesn't have a GitHub repo linked yet, so I couldn't check it."
-                    )
+                query_result = diarisation_client.query_unified(
+                    token,
+                    group.id,
+                    "Answer the sender's request using the source-specific questions provided.",
+                    sources=sources,
+                    source_questions=effective_source_questions,
+                    on_job=track,
+                )
+                unified_answer = query_result.answer
+                unavailable_notes.extend(
+                    _source_unavailable_note(name, detail)
+                    for name, detail in query_result.errors.items()
+                    if name in _SOURCE_LABELS
+                )
+            except JobCancelledError:
+                _mark_cancelled(job, job_store)
+                return
+            except NotFoundError as exc:
+                if sources == ["conversation"]:
+                    unified_answer = "I didn't find anything in past meeting transcripts that speaks to this."
                 else:
-                    question = " ".join(f for f in (job.github_focus, job.trello_focus) if f)
-                    github_trello_answer = github_raginator_client.query(repo.id, question).answer
-            except GithubRaginatorApiError:
-                logger.exception("GitHub/Trello query failed for job %s", job.job_id)
-                unavailable_notes.append("I couldn't check the GitHub repo/Trello board right now.")
+                    unavailable_notes.extend(
+                        _source_unavailable_note(source, str(exc)) for source in sources
+                    )
+            except DiarisationApiError:
+                logger.exception("Unified parent query failed for job %s", job.job_id)
+                unavailable_notes.extend(
+                    _source_unavailable_note(source, "backend query failed") for source in sources
+                )
 
-        if transcript_answer is None and github_trello_answer is None:
+        if _was_cancelled(job, job_store):
+            return
+        if unified_answer is None:
             reason = "None of the sources I needed to answer this were reachable just now."
             if unavailable_notes:
                 reason += " " + " ".join(unavailable_notes)
             _handle_failure(job, reason, job_store, outbox, admin_notifier)
             return
 
+        job_store.record_query_turn(
+            job.job_id,
+            source_questions=source_questions,
+            answer=unified_answer,
+            selected_sources=sources,
+            evidence_refs=_query_evidence_refs(query_result.results) if query_result else [],
+            failed_sources=list(query_result.errors) if query_result else [],
+            model=query_result.model if query_result else None,
+        )
         job_store.set_status(job.job_id, JobState.COMPLETED)
         subject, body = render_assess_result(
             job.job_id,
             group.name,
-            transcript_answer,
-            github_trello_answer,
-            trello_checked=bool(job.trello_focus and github_trello_answer),
+            None,
+            None,
+            trello_checked=False,
             unavailable_notes=unavailable_notes,
+            unified_answer=unified_answer,
         )
         outbox.enqueue(
             to_email=job.sender_email, subject=subject, body_text=body, job_id=job.job_id,
@@ -145,6 +310,7 @@ def execute(
         )
 
     except DiarisationApiError as e:
+        logger.exception("Backend API error executing job %s", job.job_id)
         _handle_failure(job, f"Could not reach the backend to resolve your group: {e}", job_store, outbox, admin_notifier)
     except Exception as e:  # unexpected - still must not crash the worker loop or leave the job stuck
         logger.exception("Unexpected error executing job %s", job.job_id)

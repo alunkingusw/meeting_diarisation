@@ -30,13 +30,59 @@
       },
       "Body_generate_token_users_login_post": {
         "properties": {
+          "client_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "format": "password",
+            "title": "Client Secret"
+          },
+          "grant_type": {
+            "anyOf": [
+              {
+                "pattern": "^password$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant Type"
+          },
+          "password": {
+            "format": "password",
+            "title": "Password",
+            "type": "string"
+          },
+          "scope": {
+            "default": "",
+            "title": "Scope",
+            "type": "string"
+          },
           "username": {
             "title": "Username",
             "type": "string"
           }
         },
         "required": [
-          "username"
+          "username",
+          "password"
         ],
         "title": "Body_generate_token_users_login_post",
         "type": "object"
@@ -69,6 +115,200 @@
         "title": "Body_upload_member_embedding_groups__group_id__members__member_id__embedding_post",
         "type": "object"
       },
+      "ContributorStatsResponse": {
+        "properties": {
+          "additions": {
+            "title": "Additions",
+            "type": "integer"
+          },
+          "commits": {
+            "title": "Commits",
+            "type": "integer"
+          },
+          "deletions": {
+            "title": "Deletions",
+            "type": "integer"
+          },
+          "first_commit_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Commit At"
+          },
+          "issue_comments": {
+            "title": "Issue Comments",
+            "type": "integer"
+          },
+          "issues_opened": {
+            "title": "Issues Opened",
+            "type": "integer"
+          },
+          "last_commit_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Commit At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "review_comments": {
+            "title": "Review Comments",
+            "type": "integer"
+          },
+          "trello_actions": {
+            "title": "Trello Actions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "commits",
+          "additions",
+          "deletions",
+          "issues_opened",
+          "issue_comments",
+          "review_comments",
+          "trello_actions",
+          "first_commit_at",
+          "last_commit_at"
+        ],
+        "title": "ContributorStatsResponse",
+        "type": "object"
+      },
+      "ConversationQueryRequest": {
+        "properties": {
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only this meeting's transcript.",
+            "title": "Meeting Id"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          },
+          "retrieve_only": {
+            "default": false,
+            "description": "Return the matching transcript chunks as evidence without calling the LLM.",
+            "title": "Retrieve Only",
+            "type": "boolean"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only consider activity on or after this date.",
+            "title": "Since"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only meetings dated before this date (exclusive).",
+            "title": "Until"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "ConversationQueryRequest",
+        "type": "object"
+      },
+      "EvidenceItem": {
+        "properties": {
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "distance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          }
+        },
+        "required": [
+          "id",
+          "source_type",
+          "text"
+        ],
+        "title": "EvidenceItem",
+        "type": "object"
+      },
       "GroupCreateEdit": {
         "properties": {
           "github_repo_url": {
@@ -90,6 +330,30 @@
             "default": false,
             "title": "Notify",
             "type": "boolean"
+          },
+          "owner_user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner User Id"
+          },
+          "project_expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last active day, inclusive; scheduled batches skip the group when period_end is later.",
+            "title": "Project Expiry"
           },
           "trello_board_id": {
             "anyOf": [
@@ -115,6 +379,17 @@
             "format": "date-time",
             "title": "Created",
             "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
           },
           "embedding_audio_path": {
             "anyOf": [
@@ -147,6 +422,17 @@
       },
       "GroupMembersCreateEdit": {
         "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -164,6 +450,11 @@
             "format": "date-time",
             "title": "Created",
             "type": "string"
+          },
+          "github_connected": {
+            "default": false,
+            "title": "Github Connected",
+            "type": "boolean"
           },
           "github_repo_url": {
             "anyOf": [
@@ -196,6 +487,19 @@
             "title": "Notify",
             "type": "boolean"
           },
+          "project_expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last active day, inclusive; scheduled batches skip the group when period_end is later.",
+            "title": "Project Expiry"
+          },
           "trello_board_id": {
             "anyOf": [
               {
@@ -206,6 +510,11 @@
               }
             ],
             "title": "Trello Board Id"
+          },
+          "trello_connected": {
+            "default": false,
+            "title": "Trello Connected",
+            "type": "boolean"
           }
         },
         "required": [
@@ -262,6 +571,332 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IngestStatus": {
+        "properties": {
+          "github_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github Url"
+          },
+          "group_id": {
+            "title": "Group Id",
+            "type": "integer"
+          },
+          "ingest_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ingest Error"
+          },
+          "ingest_status": {
+            "enum": [
+              "idle",
+              "running",
+              "failed"
+            ],
+            "title": "Ingest Status",
+            "type": "string"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "trello_board_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trello Board Id"
+          },
+          "trello_last_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trello Last Synced At"
+          }
+        },
+        "required": [
+          "group_id",
+          "github_url",
+          "trello_board_id",
+          "last_synced_at",
+          "trello_last_synced_at",
+          "ingest_status"
+        ],
+        "title": "IngestStatus",
+        "type": "object"
+      },
+      "IngestSummary": {
+        "description": "Counts are newly added records, so a second run over unchanged data reports\nzeros. `status` is \"running\" when a large repo was handed to a background task;\npoll the ingest status endpoint for completion.",
+        "properties": {
+          "commits_ingested": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commits Ingested"
+          },
+          "group_id": {
+            "title": "Group Id",
+            "type": "integer"
+          },
+          "issue_comments_ingested": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue Comments Ingested"
+          },
+          "issues_ingested": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issues Ingested"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Poll GET /jobs/{job_id} while status is running.",
+            "title": "Job Id"
+          },
+          "review_comments_ingested": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Comments Ingested"
+          },
+          "status": {
+            "default": "completed",
+            "enum": [
+              "completed",
+              "running"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trello_actions_ingested": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trello Actions Ingested"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "group_id"
+        ],
+        "title": "IngestSummary",
+        "type": "object"
+      },
+      "JobAccepted": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "state": {
+            "default": "queued",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "JobAccepted",
+        "type": "object"
+      },
+      "JobOut": {
+        "properties": {
+          "cancel_requested": {
+            "default": false,
+            "title": "Cancel Requested",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "error_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Exception class name when the job failed",
+            "title": "Error Type"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "group_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "meeting_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Id"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "state": {
+            "description": "queued, running, completed, failed or cancelled",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "state",
+          "created_at"
+        ],
+        "title": "JobOut",
         "type": "object"
       },
       "MeetingAttendee": {
@@ -354,14 +989,6 @@
             "title": "Created",
             "type": "string"
           },
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "meeting_id": {
-            "title": "Meeting Id",
-            "type": "integer"
-          },
           "group_member_id": {
             "anyOf": [
               {
@@ -372,6 +999,14 @@
               }
             ],
             "title": "Group Member Id"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "meeting_id": {
+            "title": "Meeting Id",
+            "type": "integer"
           },
           "user_id": {
             "anyOf": [
@@ -415,6 +1050,13 @@
               "$ref": "#/components/schemas/MeetingAttendeeOut"
             },
             "title": "Attendees",
+            "type": "array"
+          },
+          "comments": {
+            "items": {
+              "$ref": "#/components/schemas/MeetingCommentOut"
+            },
+            "title": "Comments",
             "type": "array"
           },
           "created": {
@@ -472,9 +1114,147 @@
           "date",
           "created",
           "attendees",
-          "media_files"
+          "media_files",
+          "comments"
         ],
         "title": "MeetingOut",
+        "type": "object"
+      },
+      "ProjectStatsResponse": {
+        "description": "Facts computed from Postgres with no LLM involved.",
+        "properties": {
+          "closed_issues": {
+            "title": "Closed Issues",
+            "type": "integer"
+          },
+          "contributors": {
+            "items": {
+              "$ref": "#/components/schemas/ContributorStatsResponse"
+            },
+            "title": "Contributors",
+            "type": "array"
+          },
+          "first_activity_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Activity At"
+          },
+          "last_activity_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity At"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "open_issues": {
+            "title": "Open Issues",
+            "type": "integer"
+          },
+          "repo_id": {
+            "title": "Repo Id",
+            "type": "integer"
+          },
+          "repo_name": {
+            "title": "Repo Name",
+            "type": "string"
+          },
+          "total_commits": {
+            "title": "Total Commits",
+            "type": "integer"
+          },
+          "total_issue_comments": {
+            "title": "Total Issue Comments",
+            "type": "integer"
+          },
+          "total_issues": {
+            "title": "Total Issues",
+            "type": "integer"
+          },
+          "total_review_comments": {
+            "title": "Total Review Comments",
+            "type": "integer"
+          },
+          "total_trello_actions": {
+            "title": "Total Trello Actions",
+            "type": "integer"
+          },
+          "weekly_activity": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyActivityResponse"
+            },
+            "title": "Weekly Activity",
+            "type": "array"
+          }
+        },
+        "required": [
+          "repo_id",
+          "repo_name",
+          "total_commits",
+          "total_issues",
+          "open_issues",
+          "closed_issues",
+          "total_issue_comments",
+          "total_review_comments",
+          "total_trello_actions",
+          "first_activity_at",
+          "last_activity_at",
+          "last_synced_at",
+          "contributors",
+          "weekly_activity"
+        ],
+        "title": "ProjectStatsResponse",
+        "type": "object"
+      },
+      "QueryRequest": {
+        "properties": {
+          "question": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only consider activity on or after this date.",
+            "title": "Since"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "QueryRequest",
         "type": "object"
       },
       "RawFileOut": {
@@ -514,6 +1294,17 @@
             ],
             "title": "Processed Date"
           },
+          "processing_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processing Job Id"
+          },
           "type": {
             "$ref": "#/components/schemas/RawFileType"
           }
@@ -538,6 +1329,125 @@
         "title": "RawFileType",
         "type": "string"
       },
+      "ReportAnswerRequest": {
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/ReportEvidenceItem"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "period_end": {
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "question": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "period_start",
+          "period_end",
+          "evidence"
+        ],
+        "title": "ReportAnswerRequest",
+        "type": "object"
+      },
+      "ReportAnswerResponse": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "answer",
+          "model"
+        ],
+        "title": "ReportAnswerResponse",
+        "type": "object"
+      },
+      "ReportEvidenceItem": {
+        "properties": {
+          "citation": {
+            "title": "Citation",
+            "type": "string"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "event_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Date"
+          },
+          "evidence_id": {
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "source": {
+            "description": "meetings, github or trello",
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "evidence_id",
+          "title",
+          "content",
+          "citation"
+        ],
+        "title": "ReportEvidenceItem",
+        "type": "object"
+      },
+      "ReportPeriodRequest": {
+        "properties": {
+          "period_end": {
+            "description": "Exclusive: meetings dated before this date.",
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_start",
+          "period_end"
+        ],
+        "title": "ReportPeriodRequest",
+        "type": "object"
+      },
       "ServiceUserTokenRequest": {
         "properties": {
           "email": {
@@ -553,33 +1463,210 @@
         "title": "ServiceUserTokenRequest",
         "type": "object"
       },
-      "TranscriptSearchRequest": {
+      "SourceQueryResponse": {
+        "description": "An answer plus the evidence it was built from.",
         "properties": {
-          "meeting_id": {
+          "answer": {
+            "default": "",
+            "title": "Answer",
+            "type": "string"
+          },
+          "complete_window": {
+            "default": false,
+            "description": "True if `evidence` is every record in the `since` window, not a relevance sample.",
+            "title": "Complete Window",
+            "type": "boolean"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceItem"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "model": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Meeting Id"
+            "title": "Model"
           },
-          "query": {
-            "title": "Query",
+          "question": {
+            "title": "Question",
             "type": "string"
+          },
+          "source": {
+            "enum": [
+              "conversation",
+              "github",
+              "trello"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "stats": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectStatsResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "truncated_evidence": {
+            "default": 0,
+            "title": "Truncated Evidence",
+            "type": "integer"
           }
         },
         "required": [
-          "query"
+          "source",
+          "question",
+          "evidence"
         ],
-        "title": "TranscriptSearchRequest",
+        "title": "SourceQueryResponse",
+        "type": "object"
+      },
+      "UnifiedQueryRequest": {
+        "properties": {
+          "question": {
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Question",
+            "type": "string"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only consider activity on or after this date.",
+            "title": "Since"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "enum": [
+                    "conversation",
+                    "github",
+                    "trello"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sources to query. Omit to let the router infer them from the question.",
+            "title": "Sources"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "UnifiedQueryRequest",
+        "type": "object"
+      },
+      "UnifiedQueryResponse": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "errors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Per-source failures; other sources still answer.",
+            "title": "Errors",
+            "type": "object"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "results": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SourceQueryResponse"
+            },
+            "title": "Results",
+            "type": "object"
+          },
+          "sources_used": {
+            "items": {
+              "enum": [
+                "conversation",
+                "github",
+                "trello"
+              ],
+              "type": "string"
+            },
+            "title": "Sources Used",
+            "type": "array"
+          }
+        },
+        "required": [
+          "question",
+          "answer",
+          "model",
+          "sources_used",
+          "results"
+        ],
+        "title": "UnifiedQueryResponse",
         "type": "object"
       },
       "UserCreateEdit": {
         "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "is_admin": {
+            "default": false,
+            "title": "Is Admin",
+            "type": "boolean"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 12,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
           "username": {
+            "maxLength": 255,
+            "minLength": 1,
             "title": "Username",
             "type": "string"
           }
@@ -588,6 +1675,109 @@
           "username"
         ],
         "title": "UserCreateEdit",
+        "type": "object"
+      },
+      "UserOut": {
+        "properties": {
+          "created": {
+            "format": "date-time",
+            "title": "Created",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "is_admin": {
+            "title": "Is Admin",
+            "type": "boolean"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "email",
+          "is_admin",
+          "created"
+        ],
+        "title": "UserOut",
+        "type": "object"
+      },
+      "UserUpdate": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "is_admin": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Admin"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 12,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Username"
+          }
+        },
+        "title": "UserUpdate",
         "type": "object"
       },
       "ValidationError": {
@@ -628,6 +1818,129 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WeeklyActivityResponse": {
+        "properties": {
+          "authors": {
+            "title": "Authors",
+            "type": "integer"
+          },
+          "commits": {
+            "title": "Commits",
+            "type": "integer"
+          },
+          "week_starting": {
+            "format": "date-time",
+            "title": "Week Starting",
+            "type": "string"
+          }
+        },
+        "required": [
+          "week_starting",
+          "commits",
+          "authors"
+        ],
+        "title": "WeeklyActivityResponse",
+        "type": "object"
+      },
+      "WeeklyReportRequest": {
+        "properties": {
+          "period_end": {
+            "description": "Exclusive: meetings dated before this date.",
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "period_start",
+          "period_end"
+        ],
+        "title": "WeeklyReportRequest",
+        "type": "object"
+      },
+      "WeeklyReportResponse": {
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/ReportEvidenceItem"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "group_id": {
+            "title": "Group Id",
+            "type": "integer"
+          },
+          "group_name": {
+            "title": "Group Name",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "period_end": {
+            "format": "date",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "report_text": {
+            "title": "Report Text",
+            "type": "string"
+          },
+          "unavailable": {
+            "description": "Linked sources that could not be read for this report.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Unavailable",
+            "type": "array"
+          }
+        },
+        "required": [
+          "group_id",
+          "group_name",
+          "period_start",
+          "period_end",
+          "report_text",
+          "model",
+          "evidence"
+        ],
+        "title": "WeeklyReportResponse",
+        "type": "object"
+      },
+      "WeeklyReportServiceAnswerRequest": {
+        "properties": {
+          "question": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "sender_email": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Sender Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sender_email",
+          "question"
+        ],
+        "title": "WeeklyReportServiceAnswerRequest",
         "type": "object"
       }
     },
@@ -715,9 +2028,63 @@
         ]
       }
     },
+    "/admin/group-nudger/run": {
+      "post": {
+        "description": "Queue reminders for opted-in owner groups without a meeting in the requested window.",
+        "operationId": "run_group_nudger_admin_group_nudger_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-service-key",
+            "required": false,
+            "schema": {
+              "title": "X-Service-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPeriodRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "description": "Group nudger batch queued"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Group Nudger",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/group-owners": {
       "get": {
-        "description": "email -> user_id for every User with an email on file. There is no separate\n\"owner\" role in this schema (users_groups is a plain many-to-many) - any User with an\nemail is authorised to act through GroupAssessmentAgent; per-group scoping happens\nseparately via that user's own group membership.",
+        "description": "email -> user_id for every User with an email on file, used for inbound mail\nauthorization. Scheduled report recipients are separately restricted to owner links.",
         "operationId": "group_owners_admin_group_owners_get",
         "parameters": [
           {
@@ -811,7 +2178,7 @@
     },
     "/admin/user-token": {
       "post": {
-        "description": "Resolve a verified service-caller email to a short-lived user JWT, or to a group-scoped GroupMember token when no User has that email. User records take precedence when both identities match. The agent must verify inbound sender authentication before calling this endpoint.",
+        "description": "Resolve a verified service-caller email to a short-lived User or GroupMember JWT.\n\nUser records are preferred when an email exists in both tables. Member tokens are\nrestricted by member-to-group associations in the authorization dependencies. The agent\nmust verify the inbound message's sender authentication before calling this endpoint.",
         "operationId": "user_token_admin_user_token_post",
         "parameters": [
           {
@@ -855,6 +2222,120 @@
           }
         },
         "summary": "User Token",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/weekly-reports/run": {
+      "post": {
+        "description": "Queue reports for every project with an emailed supervisor (owner role).",
+        "operationId": "run_weekly_reports_admin_weekly_reports_run_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-service-key",
+            "required": false,
+            "schema": {
+              "title": "X-Service-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportPeriodRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "description": "Weekly report batch queued"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Weekly Reports",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/weekly-reports/{report_id}/answer": {
+      "post": {
+        "description": "Answer an email follow-up only when its sender received the saved report.",
+        "operationId": "answer_weekly_report_reply_admin_weekly_reports__report_id__answer_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-service-key",
+            "required": false,
+            "schema": {
+              "title": "X-Service-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeeklyReportServiceAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Answer Weekly Report Reply",
         "tags": [
           "admin"
         ]
@@ -981,6 +2462,20 @@
     "/groups/": {
       "get": {
         "operationId": "list_groups_groups__get",
+        "parameters": [
+          {
+            "description": "Admins only: list every group, not just ones you belong to",
+            "in": "query",
+            "name": "all_groups",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Admins only: list every group, not just ones you belong to",
+              "title": "All Groups",
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -989,6 +2484,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "security": [
@@ -1253,6 +2758,293 @@
         "summary": "Resolve Aliases",
         "tags": [
           "aliases"
+        ]
+      }
+    },
+    "/groups/{group_id}/conversation/query": {
+      "post": {
+        "description": "Answer a question from this group's meeting transcripts, with the extracts used.\n\nWith `since`/`until` the meeting-date range is applied inside the vector store, and a small\nenough window is read in full (chronologically) rather than relevance-sampled. Set\n`retrieve_only` to get the chunks without an LLM answer.",
+        "operationId": "query_conversation_groups__group_id__conversation_query_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceQueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Query Conversation",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/groups/{group_id}/github/query": {
+      "post": {
+        "description": "Answer a question from the group's ingested GitHub commits, issues and review comments.",
+        "operationId": "query_github_groups__group_id__github_query_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceQueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Query Github",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/groups/{group_id}/ingest": {
+      "post": {
+        "description": "Ingest the group's linked GitHub repo and/or Trello board. Idempotent unless `flush` is set.\nLarge repos are ingested in the background; poll `GET /groups/{group_id}/ingest/status`.",
+        "operationId": "ingest_groups__group_id__ingest_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sources",
+            "required": false,
+            "schema": {
+              "default": [
+                "github",
+                "trello"
+              ],
+              "items": {
+                "enum": [
+                  "github",
+                  "trello"
+                ],
+                "type": "string"
+              },
+              "title": "Sources",
+              "type": "array"
+            }
+          },
+          {
+            "description": "Discard the selected sources' stored data and rebuild from scratch.",
+            "in": "query",
+            "name": "flush",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Discard the selected sources' stored data and rebuild from scratch.",
+              "title": "Flush",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Ingest",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/groups/{group_id}/ingest/status": {
+      "get": {
+        "operationId": "ingest_status_groups__group_id__ingest_status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IngestStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Ingest Status",
+        "tags": [
+          "query"
         ]
       }
     },
@@ -1877,7 +3669,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/RawFileOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -1964,6 +3758,18 @@
             "schema": {
               "title": "Group Id",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Send the member a welcome email once added",
+            "in": "query",
+            "name": "notify",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "Send the member a welcome email once added",
+              "title": "Notify",
+              "type": "boolean"
             }
           }
         ],
@@ -2252,10 +4058,90 @@
         ]
       }
     },
-    "/groups/{group_id}/transcripts/search": {
+    "/groups/{group_id}/query": {
       "post": {
-        "description": "Semantic search over this group's indexed transcript chunks (see\nbackend/transcript_rag/indexer.py). Retrieval only - no LLM call - the\ncaller is responsible for turning results into prose if it wants that.",
-        "operationId": "search_groups__group_id__transcripts_search_post",
+        "description": "Query across sources. Without `sources`, the question is routed to the sources it needs\nand, if several are used, their answers are merged into one.",
+        "operationId": "query_unified_groups__group_id__query_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnifiedQueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnifiedQueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Query Unified",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/groups/{group_id}/reports/answer": {
+      "post": {
+        "description": "Answer a follow-up question using only the evidence from a previously composed report.",
+        "operationId": "answer_question_groups__group_id__reports_answer_post",
         "parameters": [
           {
             "in": "path",
@@ -2271,7 +4157,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TranscriptSearchRequest"
+                "$ref": "#/components/schemas/ReportAnswerRequest"
               }
             }
           },
@@ -2281,7 +4167,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/ReportAnswerResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -2302,9 +4190,443 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "Search",
+        "summary": "Answer Question",
         "tags": [
-          "transcripts"
+          "reports"
+        ]
+      }
+    },
+    "/groups/{group_id}/reports/weekly": {
+      "post": {
+        "description": "Compose a cited report for meetings dated in [period_start, period_end) plus GitHub and\nTrello activity. Stateless: nothing is stored or emailed; the caller owns delivery.",
+        "operationId": "weekly_report_groups__group_id__reports_weekly_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WeeklyReportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklyReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Weekly Report",
+        "tags": [
+          "reports"
+        ]
+      }
+    },
+    "/groups/{group_id}/stats": {
+      "get": {
+        "description": "Facts computed from ingested GitHub/Trello data, with no LLM involved.",
+        "operationId": "group_stats_groups__group_id__stats_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weeks",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "maximum": 104,
+              "minimum": 1,
+              "title": "Weeks",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectStatsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Group Stats",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/groups/{group_id}/trello/query": {
+      "post": {
+        "description": "Answer a question from the group's ingested Trello card activity.",
+        "operationId": "query_trello_groups__group_id__trello_query_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "group_id",
+            "required": true,
+            "schema": {
+              "title": "Group Id",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+            "in": "query",
+            "name": "async",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Run as a background job and return 202 with a job id to poll at GET /jobs/{id}.",
+              "title": "Async",
+              "type": "boolean"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceQueryResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            },
+            "description": "Accepted"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Query Trello",
+        "tags": [
+          "query"
+        ]
+      }
+    },
+    "/jobs/": {
+      "get": {
+        "description": "Jobs you started, plus jobs in groups you own. Newest first.",
+        "operationId": "list_jobs_jobs__get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Group Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "meeting_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JobOut"
+                  },
+                  "title": "Response List Jobs Jobs  Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Jobs",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "operationId": "get_job_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Job",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/jobs/{job_id}/cancel": {
+      "post": {
+        "description": "Cancel a queued job at once, or ask a running one to stop at its next checkpoint (an LLM call\nalready in progress finishes first).",
+        "operationId": "cancel_job_jobs__job_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Cancel Job",
+        "tags": [
+          "jobs"
         ]
       }
     },
@@ -2331,12 +4653,23 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UserOut"
+                  },
+                  "title": "Response List Users Users  Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "summary": "List Users",
         "tags": [
           "users"
@@ -2344,6 +4677,20 @@
       },
       "post": {
         "operationId": "create_user_users__post",
+        "parameters": [
+          {
+            "description": "Send the user a welcome email once added",
+            "in": "query",
+            "name": "notify",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "Send the user a welcome email once added",
+              "title": "Notify",
+              "type": "boolean"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -2355,10 +4702,12 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -2374,6 +4723,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "summary": "Create User",
         "tags": [
           "users"
@@ -2419,6 +4773,32 @@
         ]
       }
     },
+    "/users/me": {
+      "get": {
+        "operationId": "get_current_user_users_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Current User",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/users/{user_id}": {
       "delete": {
         "operationId": "delete_user_users__user_id__delete",
@@ -2453,6 +4833,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "summary": "Delete User",
         "tags": [
           "users"
@@ -2475,7 +4860,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -2491,6 +4878,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "summary": "Get User",
         "tags": [
           "users"
@@ -2513,7 +4905,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UserCreateEdit"
+                "$ref": "#/components/schemas/UserUpdate"
               }
             }
           },
@@ -2523,7 +4915,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
               }
             },
             "description": "Successful Response"
@@ -2539,6 +4933,11 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
         "summary": "Update User",
         "tags": [
           "users"

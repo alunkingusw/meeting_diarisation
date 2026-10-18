@@ -1,3 +1,5 @@
+from datetime import date
+
 import httpx
 import pytest
 import respx
@@ -54,6 +56,35 @@ def test_login_for_email_uses_service_key(client):
     assert token == "email-token"
     assert route.calls.last.request.headers["X-Service-Key"] == "service-secret"
     assert route.calls.last.request.read() == b'{"email":"Alice@Example.com"}'
+
+
+@respx.mock
+def test_weekly_report_operations_use_service_key(client):
+    run_route = respx.post(f"{BASE_URL}/admin/weekly-reports/run").mock(
+        return_value=httpx.Response(202, json={"job_id": "job-1", "state": "queued"})
+    )
+    answer_route = respx.post(
+        f"{BASE_URL}/admin/weekly-reports/WEEKLY-2026-10-05-0007/answer"
+    ).mock(return_value=httpx.Response(200, json={"answer": "The team agreed to ship."}))
+    nudger_route = respx.post(f"{BASE_URL}/admin/group-nudger/run").mock(
+        return_value=httpx.Response(202, json={"job_id": "nudger-job", "state": "queued"})
+    )
+
+    accepted = client.run_weekly_reports(date(2026, 10, 5), date(2026, 10, 12))
+    answer = client.answer_scheduled_report(
+        "WEEKLY-2026-10-05-0007", "alice@example.com", "What was agreed?"
+    )
+    nudged = client.run_group_nudger(date(2026, 10, 5), date(2026, 10, 12))
+
+    assert accepted["job_id"] == "job-1"
+    assert answer == "The team agreed to ship."
+    assert nudged["job_id"] == "nudger-job"
+    assert run_route.calls.last.request.headers["X-Service-Key"] == "service-secret"
+    assert answer_route.calls.last.request.headers["X-Service-Key"] == "service-secret"
+    assert nudger_route.calls.last.request.headers["X-Service-Key"] == "service-secret"
+    assert run_route.calls.last.request.read() == b'{"period_start":"2026-10-05","period_end":"2026-10-12"}'
+    assert answer_route.calls.last.request.read() == b'{"sender_email":"alice@example.com","question":"What was agreed?"}'
+    assert nudger_route.calls.last.request.read() == b'{"period_start":"2026-10-05","period_end":"2026-10-12"}'
 
 
 @respx.mock
@@ -234,32 +265,41 @@ def test_resolve_aliases(client):
 
 
 @respx.mock
-def test_search_transcripts(client):
-    respx.post(f"{BASE_URL}/groups/1/transcripts/search").mock(
+def test_search_transcripts_uses_conversation_endpoint_retrieve_only(client):
+    route = respx.post(f"{BASE_URL}/groups/1/conversation/query").mock(
         return_value=httpx.Response(
             200,
             json={
-                "results": [
+                "answer": "",
+                "evidence": [
                     {
-                        "chunk_id": "c1",
-                        "meeting_id": "42",
-                        "meeting_title": "Sprint planning",
-                        "meeting_date": "2026-08-11",
-                        "speaker": "Alice",
+                        "id": "c1",
                         "text": "Next week",
-                        "start_ts": "00:00:01",
-                        "end_ts": "00:00:03",
+                        "metadata": {
+                            "meeting_id": "42", "meeting_title": "Sprint planning",
+                            "meeting_date": "2026-08-11", "speaker": "Alice",
+                            "start_ts": "00:00:01", "end_ts": "00:00:03",
+                        },
                     }
-                ]
+                ],
             },
         )
     )
 
-    hits = client.search_transcripts("tok", 1, "Next week")
+    hits = client.search_transcripts("tok", 1, "Next week", meeting_id=42)
 
-    assert len(hits) == 1
-    assert hits[0].speaker == "Alice"
-    assert hits[0].meeting_id == "42"
+    assert len(hits) == 1 and hits[0].speaker == "Alice" and hits[0].meeting_id == "42"
+    sent = route.calls.last.request.read()
+    assert b'"retrieve_only":true' in sent and b'"meeting_id":42' in sent
+
+
+@respx.mock
+def test_search_transcripts_returns_empty_when_nothing_matches(client):
+    respx.post(f"{BASE_URL}/groups/1/conversation/query").mock(
+        return_value=httpx.Response(404, json={"detail": "No indexed meeting transcripts match this question"})
+    )
+
+    assert client.search_transcripts("tok", 1, "anything") == []
 
 
 @respx.mock
@@ -344,3 +384,183 @@ def test_timeout_is_treated_as_transient(client):
     respx.get(f"{BASE_URL}/groups/").mock(side_effect=httpx.ConnectTimeout("boom"))
     with pytest.raises(TransientError):
         client.list_groups("tok")
+
+
+@respx.mock
+def test_query_source_posts_to_source_endpoint(client):
+    stats = {"total_commits": 4, "contributors": [{"name": "Ada", "commits": 2}]}
+    transcript_stats = {"complete": True, "speakers": [{"speaker": "Ada", "turn_count": 3}]}
+    evidence = [{"id": "chunk-1", "text": "Release decision"}]
+    route = respx.post(f"{BASE_URL}/groups/3/github/query").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "answer": "Two open issues.",
+                "source": "github",
+                "stats": stats,
+                "transcript_stats": transcript_stats,
+                "evidence": evidence,
+                "model": "test-model",
+            },
+        )
+    )
+
+    result = client.query_source("tok", 3, "github", "open issues?")
+
+    assert result.answer == "Two open issues."
+    assert result.sources_used == ["github"]
+    assert result.stats == stats
+    assert result.transcript_stats == transcript_stats
+    assert result.evidence == evidence
+    assert result.model == "test-model"
+    assert route.calls.last.request.headers["Authorization"] == "Bearer tok"
+    assert route.calls.last.request.read() == b'{"question":"open issues?"}'
+
+
+@respx.mock
+def test_query_unified_sends_source_questions_and_date_window(client):
+    from datetime import date
+
+    route = respx.post(f"{BASE_URL}/groups/3/query").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "answer": "Merged.",
+                "sources_used": ["github", "trello"],
+                "errors": {"trello": "x"},
+                "results": {"github": {"stats": {"total_commits": 4}}},
+                "model": "test-model",
+            },
+        )
+    )
+
+    result = client.query_unified(
+        "tok", 3, "progress?", sources=["github", "trello"],
+        since=date(2026, 9, 1), until=date(2026, 10, 1),
+        source_questions={"github": "open issues?", "trello": "blocked cards?"},
+    )
+
+    assert result.sources_used == ["github", "trello"]
+    assert result.errors == {"trello": "x"}
+    assert result.results == {"github": {"stats": {"total_commits": 4}}}
+    assert result.model == "test-model"
+    assert route.calls.last.request.read() == (
+        b'{"question":"progress?","since":"2026-09-01","until":"2026-10-01","sources":["github","trello"],"source_questions":{"github":"open issues?","trello":"blocked cards?"}}'
+    )
+
+
+@respx.mock
+def test_query_source_not_linked_raises_not_found(client):
+    respx.post(f"{BASE_URL}/groups/3/trello/query").mock(
+        return_value=httpx.Response(404, json={"detail": "This group has no trello source linked"})
+    )
+    with pytest.raises(NotFoundError):
+        client.query_source("tok", 3, "trello", "blocked?")
+
+
+@respx.mock
+def test_compose_weekly_report_posts_period_and_maps_evidence(client):
+    from datetime import date
+
+    route = respx.post(f"{BASE_URL}/groups/3/reports/weekly").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "report_text": "All good. [Meeting 1, 2026-09-08]",
+                "unavailable": ["github (nothing ingested yet)"],
+                "evidence": [{
+                    "source": "meetings", "evidence_id": "meeting-1-summary", "title": "Meeting",
+                    "event_date": "2026-09-08", "content": "Agreed.", "citation": "Meeting 1, 2026-09-08",
+                }],
+            },
+        )
+    )
+
+    result = client.compose_weekly_report("tok", 3, date(2026, 9, 7), date(2026, 9, 14))
+
+    assert result.report_text.startswith("All good")
+    assert result.unavailable == ["github (nothing ingested yet)"]
+    assert result.evidence[0].citation == "Meeting 1, 2026-09-08"
+    assert route.calls.last.request.read() == b'{"period_start":"2026-09-07","period_end":"2026-09-14"}'
+
+
+@respx.mock
+def test_answer_report_question_sends_saved_evidence(client):
+    from datetime import date
+
+    from app.reports.models import ReportEvidence
+
+    route = respx.post(f"{BASE_URL}/groups/3/reports/answer").mock(
+        return_value=httpx.Response(200, json={"answer": "Ship it.", "model": "m"})
+    )
+    evidence = [ReportEvidence("meetings", "m1", "Planning", "2026-09-08", "Agreed.", "Planning", "{}")]
+
+    answer = client.answer_report_question(
+        "tok", 3, "What was agreed?", evidence, date(2026, 9, 7), date(2026, 9, 14)
+    )
+
+    assert answer == "Ship it."
+    sent = route.calls.last.request.read()
+    assert b'"question":"What was agreed?"' in sent and b'"evidence_id":"m1"' in sent
+
+
+def _job_json(state, **extra):
+    return {"id": "j1", "kind": "query", "state": state, "progress": None, "result": None, "error": None, **extra}
+
+
+@respx.mock
+def test_async_query_waits_for_the_job_and_reports_the_id(client):
+    client._job_poll_seconds = 0
+    respx.post(f"{BASE_URL}/groups/3/github/query", params={"async": "true"}).mock(
+        return_value=httpx.Response(202, json={"job_id": "j1", "state": "queued"})
+    )
+    respx.get(f"{BASE_URL}/jobs/j1").mock(
+        side_effect=[
+            httpx.Response(200, json=_job_json("running")),
+            httpx.Response(200, json=_job_json("completed", result={"answer": "Two issues.", "source": "github"})),
+        ]
+    )
+    seen = []
+
+    result = client.query_source("tok", 3, "github", "open issues?", on_job=seen.append)
+
+    assert result.answer == "Two issues." and seen == ["j1"]
+
+
+@respx.mock
+def test_async_query_failure_modes_map_to_client_errors(client):
+    from app.diarisation.client import JobCancelledError, JobFailedError
+
+    client._job_poll_seconds = 0
+    respx.post(f"{BASE_URL}/groups/3/trello/query", params={"async": "true"}).mock(
+        return_value=httpx.Response(202, json={"job_id": "j1", "state": "queued"})
+    )
+    job = respx.get(f"{BASE_URL}/jobs/j1")
+
+    job.mock(return_value=httpx.Response(200, json=_job_json("failed", error="nothing ingested", error_type="ValueError")))
+    with pytest.raises(NotFoundError):
+        client.query_source("tok", 3, "trello", "q", on_job=lambda _: None)
+
+    job.mock(return_value=httpx.Response(200, json=_job_json("failed", error="Ollama down", error_type="OllamaError")))
+    with pytest.raises(JobFailedError):
+        client.query_source("tok", 3, "trello", "q", on_job=lambda _: None)
+
+    job.mock(return_value=httpx.Response(200, json=_job_json("cancelled")))
+    with pytest.raises(JobCancelledError):
+        client.query_source("tok", 3, "trello", "q", on_job=lambda _: None)
+
+
+@respx.mock
+def test_list_and_cancel_jobs(client):
+    respx.get(f"{BASE_URL}/jobs/").mock(
+        return_value=httpx.Response(200, json=[_job_json("running", kind="transcript_processing", meeting_id=42)])
+    )
+    cancel_route = respx.post(f"{BASE_URL}/jobs/j1/cancel").mock(
+        return_value=httpx.Response(200, json=_job_json("cancelled"))
+    )
+
+    jobs = client.list_jobs("tok", kind="transcript_processing", meeting_id=42)
+    cancelled = client.cancel_job("tok", "j1")
+
+    assert jobs[0].meeting_id == 42 and not jobs[0].finished
+    assert cancelled.state == "cancelled" and cancel_route.called

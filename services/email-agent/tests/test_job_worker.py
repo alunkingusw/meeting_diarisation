@@ -10,7 +10,7 @@ from app.jobs.store import JobStore, Outbox
 from app.jobs.worker import JobWorker
 from app.settings import StorageSettings
 
-from tests.fakes import FakeDiarisationClient, FakeGithubRaginatorClient, StubLLM
+from tests.fakes import FakeDiarisationClient
 
 
 def _storage(tmp_path: Path) -> StorageSettings:
@@ -50,7 +50,7 @@ def test_run_once_processes_all_queued_jobs(db_path: Path, tmp_path: Path):
         groups=[GroupSummary(id=1, name="Team A")], member_by_name={"Alice": 101}
     )
     worker = JobWorker(
-        job_store, fake_client, outbox, admin, storage, FakeGithubRaginatorClient(), StubLLM("{}")
+        job_store, fake_client, outbox, admin, storage
     )
 
     job1 = _queued_job(job_store, storage)
@@ -70,7 +70,7 @@ def test_run_once_does_not_touch_non_queued_jobs(db_path: Path, tmp_path: Path):
     admin = AdminNotifier(db_path, outbox, admin_email=None)
     fake_client = FakeDiarisationClient(groups=[GroupSummary(id=1, name="Team A")])
     worker = JobWorker(
-        job_store, fake_client, outbox, admin, storage, FakeGithubRaginatorClient(), StubLLM("{}")
+        job_store, fake_client, outbox, admin, storage
     )
 
     other_job = job_store.create_job("bob@uni.ac.uk", 7, "<other@mail>")  # stays RECEIVED
@@ -88,7 +88,7 @@ def test_one_failing_job_does_not_block_others(db_path: Path, tmp_path: Path):
         groups=[GroupSummary(id=1, name="Team A")], member_by_name={"Alice": 101}, fail_on="create_meeting"
     )
     worker = JobWorker(
-        job_store, fake_client, outbox, admin, storage, FakeGithubRaginatorClient(), StubLLM("{}")
+        job_store, fake_client, outbox, admin, storage
     )
 
     job1 = _queued_job(job_store, storage)
@@ -109,7 +109,7 @@ def test_run_forever_stops_promptly_on_stop_event(db_path: Path, tmp_path: Path)
     admin = AdminNotifier(db_path, outbox, admin_email=None)
     fake_client = FakeDiarisationClient(groups=[])
     worker = JobWorker(
-        job_store, fake_client, outbox, admin, storage, FakeGithubRaginatorClient(), StubLLM("{}")
+        job_store, fake_client, outbox, admin, storage
     )
 
     stop_event = threading.Event()

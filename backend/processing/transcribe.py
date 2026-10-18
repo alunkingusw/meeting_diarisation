@@ -44,7 +44,7 @@ device = "cpu"
 #diarisation
 from pyannote.audio import Pipeline
 from pyannote.audio import Model
-from pyannote.core import Segment, Annotation
+from pyannote.core import Segment
 
 #embedding
 from pyannote.audio import Inference
@@ -161,19 +161,6 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
         end_sample = int(segment.end * sample_rate)
         return waveform[:, start_sample:end_sample]
 
-    def get_reference_embeddings(ref_dict):
-        """Return dictionary of normalized reference embeddings."""
-        embeddings = {}
-        for i, (name, path) in enumerate(ref_dict.items()):
-            try:
-                emb = embedding_inference(path).reshape(1, -1)
-                emb = normalize(emb)
-                embeddings[i] = emb
-                logging.info(f"Loaded reference embedding for '{name}' as ID {i}")
-            except Exception as e:
-                logging.warning(f"Error loading reference '{name}': {e}")
-        return embeddings
-
     def match_speaker_by_embedding(embedding, speaker_embeddings, threshold=EMBEDDING_MATCH_THRESHOLD):
         """
         Matches an input embedding against a list of known speaker embeddings.
@@ -205,16 +192,6 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
             return best_match
         else:
             return None
-
-    def remove_speaker_from_diarisation(diarisation, speaker_to_remove):
-        """Return a copy of diarisation with the specified speaker removed."""
-        new_diarisation = Annotation(uri=diarisation.uri)
-
-        for segment, track, speaker in diarisation.itertracks(yield_label=True):
-            if speaker != speaker_to_remove:
-                new_diarisation[segment, track] = speaker
-
-        return new_diarisation
 
     #load speaker samples and generate the embeddings to be tested below
     embedding_model = Model.from_pretrained("pyannote/embedding",
@@ -311,7 +288,6 @@ def transcribe_meeting(group_id: int, meeting_id: int, db: Session, snr_threshol
 
             else:
                 logging.info(f"Speaker '{speaker}' could not be confidently matched.")
-                #diarisation_result = remove_speaker_from_diarisation(diarisation_result, speaker)
         else:
             logging.info(f"No valid segments to compare found for speaker '{speaker}'.")
             

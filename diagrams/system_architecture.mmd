@@ -1,0 +1,82 @@
+flowchart TB
+    subgraph Clients["Client channels"]
+        direction LR
+        Web["Next.js web application"]
+        Mailbox["Inbound mailbox\nMicrosoft Graph or IMAP"]
+    end
+
+    subgraph Applications["Application services"]
+        direction LR
+        EmailAgent["Email agent service\npolling, auth, validation, jobs, outbox"]
+        API["FastAPI backend\nquery, meeting, upload, admin routes"]
+    end
+
+    subgraph QueryLayer["Authorized query and agent layer"]
+        direction TB
+        Gate["JWT and group-membership authorization"]
+        Router{"Explicit source or unified route"}
+        TranscriptAgent["Transcript specialist\nread-only"]
+        GitHubAgent["GitHub specialist\nread-only"]
+        TrelloAgent["Trello specialist\nread-only"]
+        ParentRoute["Unified parent-query route"]
+        Parent["LangGraph parent\nselect, delegate, compose"]
+    end
+
+    subgraph Retrieval["Source retrieval and ingestion"]
+        direction LR
+        TranscriptRead["Transcript Chroma search\nand complete-window reader"]
+        ProjectRead["Project Chroma search\nand Postgres aggregates"]
+        Indexer["Transcript indexing\nand GitHub/Trello ingestion"]
+    end
+
+    subgraph Stores["Group-scoped storage"]
+        direction LR
+        Postgres[("Postgres\nusers, groups, meetings, project facts")]
+        TranscriptFiles[("Transcript chunks and stats.json")]
+        TranscriptChroma[("Transcript Chroma")]
+        ProjectChroma[("Project Chroma")]
+    end
+
+    subgraph Providers["External services"]
+        direction LR
+        GitHub["GitHub API"]
+        Trello["Trello API"]
+        Ollama["Ollama model server"]
+    end
+
+    Web --> API
+    Mailbox --> EmailAgent
+    EmailAgent -->|"current source-query API calls"| API
+    EmailAgent -. "planned Phase 4 parent-query call" .-> API
+    API --> Gate --> Router
+    Router --> TranscriptAgent
+    Router --> GitHubAgent
+    Router --> TrelloAgent
+    Router -. "planned Phase 3" .-> ParentRoute --> Parent
+    Parent --> TranscriptAgent
+    Parent --> GitHubAgent
+    Parent --> TrelloAgent
+
+    TranscriptAgent --> TranscriptRead
+    GitHubAgent --> ProjectRead
+    TrelloAgent --> ProjectRead
+    TranscriptRead --> TranscriptChroma
+    TranscriptRead --> TranscriptFiles
+    ProjectRead --> Postgres
+    ProjectRead --> ProjectChroma
+    GitHub --> Indexer
+    Trello --> Indexer
+    API --> Indexer
+    Indexer --> Postgres
+    Indexer --> ProjectChroma
+    Indexer --> TranscriptFiles
+    Indexer --> TranscriptChroma
+
+    EmailAgent --> Ollama
+    Parent --> Ollama
+    TranscriptAgent --> Ollama
+    GitHubAgent --> Ollama
+    TrelloAgent --> Ollama
+
+    classDef planned fill:#fff7ed,stroke:#c2410c,stroke-dasharray:5 5
+    class ParentRoute,Parent planned

@@ -32,9 +32,35 @@ def render_ack(job_id: str, filename: str, meeting_date: str, group_name: Option
     return subject, body
 
 
-def render_clarification(question: str, job_id: Optional[str] = None) -> tuple[str, str]:
-    subject = f"Clarification needed — {job_id}" if job_id else "Clarification needed"
-    body = _render("clarification.txt.j2", question=question, job_id=job_id)
+def render_clarification(
+    question: str,
+    job_id: Optional[str] = None,
+    original_subject: Optional[str] = None,
+    original_body_text: Optional[str] = None,
+) -> tuple[str, str]:
+    if original_subject and original_subject.strip():
+        clean_subject = " ".join(original_subject.splitlines()).strip()[:160]
+        reply_prefix = "" if clean_subject.lower().startswith("re:") else "Re: "
+        clarification_tag = f" [Clarification needed | {job_id}]" if job_id else " [Clarification needed]"
+        subject = f"{reply_prefix}{clean_subject}{clarification_tag}"
+        original_subject = clean_subject
+    else:
+        subject = f"Clarification needed — {job_id}" if job_id else "Clarification needed"
+
+    quoted_original = ""
+    if original_body_text:
+        quoted_body = original_body_text[:8000]
+        if len(original_body_text) > len(quoted_body):
+            quoted_body += "\n[Original email truncated]"
+        quoted_lines = "\n".join(f"> {line}" for line in quoted_body.splitlines())
+        quoted_original = f"Original email:\nSubject: {original_subject or '(no subject)'}\n\n{quoted_lines}"
+
+    body = _render(
+        "clarification.txt.j2",
+        question=question,
+        job_id=job_id,
+        quoted_original=quoted_original,
+    )
     return subject, body
 
 
@@ -44,7 +70,18 @@ def render_clarification_received(job_id: str, value: str) -> tuple[str, str]:
     return subject, body
 
 
+# Detail the backend returns when an administrator's emailed token is refused an admin action.
+ADMIN_OVER_EMAIL_MARKER = "Administrator actions are not available over email"
+ADMIN_OVER_EMAIL_EXPLANATION = (
+    "Administrator actions, such as managing users or groups you don't belong to, can't be "
+    "performed by email, even for administrators. Please use the web app or the API instead. "
+    "Your normal access to your own groups still works by email."
+)
+
+
 def render_failure(reason: str, job_id: Optional[str] = None) -> tuple[str, str]:
+    if ADMIN_OVER_EMAIL_MARKER in reason:
+        reason = ADMIN_OVER_EMAIL_EXPLANATION
     subject = f"Could not process your request — {job_id}" if job_id else "Could not process your request"
     body = _render("failure.txt.j2", job_id=job_id, reason=reason)
     return subject, body
@@ -142,6 +179,7 @@ def render_assess_result(
     github_trello_answer: Optional[str],
     trello_checked: bool,
     unavailable_notes: list[str],
+    unified_answer: Optional[str] = None,
 ) -> tuple[str, str]:
     subject = f"Here's what I found — {job_id}"
     body = _render(
@@ -152,6 +190,7 @@ def render_assess_result(
         github_trello_answer=github_trello_answer,
         trello_checked=trello_checked,
         unavailable_notes=unavailable_notes,
+        unified_answer=unified_answer,
     )
     return subject, body
 

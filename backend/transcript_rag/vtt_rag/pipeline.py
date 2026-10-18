@@ -1,10 +1,7 @@
-"""
-End-to-end pipeline: verify -> parse -> chunk -> stats -> write outputs.
+"""Preprocess one VTT: verify, parse, chunk, compute stats, and write outputs.
 
-This does not embed or index into a vector store — that step depends on
-whatever local stack you're already using for the GitHub RAG setup
-(Chroma, LanceDB, etc). See examples/embed_stub.py for a minimal example
-of wiring one in with a local embedding model.
+The backend transcript indexer consumes the resulting chunks, embeds them, and stores them in
+Chroma.
 """
 import json
 import uuid
@@ -87,37 +84,3 @@ def process_vtt_file(
     }
 
 
-def process_vtt_directory(
-    input_dir: str,
-    output_dir: str = "./rag_output",
-    min_speakers: int = 2,
-    max_chunk_words: int = 150,
-) -> list[dict]:
-    """
-    Batch-process every .vtt file in a directory. Files that fail
-    verification are recorded with status="failed" rather than raising,
-    so one bad file doesn't halt the batch.
-
-    meeting_title is derived from the filename and meeting_date is left as
-    "unknown" here — if you have a real metadata source (e.g. a calendar
-    export or filename convention with a date), call process_vtt_file
-    directly per file instead so meeting_date is accurate; it's part of
-    the citation shown to users.
-    """
-    results = []
-    for path in sorted(Path(input_dir).glob("*.vtt")):
-        try:
-            title = path.stem.replace("_", " ")
-            result = process_vtt_file(
-                file_path=str(path),
-                meeting_title=title,
-                meeting_date="unknown",
-                output_dir=output_dir,
-                min_speakers=min_speakers,
-                max_chunk_words=max_chunk_words,
-            )
-            result["status"] = "ok"
-        except ValueError as e:
-            result = {"source_file": str(path), "status": "failed", "error": str(e)}
-        results.append(result)
-    return results

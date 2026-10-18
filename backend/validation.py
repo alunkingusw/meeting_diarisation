@@ -15,13 +15,7 @@
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 import bleach
-from datetime import datetime
-
-#define the required and optional fields that accompany a file upload. Specify default values.
-class FileUploadMetadata(BaseModel):
-    description: str = Field(min_length=5)
-    speaker_hint: Optional[int] = Field(None, ge=1, le=10, example=3)
-    language: Optional[str] = Field("en", example="en")
+from datetime import date, datetime
 
 class ServiceUserTokenRequest(BaseModel):
     email: str = Field(min_length=3, max_length=255)
@@ -39,9 +33,21 @@ class GroupCreateEdit(BaseModel):
     github_repo_url: Optional[str] = None
     trello_board_id: Optional[str] = None
     notify: bool = False
+    project_expiry: Optional[date] = Field(
+        default=None,
+        description="Last active day, inclusive; scheduled batches skip the group when period_end is later.",
+    )
     # Only honoured for administrators (backend/routes/groups.py) - lets an admin create a
     # group owned by another user instead of themselves. Ignored/rejected for everyone else.
     owner_user_id: Optional[int] = None
+
+    @field_validator("github_repo_url")
+    @classmethod
+    def check_github_repo_url(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or not value.strip():
+            return None
+        from backend.project_rag.url_validation import validate_github_url
+        return validate_github_url(value)
 
 class MeetingCreateEdit(BaseModel):
     date: datetime

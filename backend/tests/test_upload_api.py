@@ -46,30 +46,51 @@ def test_upload_transcript_file(client, make_user, make_group, make_meeting, aut
     assert response.json()["type"] == "transcript_provided"
 
 
-def test_upload_transcript_runs_processing_in_background(monkeypatch, tmp_path):
-    from backend.routes import upload as upload_module
-
+def test_upload_transcript_starts_a_processing_job(
+    client, monkeypatch, make_user, make_group, make_meeting, auth_header_for
+):
     calls = []
-
-    class FakeSession:
-        def close(self):
-            pass
-
-    monkeypatch.setattr(upload_module, "SessionLocal", lambda: FakeSession())
     monkeypatch.setattr(
-        upload_module,
-        "index_transcript",
-        lambda **kwargs: calls.append("indexed") or {"chunks_path": str(tmp_path / "chunks.jsonl")},
+        "backend.transcript_rag.indexer.index_transcript", lambda **kwargs: calls.append("indexed") or {}
     )
     monkeypatch.setattr(
-        upload_module,
-        "summarise_meeting_task",
-        lambda *args, **kwargs: calls.append("summarised"),
+        "backend.summarization.summariser.summarise_meeting_task", lambda *a, **k: calls.append("summarised")
     )
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    meeting = make_meeting(group)
 
-    upload_module._process_uploaded_transcript(1, 2, str(tmp_path / "meeting.vtt"), "Team A", "2026-01-01")
+    response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/upload/",
+        files={"file": ("transcript.vtt", b"WEBVTT", "text/vtt")},
+        headers=auth_header_for(owner.id),
+    )
 
     assert calls == ["indexed", "summarised"]
+    job = client.get(f"/jobs/{response.json()['processing_job_id']}", headers=auth_header_for(owner.id)).json()
+    assert job["kind"] == "transcript_processing" and job["state"] == "completed"
+    assert job["meeting_id"] == meeting.id and job["group_id"] == group.id
+
+
+def test_failed_indexing_is_visible_on_the_job(
+    client, monkeypatch, make_user, make_group, make_meeting, auth_header_for
+):
+    def broken(**kwargs):
+        raise ValueError("no speaker metadata")
+
+    monkeypatch.setattr("backend.transcript_rag.indexer.index_transcript", broken)
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    meeting = make_meeting(group)
+
+    response = client.post(
+        f"/groups/{group.id}/meetings/{meeting.id}/upload/",
+        files={"file": ("transcript.vtt", b"WEBVTT", "text/vtt")},
+        headers=auth_header_for(owner.id),
+    )
+
+    job = client.get(f"/jobs/{response.json()['processing_job_id']}", headers=auth_header_for(owner.id)).json()
+    assert job["state"] == "failed" and "no speaker metadata" in job["error"]
 
 
 def test_group_member_email_token_is_transcript_only_and_group_scoped(

@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from app.commands.validator import ValidatedCommand
 from app.email_templates.render import render_status
-from app.handlers.base import STATUS_TEXT, ClarificationRequired, HandlerOutcome
+from app.handlers.base import STATUS_TEXT, ClarificationRequired, HandlerOutcome, backend_progress
 from app.jobs.store import JobStore, Outbox
 
 
 def handle(
     validated_cmd: ValidatedCommand, sender_email: str, job_store: JobStore, outbox: Outbox,
-    in_reply_to: str | None = None, references: str | None = None,
+    in_reply_to: str | None = None, references: str | None = None, diarisation_client=None,
 ) -> HandlerOutcome:
     job = job_store.get_owned(validated_cmd.job_id, sender_email)
     if job is None:
@@ -19,6 +19,9 @@ def handle(
         )
 
     status_text = STATUS_TEXT.get(job.status, job.status.value)
+    detail = backend_progress(diarisation_client, sender_email, job)
+    if detail:
+        status_text = f"{status_text}\n{detail}"
     subject, body = render_status(job.job_id, status_text)
     outbox.enqueue(
         to_email=sender_email, subject=subject, body_text=body, job_id=job.job_id,
