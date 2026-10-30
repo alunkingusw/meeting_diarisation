@@ -212,6 +212,22 @@ Then launch the API and its database normally:
 docker compose up --build api
 ```
 
+Application dependencies also use `torch-requirements.txt` as pip constraints, so installing
+them cannot upgrade the base image's Torch/TorchAudio pair independently. Keep that file
+alongside `requirements.txt` for local installs too. PyAnnote 3.3.2 requires the legacy
+`torchaudio.AudioMetaData` API, which was removed in TorchAudio 2.9.
+
+If an existing API build fails with `AttributeError: module 'torchaudio' has no attribute
+'AudioMetaData'`, rebuild the API with these constraints:
+
+```bash
+docker compose build api
+docker compose up -d api
+```
+
+Rebuild the Torch base image first if it predates the versions in `torch-requirements.txt`.
+The constraints accept the matching CPU and CUDA wheel variants.
+
 ### NVIDIA GPU
 
 Install an NVIDIA driver and the NVIDIA Container Toolkit on the host before using a GPU image.

@@ -1,3 +1,6 @@
+# Preserve the compatible Torch/TorchAudio pair when resolving audio dependencies.
+-c torch-requirements.txt
+
 fastapi
 uvicorn
 python-multipart

@@ -13,7 +13,7 @@ ENV PYANNOTE_CACHE=/models/pyannote
 RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install
-COPY requirements.txt .
+COPY requirements.txt torch-requirements.txt ./
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
