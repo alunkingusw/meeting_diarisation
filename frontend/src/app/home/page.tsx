@@ -42,6 +42,10 @@ export default function HomePage() {
     setViewAllGroups(showAll);
     fetchAllGroups(showAll);
   };
+
+  const sortedGroups = [...groups].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
    
   
 
@@ -77,7 +81,7 @@ export default function HomePage() {
         <p>{viewAllGroups ? 'No groups exist yet.' : 'You do not currently have any groups.'}</p>
       ) : (
         <ul className="list-disc pl-5 space-y-2">
-      {groups.map(group => (
+      {sortedGroups.map(group => (
         <li key={group.id} className="flex items-center justify-between">
           <Link href={`/home/${group.id}`} className="text-blue-500 hover:underline">
             {group.name}
