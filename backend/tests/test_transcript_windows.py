@@ -117,7 +117,7 @@ def test_conversation_window_over_limit_falls_back_to_ranked_search(
 
 
 def test_conversation_query_returns_transcript_stats_and_includes_them_in_prompt(
-    client, db_session, make_user, make_group, make_meeting, auth_header_for, monkeypatch, fake_llm
+    client, db_session, make_user, make_group, make_member, make_meeting, auth_header_for, monkeypatch, fake_llm
 ):
     from datetime import datetime
 
@@ -125,6 +125,9 @@ def test_conversation_query_returns_transcript_stats_and_includes_them_in_prompt
     from backend.project_rag import group_service
 
     owner, group = _group_with_owner(db_session, make_user, make_group)
+    member = make_member(name="Ada Lovelace", group=group)
+    member.aliases = ["Ada", "Alice"]
+    db_session.commit()
     meeting = make_meeting(group, datetime(2026, 9, 14))
     db_session.add(
         RawFile(
@@ -176,8 +179,9 @@ def test_conversation_query_returns_transcript_stats_and_includes_them_in_prompt
     assert response.status_code == 200
     body = response.json()
     assert body["transcript_stats"]["complete"] is True
-    assert body["transcript_stats"]["speakers"][0]["speaker"] == "Ada"
+    assert body["transcript_stats"]["speakers"][0]["speaker"] == "Ada Lovelace"
     assert body["transcript_stats"]["speakers"][0]["turn_count"] == 3
+    assert body["evidence"][0]["author"] == "Ada Lovelace"
     assert seen == {"group_id": group.id, "meeting_ids": [meeting.id]}
     tool_result = json.loads(fake_llm.agent_tool_results[-1])
     assert tool_result["transcript_stats"]["meetings"][0]["meeting_id"] == meeting.id

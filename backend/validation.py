@@ -110,6 +110,7 @@ class UserOut(BaseModel):
 class GroupMembersCreateEdit(BaseModel):
     name: str
     email: Optional[str] = None
+    aliases: Optional[List[str]] = None
 
     @field_validator("email")
     @classmethod
@@ -122,6 +123,21 @@ class GroupMembersCreateEdit(BaseModel):
         if "@" not in value or value.startswith("@") or value.endswith("@"):
             raise ValueError("email must be a valid email address")
         return value
+
+    @field_validator("aliases")
+    @classmethod
+    def normalise_aliases(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        if value is None:
+            return None
+        aliases = []
+        seen = set()
+        for alias in value:
+            alias = alias.strip()
+            normalized = alias.casefold()
+            if alias and normalized not in seen:
+                aliases.append(alias)
+                seen.add(normalized)
+        return aliases
 
 class MeetingAttendee(BaseModel):
     name: Optional[str] = None

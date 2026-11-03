@@ -23,6 +23,7 @@ export type Person = {
   id: number;
   name: string;
   email?: string | null;
+  aliases?: string[];
   created: string;
   embedding_audio_path?: string | null;
 };
@@ -155,8 +156,33 @@ export function useGroupManager() {
     }
   };
 
+  const updateMemberAliases = useCallback(async (memberId: number, aliases: string[]) => {
+    if (!group) throw new Error('Group is not loaded.');
+    const member = group.members.find(current => current.id === memberId);
+    if (!member) throw new Error('Member is not available.');
+    const res = await authenticatedFetch(`${process.env.NEXT_PUBLIC_API_URL}/groups/${group.id}/members/${memberId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: member.name, email: member.email ?? null, aliases }),
+    });
+    checkGroupResponse(res, 'Unable to update member aliases');
+    const updatedMember: Person = await res.json();
+    setGroup(current => current ? {
+      ...current,
+      members: current.members.map(currentMember => currentMember.id === memberId ? {
+        ...currentMember,
+        name: updatedMember.name,
+        email: updatedMember.email,
+        aliases: updatedMember.aliases,
+        embedding_audio_path: updatedMember.embedding_audio_path,
+      } : currentMember),
+    } : current);
+    setGroupMembers(current => current.map(currentMember => currentMember.id === memberId ? updatedMember : currentMember));
+    setSelectedMember(current => current?.id === memberId ? updatedMember : current);
+  }, [group]);
+
   return {
-    fetchGroupMembers, fetchGroupMeetings, handleCreateMember, handleRemoveMember,
+    fetchGroupMembers, fetchGroupMeetings, handleCreateMember, handleRemoveMember, updateMemberAliases,
     groupMembers, meetings, loading, getGroup, updateGroupNotify, group, error,
     updateGroupProjectExpiry,
     selectedMember, setSelectedMember, newMemberName, setNewMemberName,

@@ -16,11 +16,13 @@ part. Every number the model reports should come from here.
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from collections.abc import Mapping
 
 from sqlalchemy import DateTime, func, select
 from sqlalchemy.orm import Session
 
 from backend.project_rag.models import Commit, Issue, IssueComment, Repo, ReviewComment, TrelloAction
+from backend.models import GroupMember
 
 
 @dataclass
@@ -94,6 +96,7 @@ def collect_project_stats(
     weeks: int = 12,
     sources: tuple[str, ...] = SOURCES,
     label: str | None = None,
+    member_identity_map: Mapping[str, GroupMember] | None = None,
 ) -> ProjectStats:
     """
     Aggregate all activity for one repo into a `ProjectStats`.
@@ -112,7 +115,10 @@ def collect_project_stats(
     contributors: dict[str, ContributorStats] = {}
 
     def contributor(name: str) -> ContributorStats:
-        return contributors.setdefault(name, ContributorStats(name=name))
+        normalized = name.strip().casefold()
+        member = member_identity_map.get(normalized) if member_identity_map else None
+        canonical_name = member.name.strip() if member and member.name else name.strip()
+        return contributors.setdefault(canonical_name, ContributorStats(name=canonical_name))
 
     def time_filter(column):
         conditions = []
@@ -142,11 +148,11 @@ def collect_project_stats(
 
     for name, count, additions, deletions, first_at, last_at in commit_rows:
         entry = contributor(name)
-        entry.commits = count
-        entry.additions = int(additions)
-        entry.deletions = int(deletions)
-        entry.first_commit_at = first_at
-        entry.last_commit_at = last_at
+        entry.commits += count
+        entry.additions += int(additions)
+        entry.deletions += int(deletions)
+        entry.first_commit_at = min(filter(None, (entry.first_commit_at, first_at)), default=None)
+        entry.last_commit_at = max(filter(None, (entry.last_commit_at, last_at)), default=None)
         stats.total_commits += count
 
     # --- Issues, grouped by GitHub author login ---
@@ -173,7 +179,7 @@ def collect_project_stats(
     ).all()
 
     for name, count in comment_rows:
-        contributor(name).issue_comments = count
+        contributor(name).issue_comments += count
         stats.total_issue_comments += count
 
     # --- PR review comments ---
@@ -184,7 +190,7 @@ def collect_project_stats(
     ).all()
 
     for name, count in review_rows:
-        contributor(name).review_comments = count
+        contributor(name).review_comments += count
         stats.total_review_comments += count
 
     # --- Trello board activity (only present when the repo has a linked board) ---
@@ -247,16 +253,28 @@ def collect_project_stats(
     # rather than an untyped value from whatever the database returns.
     week_bucket = func.date_trunc("week", Commit.committed_at, type_=DateTime(timezone=True))
     week_rows = [] if not use_github else db.execute(
-        select(week_bucket, func.count(Commit.id), func.count(func.distinct(Commit.author_name)))
+        select(week_bucket, Commit.author_name, func.count(Commit.id))
         .where(Commit.repo_id == repo.id, *commit_window)
-        .group_by(week_bucket)
-        .order_by(week_bucket.desc())
-        .limit(weeks)
+        .group_by(week_bucket, Commit.author_name)
     ).all()
 
+    weekly_authors: dict[datetime, set[str]] = {}
+    weekly_commits: dict[datetime, int] = {}
+    for week, name, count in week_rows:
+        normalized = name.strip().casefold()
+        member = member_identity_map.get(normalized) if member_identity_map else None
+        canonical_name = member.name.strip() if member and member.name else name.strip()
+        weekly_authors.setdefault(week, set()).add(canonical_name)
+        weekly_commits[week] = weekly_commits.get(week, 0) + count
+
+    recent_weeks = sorted(weekly_commits)[-weeks:]
     stats.weekly_activity = [
-        WeeklyActivity(week_starting=week, commits=count, authors=authors)
-        for week, count, authors in reversed(week_rows)
+        WeeklyActivity(
+            week_starting=week,
+            commits=weekly_commits[week],
+            authors=len(weekly_authors[week]),
+        )
+        for week in recent_weeks
     ]
 
     stats.contributors = sorted(

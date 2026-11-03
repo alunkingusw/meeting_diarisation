@@ -24,6 +24,7 @@ from backend.jobs.schemas import ASYNC_PARAM, JobAccepted, accepted_response
 from backend.jobs.service import submit_job
 from backend.llm.ollama_client import OllamaError
 from backend.engine.query_graph import run_unified_query
+from backend.member_aliases import build_member_identity_map
 from backend.engine.query_agent_schemas import (
     QueryFilters,
     SpecialistQueryInput,
@@ -181,7 +182,10 @@ def group_stats(
     """Facts computed from ingested GitHub/Trello data, with no LLM involved."""
     group = get_group_or_404(db, group_id)
     repo = group_service.get_or_create_repo(db, group)
-    return collect_project_stats(db, repo, weeks=weeks, label=group.name)
+    return collect_project_stats(
+        db, repo, weeks=weeks, label=group.name,
+        member_identity_map=build_member_identity_map(group.members),
+    )
 
 
 @router.post("/ingest", response_model=IngestSummary)

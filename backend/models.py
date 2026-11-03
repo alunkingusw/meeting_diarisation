@@ -104,6 +104,7 @@ class GroupMember(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=True)
     email = Column(String(255), nullable=True)  # optional, but can be used to send updates to the group member
+    aliases = Column(JSON, nullable=False, default=list)
     created = Column(DateTime, nullable=False, default=func.now())
 
     embedding = Column(JSON, nullable=True)  # Stores list of floats from pyannote
@@ -263,6 +264,7 @@ class GroupMemberOut(BaseModel):
     id: int
     name: str
     email: Optional[str] = None
+    aliases: List[str] = Field(default_factory=list)
     created: datetime
     embedding_audio_path: Optional[str]
     

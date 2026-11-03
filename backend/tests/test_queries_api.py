@@ -504,10 +504,13 @@ def test_group_rejects_non_github_repo_url(client, make_user, auth_header_for):
 
 
 def test_stats_span_all_sources_and_use_group_name(
-    client, db_session, make_user, make_group, auth_header_for
+    client, db_session, make_user, make_group, make_member, auth_header_for
 ):
     owner, group = _linked_group(db_session, make_user, make_group)
     _seed_index(db_session, group)
+    member = make_member(name="Jordan Lee", group=group)
+    member.aliases = ["Alice", "Bob"]
+    db_session.commit()
 
     response = client.get(f"/groups/{group.id}/stats", headers=auth_header_for(owner.id))
 
@@ -516,3 +519,8 @@ def test_stats_span_all_sources_and_use_group_name(
     assert body["repo_name"] == "Team A"
     assert body["first_activity_at"].startswith("2026-01-05")
     assert body["last_activity_at"].startswith("2026-01-06")
+    assert len(body["contributors"]) == 1
+    assert body["contributors"][0]["name"] == member.name
+    assert body["contributors"][0]["commits"] == 1
+    assert body["contributors"][0]["trello_actions"] == 1
+    assert body["weekly_activity"][0]["authors"] == 1

@@ -28,10 +28,12 @@ chunks it can see. See app/services/repo_stats.py for the longer note.
 
 from dataclasses import dataclass
 from datetime import date, datetime, time, timezone
+from collections.abc import Mapping
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from backend.models import GroupMember
 from backend.project_rag.chunking.commit_chunker import chunk_commit
 from backend.project_rag.chunking.discussion_chunker import chunk_issue, chunk_issue_comment, chunk_review_comment
 from backend.project_rag.chunking.trello_chunker import chunk_trello_action
@@ -365,6 +367,7 @@ def retrieve_question(
     until: date | None = None,
     sources: tuple[str, ...] = SOURCES,
     label: str | None = None,
+    member_identity_map: Mapping[str, GroupMember] | None = None,
 ) -> QueryEvidence:
     """Retrieve source evidence and deterministic project facts without generation.
 
@@ -378,7 +381,8 @@ def retrieve_question(
     since_dt = _since_to_datetime(since)
     until_dt = _since_to_datetime(until)
     stats = collect_project_stats(
-        db, repo, since=since_dt, until=until_dt, sources=sources, label=label
+        db, repo, since=since_dt, until=until_dt, sources=sources, label=label,
+        member_identity_map=member_identity_map,
     )
     if stats.is_empty:
         raise ValueError(
@@ -417,10 +421,12 @@ def answer_question(
     until: date | None = None,
     sources: tuple[str, ...] = SOURCES,
     label: str | None = None,
+    member_identity_map: Mapping[str, GroupMember] | None = None,
 ) -> QueryResult:
     """Answer a natural-language question about one repo's activity."""
     retrieved = retrieve_question(
-        db, repo, question, since=since, until=until, sources=sources, label=label
+        db, repo, question, since=since, until=until, sources=sources, label=label,
+        member_identity_map=member_identity_map,
     )
     context, _ = _build_context(retrieved.sources, settings.max_context_chars)
     facts = format_stats_for_prompt(retrieved.stats, sources, since=since, until=until)

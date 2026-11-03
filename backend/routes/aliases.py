@@ -18,6 +18,7 @@ from typing import Dict, Optional
 from backend.db_dependency import get_db, get_group_or_404
 from backend.auth import is_email_workflow_group_member
 from backend.validation import AliasResolveRequest
+from backend.member_aliases import build_member_identity_map
 
 router = APIRouter(prefix="/groups/{group_id}/aliases", tags=["aliases"])
 
@@ -33,7 +34,8 @@ def resolve_aliases(
     case-insensitive name comparison. `source` is accepted but not
     currently used to vary matching behaviour."""
     group = get_group_or_404(db, group_id)
-    members_by_name = {
-        member.name.strip().lower(): member.id for member in group.members if member.name
+    members_by_name = build_member_identity_map(group.members)
+    return {
+        name: (member.id if (member := members_by_name.get(name.strip().casefold())) else None)
+        for name in payload.names
     }
-    return {name: members_by_name.get(name.strip().lower()) for name in payload.names}

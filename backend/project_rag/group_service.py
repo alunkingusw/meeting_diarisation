@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.jobs.service import submit_job
 from backend.llm.ollama_client import OllamaError, generate
+from backend.member_aliases import build_member_identity_map, canonical_member_name
 from backend.models import Group, Meeting, RawFile, RawFileType
 from backend.project_rag.models import Repo
 from backend.project_rag.schemas import (
@@ -186,7 +187,8 @@ def _query_provider_source(
     repo = get_or_create_repo(db, group)
     result = answer_question(
         db, repo, request.question, since=request.since, until=request.until,
-        sources=(source,), label=group.name
+        sources=(source,), label=group.name,
+        member_identity_map=build_member_identity_map(group.members),
     )
     return SourceQueryResponse(
         source=source,
@@ -238,6 +240,7 @@ def _transcript_stats(
         query = query.filter(Meeting.id == meeting_id)
     meeting_ids = sorted(row[0] for row in query.all())
     records, missing_ids = load_transcript_stats(group.id, meeting_ids)
+    member_identity_map = build_member_identity_map(group.members)
 
     total_duration = sum(float(record.get("total_duration_sec", 0.0)) for record in records)
     aggregate: dict[str, dict[str, float | int]] = {}
@@ -245,19 +248,30 @@ def _transcript_stats(
     for record in records:
         meeting_duration = float(record.get("total_duration_sec", 0.0))
         meeting_speakers: list[TranscriptSpeakerStatsResponse] = []
+        meeting_aggregate: dict[str, dict[str, float | int]] = {}
         for speaker in record.get("speakers", []):
-            name = str(speaker["speaker"])
-            duration = float(speaker.get("total_duration_sec", 0.0))
-            words = int(speaker.get("total_words", 0))
-            turns = int(speaker.get("turn_count", 0))
+            raw_name = str(speaker["speaker"])
+            name = canonical_member_name(raw_name, member_identity_map) or raw_name
+            totals = meeting_aggregate.setdefault(
+                name, {"duration": 0.0, "words": 0, "turns": 0}
+            )
+            totals["duration"] += float(speaker.get("total_duration_sec", 0.0))
+            totals["words"] += int(speaker.get("total_words", 0))
+            totals["turns"] += int(speaker.get("turn_count", 0))
+
+        for name, values in meeting_aggregate.items():
+            duration = float(values["duration"])
+            words = int(values["words"])
+            turns = int(values["turns"])
             meeting_speakers.append(
                 TranscriptSpeakerStatsResponse(
                     speaker=name,
                     total_duration_sec=duration,
                     total_words=words,
                     turn_count=turns,
-                    avg_words_per_turn=float(speaker.get("avg_words_per_turn", 0.0)),
-                    meeting_time_share_pct=float(speaker.get("pct_of_meeting_time", 0.0)),
+                    avg_words_per_turn=round(words / turns, 1) if turns else 0.0,
+                    meeting_time_share_pct=round(duration / meeting_duration * 100, 1)
+                    if meeting_duration else 0.0,
                     meetings_spoken=1,
                 )
             )
@@ -349,6 +363,11 @@ def _query_conversation(db: Session, group: Group, request: QueryRequest) -> Sou
             group_name, request.question, n_results=settings.retrieval_top_k,
             meeting_id=meeting_id, since=since, until=until,
         )
+    member_identity_map = build_member_identity_map(group.members)
+    hits = [
+        {**hit, "speaker": canonical_member_name(hit.get("speaker"), member_identity_map)}
+        for hit in hits
+    ]
     if not hits:
         raise ValueError("No indexed meeting transcripts match this question")
 

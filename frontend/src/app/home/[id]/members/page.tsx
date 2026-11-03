@@ -31,7 +31,10 @@ export default function MembersPage() {
   const { id } = useParams();
 
   const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
-  const { loading, getGroup, group, error, selectedMember, setSelectedMember, newMemberName, setNewMemberName, newMemberEmail, setNewMemberEmail, handleCreateMember, handleRemoveMember, fetchGroupMembers } = useGroupManager();
+  const [newAlias, setNewAlias] = useState('');
+  const [aliasError, setAliasError] = useState<string | null>(null);
+  const [savingAliases, setSavingAliases] = useState(false);
+  const { loading, getGroup, group, error, selectedMember, setSelectedMember, newMemberName, setNewMemberName, newMemberEmail, setNewMemberEmail, handleCreateMember, handleRemoveMember, updateMemberAliases, fetchGroupMembers } = useGroupManager();
   const { isValidAudioFile, uploading, uploadProgress, handleEmbeddingAudioDrop } = useMediaManager();
   useEffect(() => {
     if (!id) return;
@@ -40,6 +43,29 @@ export default function MembersPage() {
     fetchGroupMembers(Number(id), controller.signal);
     return () => controller.abort();
   }, [id, getGroup, fetchGroupMembers]);
+
+  const saveAliases = async (aliases: string[]) => {
+    if (!selectedMember) return;
+    setSavingAliases(true);
+    setAliasError(null);
+    try {
+      await updateMemberAliases(selectedMember.id, aliases);
+      setNewAlias('');
+    } catch (err) {
+      setAliasError(err instanceof Error ? err.message : 'Unable to update aliases.');
+    } finally {
+      setSavingAliases(false);
+    }
+  };
+
+  const handleAddAlias = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMember) return;
+    const alias = newAlias.trim();
+    const aliases = selectedMember.aliases ?? [];
+    if (!alias || [selectedMember.name, ...aliases].some(name => name?.toLocaleLowerCase() === alias.toLocaleLowerCase())) return;
+    void saveAliases([...aliases, alias]);
+  };
 
   if (loading || error || !group) return <GroupLoadState loading={loading} error={error} />;
 
@@ -141,6 +167,48 @@ export default function MembersPage() {
             <div>
               <p><strong>Name:</strong> {selectedMember.name}</p>
               <p><strong>ID:</strong> {selectedMember.id}</p>
+              <section className="mt-5" aria-labelledby="member-aliases-title">
+                <h3 id="member-aliases-title" className="text-sm font-medium text-gray-700">Aliases</h3>
+                {(selectedMember.aliases ?? []).length ? (
+                  <ul className="mt-2 space-y-1">
+                    {(selectedMember.aliases ?? []).map(alias => (
+                      <li key={alias} className="flex items-center justify-between gap-2 text-sm">
+                        <span>{alias}</span>
+                        <button
+                          type="button"
+                          aria-label={`Remove alias ${alias}`}
+                          disabled={savingAliases}
+                          onClick={() => void saveAliases((selectedMember.aliases ?? []).filter(current => current !== alias))}
+                          className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                        >
+                          Remove
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-sm text-gray-500">No aliases added.</p>
+                )}
+                <form onSubmit={handleAddAlias} className="mt-3 flex gap-2">
+                  <label htmlFor="member-alias" className="sr-only">Add an alias</label>
+                  <input
+                    id="member-alias"
+                    type="text"
+                    value={newAlias}
+                    onChange={event => setNewAlias(event.target.value)}
+                    placeholder="Add an alias"
+                    className="min-w-0 flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
+                  />
+                  <button
+                    type="submit"
+                    disabled={savingAliases || !newAlias.trim()}
+                    className="rounded bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {savingAliases ? 'Saving' : 'Add'}
+                  </button>
+                </form>
+                {aliasError && <p role="alert" className="mt-2 text-sm text-red-600">{aliasError}</p>}
+              </section>
               {selectedMember?.embedding_audio_path ? (
                 <EmbeddingAudioPlayer selectedMember={selectedMember} />
               ) : (

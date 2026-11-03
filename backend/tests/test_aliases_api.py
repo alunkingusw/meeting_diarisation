@@ -18,6 +18,31 @@ def test_resolve_aliases_matches_exact_case_insensitive_name(
     assert body["Someone Else"] is None
 
 
+def test_member_aliases_can_be_saved_and_resolved(
+    client, make_user, make_group, make_member_via_api, auth_header_for
+):
+    owner = make_user(username="owner")
+    group = make_group(name="Team A", owner=owner)
+    member = make_member_via_api(group, owner.id, name="Bob")
+    headers = auth_header_for(owner.id)
+
+    update_response = client.put(
+        f"/groups/{group.id}/members/{member['id']}",
+        json={"name": "Bob", "aliases": [" Robert ", "ROBERT", "Bobby"]},
+        headers=headers,
+    )
+    assert update_response.status_code == 200
+    assert update_response.json()["aliases"] == ["Robert", "Bobby"]
+
+    resolve_response = client.post(
+        f"/groups/{group.id}/aliases/resolve",
+        json={"names": ["robert", "BOBBY"]},
+        headers=headers,
+    )
+    assert resolve_response.status_code == 200
+    assert resolve_response.json() == {"robert": member["id"], "BOBBY": member["id"]}
+
+
 def test_resolve_aliases_requires_group_membership(
     client, make_user, make_group, make_member, auth_header_for
 ):

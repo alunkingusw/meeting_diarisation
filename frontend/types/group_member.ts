@@ -19,6 +19,9 @@ export type GroupReference = Pick<Group, 'id' | 'name'>;
 export interface GroupMember {
   id: number;
   name: string;
+  email?: string | null;
+  aliases?: string[];
+  embedding_audio_path?: string | null;
   created: string;
   group:GroupReference;
 }

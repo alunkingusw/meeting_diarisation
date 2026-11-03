@@ -139,6 +139,8 @@ def update_member(
         raise HTTPException(status_code=404, detail="Member not found")
     member.name = group_member_data.name
     member.email = group_member_data.email
+    if group_member_data.aliases is not None:
+        member.aliases = group_member_data.aliases
     db.commit()
     db.refresh(member)
     return member
