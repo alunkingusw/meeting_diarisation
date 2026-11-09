@@ -262,8 +262,10 @@ def make_meeting(db_session):
 
     from backend.models import Meeting
 
-    def _make(group, date=None):
+    def _make(group, date=None, created=None):
         meeting = Meeting(group_id=group.id, date=date or datetime.now(timezone.utc))
+        if created is not None:
+            meeting.created = created
         db_session.add(meeting)
         db_session.commit()
         db_session.refresh(meeting)

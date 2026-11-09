@@ -19,7 +19,7 @@ from backend.llm.ollama_client import OllamaError, generate
 from backend.models import Group, Meeting, MeetingComment
 from backend.project_rag import group_service
 from backend.project_rag.schemas import QueryRequest
-from backend.transcript_rag.indexer import search_transcripts, transcripts_in_window
+from backend.transcript_rag.indexer import search_transcripts, transcripts_for_meeting
 
 logger = logging.getLogger(__name__)
 
@@ -60,20 +60,21 @@ def _transcript_citation(chunk: dict) -> str:
 def collect_meeting_evidence(
     db: Session, group: Group, since: date, until: date
 ) -> list[ReportEvidenceItem]:
-    """Stored summaries and comments for meetings in the window; transcript chunks for meetings
-    that have no summary yet."""
+    """Stored summaries and comments for meetings added to the group in the window (by `created`,
+    so backdated meetings are still picked up); transcript chunks for meetings that have no
+    summary yet."""
     meetings = (
         db.query(Meeting)
         .filter(
             Meeting.group_id == group.id,
-            Meeting.date >= datetime.combine(since, time.min),
-            Meeting.date < datetime.combine(until, time.min),
+            Meeting.created >= datetime.combine(since, time.min),
+            Meeting.created < datetime.combine(until, time.min),
         )
         .order_by(Meeting.date)
         .all()
     )
     evidence: list[ReportEvidenceItem] = []
-    unsummarised: set[str] = set()
+    unsummarised: list[Meeting] = []
     for meeting in meetings:
         day = meeting.date.date().isoformat()
         if meeting.summary and meeting.summary.strip():
@@ -85,7 +86,7 @@ def collect_meeting_evidence(
                 )
             )
         else:
-            unsummarised.add(str(meeting.id))
+            unsummarised.append(meeting)
         if meeting.comments:
             lines = [
                 f"{_comment_author(c)} ({c.created.date().isoformat()}): {c.comment.strip()}"
@@ -100,22 +101,23 @@ def collect_meeting_evidence(
             )
 
     if unsummarised:
+        # Fetch chunks per meeting rather than by date window, so backdated meetings added in the
+        # window still contribute transcript evidence.
         group_name = group.name or ""
-        chunks = transcripts_in_window(group_name, since, until, settings.transcript_window_chunk_limit)
-        if chunks is None:
-            chunks = search_transcripts(
-                group_name, "meetings and decisions", settings.retrieval_top_k, since=since, until=until
-            )
-        for chunk in chunks:
-            if str(chunk.get("meeting_id")) not in unsummarised:
-                continue
-            evidence.append(
-                ReportEvidenceItem(
-                    source="meetings", evidence_id=str(chunk.get("chunk_id")),
-                    title=str(chunk.get("meeting_title")), event_date=chunk.get("meeting_date"),
-                    content=chunk.get("text", ""), citation=_transcript_citation(chunk),
+        for meeting in unsummarised:
+            chunks = transcripts_for_meeting(group_name, meeting.id, settings.transcript_window_chunk_limit)
+            if chunks is None:
+                chunks = search_transcripts(
+                    group_name, "meetings and decisions", settings.retrieval_top_k, meeting_id=meeting.id
                 )
-            )
+            for chunk in chunks:
+                evidence.append(
+                    ReportEvidenceItem(
+                        source="meetings", evidence_id=str(chunk.get("chunk_id")),
+                        title=str(chunk.get("meeting_title")), event_date=chunk.get("meeting_date"),
+                        content=chunk.get("text", ""), citation=_transcript_citation(chunk),
+                    )
+                )
     return evidence
 
 

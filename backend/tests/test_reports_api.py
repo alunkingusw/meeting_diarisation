@@ -22,10 +22,14 @@ def test_weekly_report_uses_summaries_and_comments_in_window(
     from backend.models import MeetingComment
 
     owner, group = _group(db_session, make_user, make_group)
-    inside = make_meeting(group, datetime(2026, 9, 8, 10))
+    inside = make_meeting(group, datetime(2026, 9, 8, 10), created=datetime(2026, 9, 8, 12))
     inside.summary = "The team agreed to ship the API."
     db_session.add(MeetingComment(meeting_id=inside.id, user_id=owner.id, comment="Needs docs"))
-    make_meeting(group, datetime(2026, 8, 1, 10)).summary = "Too early"
+    backdated = make_meeting(group, datetime(2026, 8, 20, 10), created=datetime(2026, 9, 9, 12))
+    backdated.summary = "Backdated meeting agreed the schema."
+    make_meeting(
+        group, datetime(2026, 8, 1, 10), created=datetime(2026, 8, 1, 12)
+    ).summary = "Added too early"
     db_session.commit()
 
     response = client.post(
@@ -38,8 +42,12 @@ def test_weekly_report_uses_summaries_and_comments_in_window(
     body = response.json()
     assert body["report_text"] == "fake answer"
     ids = [e["evidence_id"] for e in body["evidence"]]
-    assert ids == [f"meeting-{inside.id}-summary", f"meeting-{inside.id}-comments"]
-    assert body["evidence"][1]["content"].startswith("owner (")
+    assert ids == [
+        f"meeting-{backdated.id}-summary",
+        f"meeting-{inside.id}-summary",
+        f"meeting-{inside.id}-comments",
+    ]
+    assert body["evidence"][2]["content"].startswith("owner (")
     assert body["unavailable"] == []
 
 
@@ -47,15 +55,15 @@ def test_weekly_report_falls_back_to_transcript_chunks_for_unsummarised_meetings
     client, db_session, make_user, make_group, make_meeting, auth_header_for, monkeypatch
 ):
     owner, group = _group(db_session, make_user, make_group)
-    meeting = make_meeting(group, datetime(2026, 9, 8, 10))
+    meeting = make_meeting(group, datetime(2026, 9, 8, 10), created=datetime(2026, 9, 8, 12))
     chunk = {
         "chunk_id": f"{meeting.id}_00000", "meeting_id": str(meeting.id), "meeting_title": "Team A",
         "meeting_date": "2026-09-08", "speaker": "Alice", "text": "We agreed to ship.",
         "start_ts": "00:00:01.000", "end_ts": "00:00:09.000",
     }
-    other = {**chunk, "chunk_id": "99_00000", "meeting_id": "99"}
     monkeypatch.setattr(
-        "backend.engine.report_graph.transcripts_in_window", lambda *a, **k: [chunk, other]
+        "backend.engine.report_graph.transcripts_for_meeting",
+        lambda group_name, meeting_id, limit: [chunk] if meeting_id == meeting.id else [],
     )
 
     response = client.post(

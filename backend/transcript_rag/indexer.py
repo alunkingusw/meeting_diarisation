@@ -29,6 +29,7 @@ from typing import Any
 from backend.transcript_rag.vtt_rag import process_vtt_file
 from backend.config import settings
 from backend.transcript_rag.vectorstore import (
+    get_chunks_for_meeting,
     get_chunks_in_window,
     replace_meeting_chunks,
     search_chunks,
@@ -119,6 +120,13 @@ def transcripts_in_window(
     return get_chunks_in_window(
         transcripts_collection_name(group_name), date_to_ts(since), date_to_ts(until), limit
     )
+
+
+def transcripts_for_meeting(
+    group_name: str, meeting_id: int, limit: int
+) -> list[dict[str, Any]] | None:
+    """All chunks of one meeting in speech order, or None if there are more than `limit`."""
+    return get_chunks_for_meeting(transcripts_collection_name(group_name), meeting_id, limit)
 
 
 def load_transcript_stats(

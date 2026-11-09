@@ -105,9 +105,10 @@ def test_agent_actions_run_against_real_routes(
     with pytest.raises(ConflictError):
         agent_client.cancel_job(token, seen[0])
 
-    # weekly report path
+    # weekly report path (meetings are selected by the date they were added)
     stored = db_session.get(Meeting, meeting.id)
     stored.summary = "The team agreed to ship the API."
+    stored.created = datetime(2026, 10, 1, 11)
     db_session.commit()
     report = agent_client.compose_weekly_report(token, group.id, date(2026, 9, 30), date(2026, 10, 7))
     assert report.report_text == "fake answer"

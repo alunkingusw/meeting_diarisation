@@ -116,6 +116,31 @@ def search_chunks(
     return hits
 
 
+def get_chunks_for_meeting(
+    collection_name: str, meeting_id: int, limit: int
+) -> list[dict[str, Any]] | None:
+    """Every chunk of one meeting in speech order.
+
+    Returns None if more than `limit` chunks match, so callers can fall back to a relevance-ranked
+    sample instead of an unbounded read.
+    """
+    collection = get_collection_if_exists(collection_name)
+    if collection is None:
+        return []
+
+    found = collection.get(
+        where=_build_where(meeting_id, None, None), limit=limit + 1, include=["metadatas", "documents"]
+    )
+    if len(found["ids"]) > limit:
+        return None
+    chunks = [
+        {**metadata, "text": metadata.get("text") or document}
+        for metadata, document in zip(found["metadatas"], found["documents"])
+    ]
+    chunks.sort(key=lambda c: c.get("start_sec") or 0)
+    return chunks
+
+
 def get_chunks_in_window(
     collection_name: str, since_ts: int | None, until_ts: int | None, limit: int
 ) -> list[dict[str, Any]] | None:
