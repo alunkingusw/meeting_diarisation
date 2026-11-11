@@ -9,7 +9,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+from app.email_templates import copy as email_copy
 from jinja2 import Environment, FileSystemLoader
+
+from app.email_templates.copy import REPLY_CHAIN_TIP
 
 _TEMPLATE_DIR = Path(__file__).parent / "text"
 _env = Environment(
@@ -18,6 +21,7 @@ _env = Environment(
     trim_blocks=True,
     lstrip_blocks=True,
 )
+_env.globals["email_copy"] = email_copy
 
 
 def _render(name: str, **kwargs) -> str:
@@ -41,12 +45,20 @@ def render_clarification(
 ) -> tuple[str, str]:
     if original_subject and original_subject.strip():
         clean_subject = " ".join(original_subject.splitlines()).strip()[:160]
-        reply_prefix = "" if clean_subject.lower().startswith("re:") else "Re: "
-        clarification_tag = f" [Clarification needed | {job_id}]" if job_id else " [Clarification needed]"
+        reply_prefix = "" if clean_subject.lower().startswith("re:") else email_copy.REPLY_PREFIX
+        clarification_tag = (
+            f" [{email_copy.CLARIFICATION_SUBJECT_LABEL} | {job_id}]"
+            if job_id
+            else f" [{email_copy.CLARIFICATION_SUBJECT_LABEL}]"
+        )
         subject = f"{reply_prefix}{clean_subject}{clarification_tag}"
         original_subject = clean_subject
     else:
-        subject = f"Clarification needed — {job_id}" if job_id else "Clarification needed"
+        subject = (
+            f"{email_copy.CLARIFICATION_SUBJECT_LABEL} — {job_id}"
+            if job_id
+            else email_copy.CLARIFICATION_SUBJECT_LABEL
+        )
 
     quoted_original = ""
     if original_body_text:
@@ -62,6 +74,7 @@ def render_clarification(
         job_id=job_id,
         quoted_original=quoted_original,
         include_reply_chain_tip=include_reply_chain_tip,
+        reply_chain_tip=REPLY_CHAIN_TIP,
     )
     return subject, body
 
@@ -72,18 +85,9 @@ def render_clarification_received(job_id: str, value: str) -> tuple[str, str]:
     return subject, body
 
 
-# Detail the backend returns when an administrator's emailed token is refused an admin action.
-ADMIN_OVER_EMAIL_MARKER = "Administrator actions are not available over email"
-ADMIN_OVER_EMAIL_EXPLANATION = (
-    "Administrator actions, such as managing users or groups you don't belong to, can't be "
-    "performed by email, even for administrators. Please use the web app or the API instead. "
-    "Your normal access to your own groups still works by email."
-)
-
-
 def render_failure(reason: str, job_id: Optional[str] = None) -> tuple[str, str]:
-    if ADMIN_OVER_EMAIL_MARKER in reason:
-        reason = ADMIN_OVER_EMAIL_EXPLANATION
+    if email_copy.ADMIN_OVER_EMAIL_MARKER in reason:
+        reason = email_copy.ADMIN_OVER_EMAIL_EXPLANATION
     subject = f"Could not process your request — {job_id}" if job_id else "Could not process your request"
     body = _render("failure.txt.j2", job_id=job_id, reason=reason)
     return subject, body
@@ -136,7 +140,7 @@ def render_results(
 
 
 def render_cancelled(job_id: str) -> tuple[str, str]:
-    subject = f"Cancelled — {job_id}"
+    subject = f"{email_copy.CANCELLED_SUBJECT_PREFIX}{job_id}"
     body = _render("cancelled.txt.j2", job_id=job_id)
     return subject, body
 
@@ -198,7 +202,7 @@ def render_assess_result(
 
 
 def render_help() -> tuple[str, str]:
-    subject = "What can I ask this system to do?"
+    subject = email_copy.HELP_SUBJECT
     body = _render("help.txt.j2")
     return subject, body
 

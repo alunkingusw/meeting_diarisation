@@ -4,8 +4,9 @@ import pytest
 
 from app.commands.schema import Operation
 from app.commands.validator import ValidatedCommand
+from app.email_templates.copy import CANNOT_CANCEL_EXPLANATION
 from app.handlers import cancel, help as help_handler, results, status
-from app.handlers.base import ClarificationRequired
+from app.handlers.base import BACKEND_JOB_LABELS, ClarificationRequired, STATUS_TEXT
 from app.jobs.models import JobState
 from app.jobs.store import JobStore, Outbox
 
@@ -85,7 +86,7 @@ def test_cancel_completed_job_is_refused(db_path: Path):
     assert outcome.outcome_type == "cannot_cancel"
     assert job_store.get(job.job_id).status == JobState.COMPLETED  # unchanged
     pending = outbox.pending()
-    assert "already been processed" in pending[0].body_text.lower()
+    assert CANNOT_CANCEL_EXPLANATION in pending[0].body_text
 
 
 def test_status_for_job_deleted_between_validation_and_handling_raises_clarification(db_path: Path):
@@ -126,7 +127,7 @@ def test_status_includes_backend_transcript_processing_progress(db_path: Path):
     )
 
     body = outbox.pending()[0].body_text
-    assert "Transcript indexing and summarising: running (summarising meeting)" in body
+    assert f"{BACKEND_JOB_LABELS['transcript_processing']}: running (summarising meeting)" in body
 
 
 def test_status_still_answers_when_the_backend_is_unreachable(db_path: Path):
@@ -141,7 +142,7 @@ def test_status_still_answers_when_the_backend_is_unreachable(db_path: Path):
     )
 
     assert outcome.outcome_type == "status_reply"
-    assert "Currently being processed" in outbox.pending()[0].body_text
+    assert STATUS_TEXT[JobState.PROCESSING] in outbox.pending()[0].body_text
 
 
 def test_cancel_stops_the_backend_job_for_a_processing_query(db_path: Path):

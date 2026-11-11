@@ -19,6 +19,7 @@ from app.admin.notifier import AdminCategory, AdminNotifier
 from app.commands.validator import ValidatedCommand
 from app.diarisation.client import DiarisationApiError, DiarisationClient, JobCancelledError, NotFoundError
 from app.diarisation.group_matching import Matched, group_clarification_question, match_group
+from app.email_templates import copy as email_copy
 from app.email_templates.render import (
     render_assess_ack,
     render_assess_result,
@@ -42,9 +43,9 @@ _MAX_SOURCE_QUESTION_CHARS = 4000
 def _source_unavailable_note(source: str, detail: str) -> str:
     message = detail.lower()
     if source == "github" and "no github source linked" in message:
-        return "Your group doesn't have a GitHub repo linked yet, so I couldn't check it."
+        return email_copy.GITHUB_UNAVAILABLE_NOTE
     if source == "trello" and "no trello source linked" in message:
-        return "Your group doesn't have a Trello board linked yet, so I couldn't check it."
+        return email_copy.TRELLO_UNAVAILABLE_NOTE
     return f"I couldn't check {_SOURCE_LABELS[source]} right now."
 
 
@@ -269,7 +270,7 @@ def execute(
                 return
             except NotFoundError as exc:
                 if sources == ["conversation"]:
-                    unified_answer = "I didn't find anything in past meeting transcripts that speaks to this."
+                    unified_answer = email_copy.NO_TRANSCRIPT_MATCH_TEXT
                 else:
                     unavailable_notes.extend(
                         _source_unavailable_note(source, str(exc)) for source in sources

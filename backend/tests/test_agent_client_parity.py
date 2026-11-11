@@ -12,6 +12,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from backend.auth import ADMIN_OVER_EMAIL_DETAIL
 
 AGENT_DIR = Path(__file__).resolve().parents[2] / "services" / "email-agent"
 VTT = b"WEBVTT\n\n00:00:01.000 --> 00:00:09.000\n<v Bob>We agreed to ship the API.</v>\n"
@@ -170,9 +171,9 @@ def test_admin_over_email_has_no_admin_rights(
 
     # Admin routes and overrides are refused over email, with an explanatory detail...
     denied = httpx.get(f"{live_backend}/users/", headers=email_headers)
-    assert denied.status_code == 403 and "not available over email" in denied.json()["detail"]
+    assert denied.status_code == 403 and denied.json()["detail"] == ADMIN_OVER_EMAIL_DETAIL
     all_groups = httpx.get(f"{live_backend}/groups/?all_groups=true", headers=email_headers)
-    assert all_groups.status_code == 403 and "not available over email" in all_groups.json()["detail"]
+    assert all_groups.status_code == 403 and all_groups.json()["detail"] == ADMIN_OVER_EMAIL_DETAIL
     with pytest.raises(AuthError):
         agent_client.query_source(token, foreign.id, "conversation", "anything")
     # ...ordinary access to groups the admin owns still works over email...

@@ -50,8 +50,7 @@ STATUS_TEXT: dict[JobState, str] = {
     JobState.CANCELLED: "Cancelled",
 }
 
-
-_BACKEND_JOB_LABELS = {
+BACKEND_JOB_LABELS = {
     "transcript_processing": "Transcript indexing and summarising",
     "query": "Answer generation",
 }
@@ -77,7 +76,7 @@ def backend_progress(client, sender_email: str, job: Job) -> Optional[str]:
         return None
     if backend_job is None:
         return None
-    detail = f"{_BACKEND_JOB_LABELS.get(backend_job.kind, backend_job.kind)}: {backend_job.state}"
+    detail = f"{BACKEND_JOB_LABELS.get(backend_job.kind, backend_job.kind)}: {backend_job.state}"
     if backend_job.progress and not backend_job.finished:
         detail += f" ({backend_job.progress})"
     if backend_job.state == "failed" and backend_job.error:

@@ -1,4 +1,5 @@
 from app.handlers.base import HandlerOutcome
+from app.email_templates.copy import CANCELLED_SUBJECT_PREFIX, HELP_SUBJECT
 from app.jobs.models import Job, JobState
 from app.llm.command_dispatcher import CommandGraphDispatcher
 
@@ -32,7 +33,7 @@ def test_help_dispatcher_matches_handler_contract():
     assert isinstance(outcome, HandlerOutcome)
     assert outcome.outcome_type == "help_reply"
     assert outbox.messages[0]["to_email"] == "alice@example.com"
-    assert outbox.messages[0]["subject"].startswith("What can I ask this system to do?")
+    assert outbox.messages[0]["subject"].startswith(HELP_SUBJECT)
 
 
 def test_cancel_dispatcher_matches_handler_contract():
@@ -58,4 +59,6 @@ def test_cancel_dispatcher_matches_handler_contract():
     assert isinstance(outcome, HandlerOutcome)
     assert outcome.outcome_type == "cancelled"
     assert outcome.job_id == "DIAR-2026-0919-0003"
-    assert outbox.messages[0]["subject"].startswith("Cancelled — DIAR-2026-0919-0003")
+    assert outbox.messages[0]["subject"].startswith(
+        f"{CANCELLED_SUBJECT_PREFIX}DIAR-2026-0919-0003"
+    )

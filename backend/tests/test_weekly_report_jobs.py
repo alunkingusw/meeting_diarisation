@@ -5,7 +5,11 @@ def test_weekly_batch_persists_one_report_and_sends_only_to_group_owners(
     db_session, make_user, make_group, monkeypatch
 ):
     from backend.engine.report_schemas import WeeklyReportResponse
-    from backend.jobs.handlers import weekly_reports
+    from backend.jobs.handlers import (
+        GROUP_NUDGE_IF_MET_LINE,
+        GROUP_NUDGE_NO_MEETING_LINE,
+        weekly_reports,
+    )
     from backend.models import WeeklyReport, users_groups
 
     owner = make_user(username="supervisor")
@@ -126,6 +130,8 @@ def test_group_nudger_only_queues_for_opted_in_groups_without_meetings_and_dedup
     assert second == {"nudged_groups": 0, "queued_recipients": 0, "failed_recipients": []}
     assert len(sent) == 1
     assert sent[0]["to"] == "member@example.com"
-    assert "no meeting is recorded for Eligible" in sent[0]["body"]
-    assert "send the transcript or email the meeting details" in sent[0]["body"]
+    assert GROUP_NUDGE_NO_MEETING_LINE.format(
+        group_name="Eligible", period_start="2026-10-01", period_end="2026-10-08"
+    ) in sent[0]["body"]
+    assert GROUP_NUDGE_IF_MET_LINE in sent[0]["body"]
     assert len(nudges) == 1 and nudges[0].status == "queued"

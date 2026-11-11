@@ -28,6 +28,7 @@ logging.basicConfig(level=logging.INFO)
 from fastapi.middleware.cors import CORSMiddleware
 
 backend = FastAPI()
+ROOT_STATUS_MESSAGE = "Diarisation API is running."
 
 
 @backend.on_event("startup")
@@ -60,7 +61,7 @@ backend.add_middleware(
 #create default landing page for quick checks.
 @backend.get("/")
 def root():
-    return {"message": "Diarisation API is running."}
+    return {"message": ROOT_STATUS_MESSAGE}
 
 
 backend.include_router(api_router)

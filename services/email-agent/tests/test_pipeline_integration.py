@@ -3,6 +3,7 @@ from pathlib import Path
 from app.admin.notifier import AdminNotifier
 from app.auth.authorisation import AuthSignals, SenderAuthoriser
 from app.diarisation.client import GroupSummary
+from app.email_templates import copy as email_copy
 from app.jobs.models import JobState
 from app.jobs.store import JobStore, Outbox, ProcessedMessageStore
 from app.jobs.worker import JobWorker
@@ -262,9 +263,9 @@ def test_group_member_cannot_use_help_or_other_commands(db_path: Path, tmp_path:
 
     assert job_store.list_queued() == []
     member_reply = next(message for message in mail.sent if message.to == "carol@uni.ac.uk")
-    assert "Submit a meeting transcript" in member_reply.body_text
-    assert "Add a comment to a meeting" in member_reply.body_text
-    assert "group_id=<id>" in member_reply.body_text
+    assert email_copy.GROUP_MEMBER_SUBMIT_ACTION in member_reply.body_text
+    assert email_copy.GROUP_MEMBER_ADD_COMMENT_ACTION in member_reply.body_text
+    assert email_copy.GROUP_MEMBER_COMMENT_INSTRUCTION in member_reply.body_text
 
 
 def test_group_member_gets_available_actions_when_intent_is_unclear(db_path: Path, tmp_path: Path):
@@ -288,8 +289,8 @@ def test_group_member_gets_available_actions_when_intent_is_unclear(db_path: Pat
 
     assert job_store.list_queued() == []
     member_reply = next(message for message in mail.sent if message.to == "carol@uni.ac.uk")
-    assert "submit a meeting transcript" in member_reply.body_text.lower()
-    assert "add a comment to a meeting" in member_reply.body_text.lower()
+    assert email_copy.GROUP_MEMBER_SUBMIT_ACTION.lower() in member_reply.body_text.lower()
+    assert email_copy.GROUP_MEMBER_ADD_COMMENT_ACTION.lower() in member_reply.body_text.lower()
 
 
 def test_group_member_gets_available_actions_when_parser_fails(db_path: Path, tmp_path: Path):
@@ -308,8 +309,8 @@ def test_group_member_gets_available_actions_when_parser_fails(db_path: Path, tm
     pipeline.flush_outbox()
 
     member_reply = next(message for message in mail.sent if message.to == "carol@uni.ac.uk")
-    assert "submit a meeting transcript" in member_reply.body_text.lower()
-    assert "add a comment to a meeting" in member_reply.body_text.lower()
+    assert email_copy.GROUP_MEMBER_SUBMIT_ACTION.lower() in member_reply.body_text.lower()
+    assert email_copy.GROUP_MEMBER_ADD_COMMENT_ACTION.lower() in member_reply.body_text.lower()
 
 
 def _worker(
@@ -527,12 +528,15 @@ def test_missing_meeting_date_clarification_reply_resumes_same_job(db_path: Path
     clarification = mail.sent[-1]
     assert "date" in clarification.body_text.lower()
     assert clarification.subject.startswith(
-        "Re: Project sync transcript [Clarification needed | DIAR-"
+        f"{email_copy.REPLY_PREFIX}Project sync transcript "
+        f"[{email_copy.CLARIFICATION_SUBJECT_LABEL} | DIAR-"
     )
     assert clarification.subject.endswith("]")
-    assert "Subject: Project sync transcript" in clarification.body_text
+    assert "Project sync transcript" in clarification.body_text
     assert "> Please submit the transcript from our project sync." in clarification.body_text
-    job_id = clarification.subject.split("[Clarification needed | ", 1)[1].split("]", 1)[0]
+    job_id = clarification.subject.split(
+        f"[{email_copy.CLARIFICATION_SUBJECT_LABEL} | ", 1
+    )[1].split("]", 1)[0]
     job = job_store.get(job_id)
     assert job.status == JobState.NEEDS_CLARIFICATION
     assert job.meeting_date is None

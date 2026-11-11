@@ -4,6 +4,7 @@ from app.admin.notifier import AdminNotifier
 from app.commands.schema import Operation
 from app.commands.validator import ValidatedCommand
 from app.diarisation.client import GroupSummary
+from app.email_templates import copy as email_copy
 from app.handlers import assess_query
 from app.jobs.models import JobState
 from app.jobs.store import JobStore, Outbox
@@ -197,7 +198,7 @@ def test_execute_no_transcript_match_says_nothing_found(db_path: Path):
 
     assess_query.execute(job, diarisation, job_store, outbox, admin)
 
-    assert "didn't find anything" in outbox.pending()[0].body_text.lower()
+    assert email_copy.NO_TRANSCRIPT_MATCH_TEXT in outbox.pending()[0].body_text
 
 
 def test_execute_github_only_queries_github_source(db_path: Path):
@@ -278,7 +279,7 @@ def test_execute_unlinked_repo_notes_unavailable_but_still_sends_transcript_answ
     assert job_store.get(job.job_id).status == JobState.COMPLETED
     body = outbox.pending()[0].body_text
     assert "Alice raised the API redesign on Tuesday." in body
-    assert "doesn't have a GitHub repo linked" in body
+    assert email_copy.GITHUB_UNAVAILABLE_NOTE in body
     turns = job_store.list_query_turns(
         job.query_conversation_id, job.sender_email, job.backend_user_id, 1
     )

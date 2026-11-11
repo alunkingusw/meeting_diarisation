@@ -14,6 +14,15 @@ from backend.models import Group, GroupNudge, Meeting, User, WeeklyReport, users
 
 logger = logging.getLogger(__name__)
 
+GROUP_NUDGE_NO_MEETING_LINE = (
+    "No meeting is recorded for {group_name} between {period_start} and {period_end}."
+)
+GROUP_NUDGE_IF_MET_LINE = (
+    "If you did meet, you can send the transcript or email the meeting details to the "
+    "usual project mailbox so they can be added to the group's records. Otherwise, "
+    "no action is needed."
+)
+
 
 @handler("transcript_processing")
 def transcript_processing(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
@@ -325,12 +334,15 @@ def group_nudger(ctx: JobContext, params: dict[str, Any]) -> dict[str, Any]:
                     nudge_id = nudge.id
 
                 subject = f"No meeting recorded this week - {group_name}"
+                no_meeting_line = GROUP_NUDGE_NO_MEETING_LINE.format(
+                    group_name=group_name,
+                    period_start=period_start,
+                    period_end=period_end,
+                )
                 body = (
                     f"Hello,\n\n"
-                    f"No meeting is recorded for {group_name} between {period_start} and {period_end}.\n\n"
-                    "If you did meet, you can send the transcript or email the meeting details to the "
-                    "usual project mailbox so they can be added to the group's records. Otherwise, "
-                    "no action is needed.\n"
+                    f"{no_meeting_line}\n\n"
+                    f"{GROUP_NUDGE_IF_MET_LINE}\n"
                 )
                 try:
                     send_email(to=recipient, subject=subject, body=body)

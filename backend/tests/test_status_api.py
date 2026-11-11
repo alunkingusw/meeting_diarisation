@@ -1,4 +1,6 @@
 """
+
+from backend.main import ROOT_STATUS_MESSAGE
 Smoke tests for the root/status/gpu-status endpoints. The real model-loading
 checks inside `check_model_status()` (whisper/pyannote actually loading) are
 covered separately under `backend/tests/integration/`, since they need the
@@ -9,7 +11,7 @@ full ML stack and a working Hugging Face token.
 def test_root(client):
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Diarisation API is running."}
+    assert response.json() == {"message": ROOT_STATUS_MESSAGE}
 
 
 def test_status_reports_database_connected(client):

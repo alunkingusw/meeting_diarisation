@@ -1,4 +1,6 @@
 from app.email_templates import render
+from app.email_templates import copy as email_copy
+from app.email_templates.copy import REPLY_CHAIN_TIP
 
 _INTERNAL_OPERATION_NAME = "submit_transcript"
 
@@ -14,7 +16,7 @@ def test_ack_never_exposes_internal_operation_name():
 
 def test_ack_without_group_name_omits_group_line():
     _, body = render.render_ack("DIAR-2026-0811-0001", "meeting.vtt", "2026-08-11", None)
-    assert "Group:" not in body
+    assert email_copy.GROUP_LABEL not in body
 
 
 def test_clarification_includes_the_question():
@@ -31,7 +33,10 @@ def test_clarification_preserves_original_subject_and_quotes_original_email():
         original_body_text="We agreed to begin the pilot.\nPlease log this meeting.",
     )
 
-    assert subject == "Re: Project sync notes [Clarification needed | DIAR-2026-1002-0001]"
+    assert subject == (
+        f"{email_copy.REPLY_PREFIX}Project sync notes "
+        f"[{email_copy.CLARIFICATION_SUBJECT_LABEL} | DIAR-2026-1002-0001]"
+    )
     assert "What date was the meeting?" in body
     assert "Subject: Project sync notes" in body
     assert "> We agreed to begin the pilot." in body
@@ -46,10 +51,7 @@ def test_query_clarification_ends_with_reply_chain_tip():
         include_reply_chain_tip=True,
     )
 
-    assert body.endswith(
-        "Tip: When replying, delete the quoted email conversation below to allow the server to "
-        "focus on your clarification response. Keep the response brief and to the point.\n"
-    )
+    assert body.endswith(f"{email_copy.REPLY_CHAIN_TIP}\n")
 
 
 def test_failure_with_job_id():
@@ -84,7 +86,7 @@ def test_completion_with_no_unresolved_speakers_omits_that_section():
         "DIAR-2026-0811-0003", "Team A", "2026-08-11", resolved_attendees=["Alice"],
         unresolved_speakers=[],
     )
-    assert "could not be matched" not in body
+    assert email_copy.UNRESOLVED_SPEAKERS_LEAD not in body
 
 
 def test_status_renders_job_id_and_status():
@@ -101,7 +103,7 @@ def test_cancelled_confirms_job_id():
 
 def test_cannot_cancel_explains_why():
     subject, body = render.render_cannot_cancel("DIAR-2026-0811-0006", "Completed")
-    assert "already been processed" in body.lower()
+    assert email_copy.CANNOT_CANCEL_EXPLANATION in body
     assert "Completed" in body
 
 
@@ -154,9 +156,9 @@ def test_assess_result_renders_parent_answer_as_one_findings_section():
         unified_answer="The API decision is recorded in the transcript [meeting-42].",
     )
 
-    assert "Findings:" in body
+    assert email_copy.ASSESS_FINDINGS_HEADING in body
     assert "The API decision is recorded in the transcript [meeting-42]." in body
-    assert "From your group's GitHub" not in body
+    assert email_copy.ASSESS_GITHUB_HEADING not in body
     assert "couldn't check the Trello board" in body
 
 
@@ -167,5 +169,5 @@ def test_failure_explains_admin_actions_are_not_available_over_email():
         "GET /users/ returned 403: Administrator actions are not available over email", job_id="DIAR-2026-1007-0001"
     )
 
-    assert "can't be performed by email" in body
+    assert email_copy.ADMIN_OVER_EMAIL_EXPLANATION in body
     assert "returned 403" not in body

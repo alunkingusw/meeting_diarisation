@@ -4,7 +4,7 @@ Group: {{ group_name }}
 {% endif %}
 {% if unified_answer %}
 
-Findings:
+{{ email_copy.ASSESS_FINDINGS_HEADING }}
 {{ unified_answer }}
 {% else %}
 {% if transcript_answer %}
@@ -14,7 +14,7 @@ From past meeting transcripts:
 {% endif %}
 {% if github_trello_answer %}
 
-From your group's GitHub{% if trello_checked %} and Trello{% endif %}:
+{{ email_copy.ASSESS_GITHUB_HEADING }}{% if trello_checked %} and Trello{% endif %}:
 {{ github_trello_answer }}
 {% endif %}
 {% endif %}
