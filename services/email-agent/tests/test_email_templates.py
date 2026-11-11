@@ -38,6 +38,20 @@ def test_clarification_preserves_original_subject_and_quotes_original_email():
     assert "> Please log this meeting." in body
 
 
+def test_query_clarification_ends_with_reply_chain_tip():
+    _, body = render.render_clarification(
+        "Which group is this question for?",
+        original_subject="Project question",
+        original_body_text="Can you find the latest update?",
+        include_reply_chain_tip=True,
+    )
+
+    assert body.endswith(
+        "Tip: When replying, delete the quoted email conversation below to allow the server to "
+        "focus on your clarification response. Keep the response brief and to the point.\n"
+    )
+
+
 def test_failure_with_job_id():
     subject, body = render.render_failure("The file was empty.", job_id="DIAR-2026-0811-0002")
     assert "DIAR-2026-0811-0002" in subject

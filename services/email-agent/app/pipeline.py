@@ -221,7 +221,13 @@ class EmailProcessingPipeline:
         except ClarificationRequired as e:
             self._reply_and_finalize(
                 msg,
-                *self._render_clarification_for_message(msg, sender_email, e.question, thread_job_id),
+                *self._render_clarification_for_message(
+                    msg,
+                    sender_email,
+                    e.question,
+                    thread_job_id,
+                    include_reply_chain_tip=parsed_cmd.operation == Operation.ASSESS_QUERY,
+                ),
                 outcome="clarification_sent",
                 operation=parsed_cmd.operation.value,
             )
@@ -241,7 +247,13 @@ class EmailProcessingPipeline:
         except ClarificationRequired as e:
             self._reply_and_finalize(
                 msg,
-                *self._render_clarification_for_message(msg, sender_email, e.question, thread_job_id),
+                *self._render_clarification_for_message(
+                    msg,
+                    sender_email,
+                    e.question,
+                    thread_job_id,
+                    include_reply_chain_tip=validated.operation == Operation.ASSESS_QUERY,
+                ),
                 outcome="clarification_sent",
                 operation=validated.operation.value,
             )
@@ -339,6 +351,7 @@ class EmailProcessingPipeline:
         sender_email: str,
         question: str,
         job_id: Optional[str] = None,
+        include_reply_chain_tip: bool = False,
     ) -> tuple[str, str]:
         original_subject = msg.subject
         original_body_text = msg.body_text
@@ -352,6 +365,7 @@ class EmailProcessingPipeline:
             job_id,
             original_subject=original_subject,
             original_body_text=original_body_text,
+            include_reply_chain_tip=include_reply_chain_tip,
         )
 
     def _continue_clarification(self, msg: EmailMessage, sender_email: str, job_id: str) -> bool:

@@ -37,6 +37,7 @@ def render_clarification(
     job_id: Optional[str] = None,
     original_subject: Optional[str] = None,
     original_body_text: Optional[str] = None,
+    include_reply_chain_tip: bool = False,
 ) -> tuple[str, str]:
     if original_subject and original_subject.strip():
         clean_subject = " ".join(original_subject.splitlines()).strip()[:160]
@@ -60,6 +61,7 @@ def render_clarification(
         question=question,
         job_id=job_id,
         quoted_original=quoted_original,
+        include_reply_chain_tip=include_reply_chain_tip,
     )
     return subject, body
 

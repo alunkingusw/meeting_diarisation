@@ -185,7 +185,11 @@ def execute(
             job_store.set_status(job.job_id, JobState.NEEDS_CLARIFICATION)
             pending_clarifications.put(job.job_id, question, "group_hint", [g.name for g in groups])
             subject, body = render_clarification(
-                question, job.job_id, job.original_subject, job.original_body_text
+                question,
+                job.job_id,
+                job.original_subject,
+                job.original_body_text,
+                include_reply_chain_tip=True,
             )
             outbox.enqueue(
                 to_email=job.sender_email, subject=subject, body_text=body, job_id=job.job_id,
