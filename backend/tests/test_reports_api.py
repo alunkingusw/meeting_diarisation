@@ -93,6 +93,62 @@ def test_weekly_report_marks_linked_but_empty_source_unavailable(
     assert response.json()["unavailable"] == ["github (nothing ingested yet)"]
 
 
+def test_weekly_report_includes_github_comment_only_activity_in_period(
+    client, db_session, make_user, make_group, auth_header_for, fake_llm
+):
+    from datetime import timezone
+
+    from backend.project_rag import group_service
+    from backend.project_rag.models import Issue, IssueComment
+
+    owner, group = _group(db_session, make_user, make_group, linked=True)
+    repo = group_service.get_or_create_repo(db_session, group)
+    issue = Issue(
+        repo_id=repo.id,
+        github_issue_number=42,
+        title="Existing issue",
+        body=None,
+        author="Alice",
+        state="open",
+        created_at=datetime(2026, 8, 1, tzinfo=timezone.utc),
+    )
+    db_session.add(issue)
+    db_session.flush()
+    db_session.add_all(
+        [
+            IssueComment(
+                issue_id=issue.id,
+                github_comment_id=4201,
+                author="Bob",
+                body="In-period comment",
+                created_at=datetime(2026, 9, 10, tzinfo=timezone.utc),
+            ),
+            IssueComment(
+                issue_id=issue.id,
+                github_comment_id=4202,
+                author="Carol",
+                body="After-period comment",
+                created_at=datetime(2026, 9, 15, tzinfo=timezone.utc),
+            ),
+        ]
+    )
+    repo.last_synced_at = datetime(2026, 9, 16, tzinfo=timezone.utc)
+    db_session.commit()
+
+    response = client.post(
+        f"/groups/{group.id}/reports/weekly",
+        json={"period_start": "2026-09-07", "period_end": "2026-09-14"},
+        headers=auth_header_for(owner.id),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["source"] for item in body["evidence"]] == ["github"]
+    assert "In-period comment" in fake_llm.prompts[0]
+    assert "After-period comment" not in fake_llm.prompts[0]
+    assert body["unavailable"] == []
+
+
 def test_weekly_report_rejects_empty_period_and_non_members(
     client, db_session, make_user, make_group, auth_header_for
 ):

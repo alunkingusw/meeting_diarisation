@@ -144,7 +144,7 @@ def collect_project_evidence(
         db.rollback()
         try:
             answer = group_service.query_source(
-                db, group, source, QueryRequest(question=question, since=since)
+                db, group, source, QueryRequest(question=question, since=since, until=until)
             ).answer.strip()
         except ValueError:
             repo = group_service.get_or_create_repo(db, group)

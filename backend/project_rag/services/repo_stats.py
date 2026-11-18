@@ -81,6 +81,8 @@ class ProjectStats:
         return (
             self.total_commits == 0
             and self.total_issues == 0
+            and self.total_issue_comments == 0
+            and self.total_review_comments == 0
             and self.total_trello_actions == 0
         )
 
